@@ -1,64 +1,118 @@
--- Módulo de Stock: sucursales, productos y stock por sucursal
+-- Módulo de Stock
 
 create extension if not exists "pgcrypto";
 
-create table if not exists branches (
+create table if not exists categorias (
   id uuid primary key default gen_random_uuid(),
-  name text not null,
-  address text,
+  nombre text not null unique,
   created_at timestamptz not null default now()
 );
 
-create table if not exists products (
+create table if not exists marcas (
+  id uuid primary key default gen_random_uuid(),
+  nombre text not null unique,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists unidades_medida (
+  id uuid primary key default gen_random_uuid(),
+  nombre text not null unique,
+  abreviatura text not null,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists tipos_deposito (
+  id uuid primary key default gen_random_uuid(),
+  nombre text not null unique,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists depositos (
+  id uuid primary key default gen_random_uuid(),
+  nombre text not null,
+  direccion text,
+  tipo_deposito_id uuid not null references tipos_deposito(id),
+  created_at timestamptz not null default now()
+);
+
+create table if not exists productos (
   id uuid primary key default gen_random_uuid(),
   sku text unique not null,
-  name text not null,
-  unit text not null default 'unidad',
-  category text,
+  nombre text not null,
+  descripcion text,
+  categoria_id uuid references categorias(id),
+  marca_id uuid references marcas(id),
+  unidad_medida_id uuid not null references unidades_medida(id),
   created_at timestamptz not null default now()
 );
 
-create table if not exists stock (
+create table if not exists stock_x_deposito (
   id uuid primary key default gen_random_uuid(),
-  product_id uuid not null references products(id) on delete cascade,
-  branch_id uuid not null references branches(id) on delete cascade,
-  quantity numeric not null default 0,
+  producto_id uuid not null references productos(id) on delete cascade,
+  deposito_id uuid not null references depositos(id) on delete cascade,
+  cantidad numeric not null default 0,
   updated_at timestamptz not null default now(),
-  unique (product_id, branch_id)
+  unique (producto_id, deposito_id)
 );
 
-create table if not exists stock_movements (
+create table if not exists tipos_movimiento (
   id uuid primary key default gen_random_uuid(),
-  product_id uuid not null references products(id) on delete restrict,
-  branch_id uuid not null references branches(id) on delete restrict,
-  type text not null check (type in ('in', 'out', 'transfer')),
-  quantity numeric not null check (quantity > 0),
-  reference text,
-  created_by uuid references auth.users(id),
+  nombre text not null unique,
   created_at timestamptz not null default now()
 );
 
--- RLS: por ahora, cualquier usuario autenticado puede leer y escribir.
--- TODO: restringir por sucursal cuando exista la tabla profiles (user -> branch_id, role).
-alter table branches enable row level security;
-alter table products enable row level security;
-alter table stock enable row level security;
-alter table stock_movements enable row level security;
+create table if not exists movimientos_stock (
+  id uuid primary key default gen_random_uuid(),
+  tipo_movimiento_id uuid not null references tipos_movimiento(id),
+  deposito_origen_id uuid references depositos(id),
+  deposito_destino_id uuid references depositos(id),
+  fecha timestamptz not null default now(),
+  observaciones text,
+  created_by uuid references auth.users(id),
+  created_at timestamptz not null default now(),
+  constraint movimiento_tiene_deposito check (
+    deposito_origen_id is not null or deposito_destino_id is not null
+  )
+);
 
-create policy "branches: lectura autenticados" on branches
-  for select to authenticated using (true);
-create policy "products: lectura autenticados" on products
-  for select to authenticated using (true);
-create policy "stock: lectura autenticados" on stock
-  for select to authenticated using (true);
-create policy "stock_movements: lectura autenticados" on stock_movements
-  for select to authenticated using (true);
+create table if not exists detalle_movimiento (
+  id uuid primary key default gen_random_uuid(),
+  movimiento_id uuid not null references movimientos_stock(id) on delete cascade,
+  producto_id uuid not null references productos(id),
+  cantidad numeric not null check (cantidad > 0),
+  created_at timestamptz not null default now()
+);
 
-create policy "products: escritura autenticados" on products
+-- RLS: por ahora, cualquier usuario autenticado puede leer y escribir todo.
+-- TODO: restringir por depósito cuando exista una tabla de perfiles (usuario -> depósito, rol).
+alter table categorias enable row level security;
+alter table marcas enable row level security;
+alter table unidades_medida enable row level security;
+alter table tipos_deposito enable row level security;
+alter table depositos enable row level security;
+alter table productos enable row level security;
+alter table stock_x_deposito enable row level security;
+alter table tipos_movimiento enable row level security;
+alter table movimientos_stock enable row level security;
+alter table detalle_movimiento enable row level security;
+
+create policy "categorias: acceso autenticados" on categorias
   for all to authenticated using (true) with check (true);
-create policy "stock: escritura autenticados" on stock
+create policy "marcas: acceso autenticados" on marcas
   for all to authenticated using (true) with check (true);
-create policy "stock_movements: escritura autenticados" on stock_movements
+create policy "unidades_medida: acceso autenticados" on unidades_medida
   for all to authenticated using (true) with check (true);
-create policy "branches: escritura autenticados" on branches
+create policy "tipos_deposito: acceso autenticados" on tipos_deposito
+  for all to authenticated using (true) with check (true);
+create policy "depositos: acceso autenticados" on depositos
+  for all to authenticated using (true) with check (true);
+create policy "productos: acceso autenticados" on productos
+  for all to authenticated using (true) with check (true);
+create policy "stock_x_deposito: acceso autenticados" on stock_x_deposito
+  for all to authenticated using (true) with check (true);
+create policy "tipos_movimiento: acceso autenticados" on tipos_movimiento
+  for all to authenticated using (true) with check (true);
+create policy "movimientos_stock: acceso autenticados" on movimientos_stock
+  for all to authenticated using (true) with check (true);
+create policy "detalle_movimiento: acceso autenticados" on detalle_movimiento
   for all to authenticated using (true) with check (true);

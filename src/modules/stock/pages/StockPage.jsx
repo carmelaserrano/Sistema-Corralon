@@ -1,42 +1,42 @@
 import { useEffect, useState } from 'react'
-import { getBranches, getStockByBranch } from '../api/stockApi'
+import { getDepositos, getStockByDeposito } from '../api/stockApi'
 
 export default function StockPage() {
-  const [branches, setBranches] = useState([])
-  const [branchId, setBranchId] = useState('')
+  const [depositos, setDepositos] = useState([])
+  const [depositoId, setDepositoId] = useState('')
   const [stock, setStock] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    getBranches()
+    getDepositos()
       .then((data) => {
-        setBranches(data)
-        if (data.length > 0) setBranchId(data[0].id)
+        setDepositos(data)
+        if (data.length > 0) setDepositoId(data[0].id)
       })
       .catch((err) => setError(err.message))
   }, [])
 
   useEffect(() => {
-    if (!branchId) return
+    if (!depositoId) return
     setLoading(true)
     setError(null)
-    getStockByBranch(branchId)
+    getStockByDeposito(depositoId)
       .then(setStock)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
-  }, [branchId])
+  }, [depositoId])
 
   return (
     <div>
-      <h1>Stock por sucursal</h1>
+      <h1>Stock por depósito</h1>
 
       <label>
-        Sucursal:{' '}
-        <select value={branchId} onChange={(e) => setBranchId(e.target.value)}>
-          {branches.map((branch) => (
-            <option key={branch.id} value={branch.id}>
-              {branch.name}
+        Depósito:{' '}
+        <select value={depositoId} onChange={(e) => setDepositoId(e.target.value)}>
+          {depositos.map((deposito) => (
+            <option key={deposito.id} value={deposito.id}>
+              {deposito.nombre}
             </option>
           ))}
         </select>
@@ -52,6 +52,7 @@ export default function StockPage() {
               <th>SKU</th>
               <th>Producto</th>
               <th>Categoría</th>
+              <th>Marca</th>
               <th>Cantidad</th>
               <th>Unidad</th>
             </tr>
@@ -59,11 +60,12 @@ export default function StockPage() {
           <tbody>
             {stock.map((row) => (
               <tr key={row.id}>
-                <td>{row.product?.sku}</td>
-                <td>{row.product?.name}</td>
-                <td>{row.product?.category}</td>
-                <td>{row.quantity}</td>
-                <td>{row.product?.unit}</td>
+                <td>{row.producto?.sku}</td>
+                <td>{row.producto?.nombre}</td>
+                <td>{row.producto?.categoria?.nombre}</td>
+                <td>{row.producto?.marca?.nombre}</td>
+                <td>{row.cantidad}</td>
+                <td>{row.producto?.unidad_medida?.abreviatura}</td>
               </tr>
             ))}
           </tbody>

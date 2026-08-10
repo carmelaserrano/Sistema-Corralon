@@ -1,16 +1,18 @@
 import { supabase } from '../../../lib/supabaseClient'
 
-export async function getBranches() {
-  const { data, error } = await supabase.from('branches').select('*').order('name')
+export async function getDepositos() {
+  const { data, error } = await supabase.from('depositos').select('*').order('nombre')
   if (error) throw error
   return data
 }
 
-export async function getStockByBranch(branchId) {
+export async function getStockByDeposito(depositoId) {
   const { data, error } = await supabase
-    .from('stock')
-    .select('id, quantity, updated_at, product:products(id, sku, name, unit, category)')
-    .eq('branch_id', branchId)
+    .from('stock_x_deposito')
+    .select(
+      'id, cantidad, updated_at, producto:productos(id, sku, nombre, categoria:categorias(nombre), marca:marcas(nombre), unidad_medida:unidades_medida(abreviatura))',
+    )
+    .eq('deposito_id', depositoId)
     .order('updated_at', { ascending: false })
   if (error) throw error
   return data
