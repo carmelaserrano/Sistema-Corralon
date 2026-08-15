@@ -1,0 +1,19 @@
+# EditorConfig ayuda a mantener un estilo de código consistente
+# entre distintos editores. https://editorconfig.org
+
+# Este es el archivo de configuración raíz.
+root = true
+
+# Reglas para todos los archivos del proyecto.
+[*]
+charset = utf-8
+indent_style = space
+indent_size = 2
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# En Markdown, dos espacios al final de una línea significan "salto de línea",
+# así que no los recortamos.
+[*.md]
+trim_trailing_whitespace = false

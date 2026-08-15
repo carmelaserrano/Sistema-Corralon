@@ -85,3 +85,9 @@ Tablas: `categorias`, `marcas`, `unidades_medida`, `tipos_deposito`, `depositos`
 - `main`: código estable/entregable.
 - `develop`: integración de features ya funcionando (es la rama que se despliega en Vercel por ahora).
 - `feature/*`: una rama por módulo o funcionalidad en desarrollo (ej: `feature/stock`).
+
+## Cómo contribuir
+
+Antes de tocar código, leé la [guía de contribución](CONTRIBUTING.md): explica el
+modelo de ramas, cómo nombrar las ramas y los commits, y el flujo completo para
+abrir un pull request.
