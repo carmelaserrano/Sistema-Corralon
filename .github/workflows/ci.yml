@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop]
+
+jobs:
+  verificar:
+    name: Verificar (lint, tests, build)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Validar nombres y numeración de las migraciones SQL
+        run: npm run validate:migrations
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Tests con cobertura
+        run: npm run test:coverage
+
+      - name: Build
+        run: npm run build
+
+      - name: Subir el reporte de cobertura
+        uses: actions/upload-artifact@v4
+        with:
+          name: reporte-cobertura
+          path: coverage/
+          retention-days: 30
+
+  migraciones:
+    name: Aplicar migraciones a Supabase (staging)
+    needs: verificar
+    # Solo corre en push a develop, nunca en pull_request, y solo si ya
+    # están cargados los tres secrets del proyecto de staging. Si el equipo
+    # todavía no creó ese proyecto, el job se saltea solo (queda en gris,
+    # no en rojo) en vez de romper el pipeline.
+    if: >
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/develop' &&
+      secrets.SUPABASE_ACCESS_TOKEN != '' &&
+      secrets.SUPABASE_DB_PASSWORD != '' &&
+      secrets.SUPABASE_PROJECT_REF != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v4
+
+      - name: Instalar Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Vincular el proyecto de Supabase
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+
+      - name: Aplicar las migraciones pendientes
+        run: supabase db push
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
