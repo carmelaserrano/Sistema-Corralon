@@ -141,3 +141,7 @@ Nota: `movimientos_stock.created_by` es una clave foránea hacia `auth.users(id)
 ---
 
 Si detectás alguna inconsistencia de cardinalidad o querés que incluya tipos más detallados, lo ajusto.
+
+## Versión gráfica
+
+![DER del módulo Stock](der-stock.svg)
