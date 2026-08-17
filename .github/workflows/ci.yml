@@ -51,28 +51,50 @@ jobs:
     # no en rojo) en vez de romper el pipeline.
     if: >
       github.event_name == 'push' &&
-      github.ref == 'refs/heads/develop' &&
-      secrets.SUPABASE_ACCESS_TOKEN != '' &&
-      secrets.SUPABASE_DB_PASSWORD != '' &&
-      secrets.SUPABASE_PROJECT_REF != ''
+      github.ref == 'refs/heads/develop'
     runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
     steps:
       - name: Descargar el código
         uses: actions/checkout@v4
 
+      - name: Comprobar configuración Supabase
+        id: check-supabase
+        run: |
+          echo "Comprobando variables de entorno SUPABASE..."
+          configured=true
+          for v in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD SUPABASE_PROJECT_REF; do
+            if [ -z "${!v}" ]; then
+              echo "Falta $v"
+              configured=false
+            fi
+          done
+          echo "supabase_configured=$configured" >> $GITHUB_OUTPUT
+          if [ "$configured" = "false" ]; then
+            echo "Supabase no configurado: se omitirán pasos de migración."
+          else
+            echo "Supabase configurado: se ejecutarán pasos de migración."
+          fi
+
       - name: Instalar Supabase CLI
+        if: ${{ steps.check-supabase.outputs.supabase_configured == 'true' }}
         uses: supabase/setup-cli@v1
         with:
           version: latest
 
       - name: Vincular el proyecto de Supabase
+        if: ${{ steps.check-supabase.outputs.supabase_configured == 'true' }}
         run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
         env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_ACCESS_TOKEN: ${{ env.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ env.SUPABASE_PROJECT_REF }}
 
       - name: Aplicar las migraciones pendientes
+        if: ${{ steps.check-supabase.outputs.supabase_configured == 'true' }}
         run: supabase db push
         env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_ACCESS_TOKEN: ${{ env.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ env.SUPABASE_DB_PASSWORD }}
