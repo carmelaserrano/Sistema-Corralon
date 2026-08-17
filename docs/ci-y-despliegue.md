@@ -116,6 +116,15 @@ Podés correrlo en tu máquina antes de pushear:
 npm run validate:migrations
 ```
 
+### Una migración ya mergeada no se toca
+
+Una vez que un archivo de `supabase/migrations/` se mergeó a `develop`, no se
+edita más: cualquier base que ya lo haya corrido (la tuya en local, la de
+staging, la de otro integrante) queda desincronizada con las que lo corran
+después con el contenido nuevo. Si necesitás corregir o cambiar algo de una
+migración vieja, creá una migración nueva con el número siguiente que haga el
+ajuste (por ejemplo, un `ALTER TABLE`).
+
 ## Cómo crear el proyecto de Supabase para staging
 
 > ⚠️ Cargar los secrets en GitHub requiere **permisos de administrador** del
