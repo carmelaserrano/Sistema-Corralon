@@ -57,6 +57,30 @@ Abrí `http://localhost:5173`, logueate con tu usuario y listo.
 | `npm run build` | Genera el build de producción en `dist/` |
 | `npm run lint` | Corre ESLint sobre el proyecto |
 | `npm run preview` | Sirve localmente el build de producción |
+| `npm run test` | Corre los tests una sola vez |
+| `npm run test:watch` | Corre los tests de nuevo cada vez que guardás un archivo |
+| `npm run test:coverage` | Corre los tests y muestra el % de cobertura |
+| `npm run validate:migrations` | Valida nombres y numeración de `supabase/migrations/` |
+
+## Testing
+
+El proyecto usa [Vitest](https://vitest.dev/) + Testing Library. Para correr los
+tests:
+
+```bash
+npm run test
+```
+
+Para ver el reporte de cobertura (el pipeline de CI exige 70% o más sobre
+`src/modules/**/api/**` y `src/lib/**`):
+
+```bash
+npm run test:coverage
+```
+
+Estos mismos pasos (lint, tests con cobertura, validación de migraciones y
+build) corren automáticamente en cada Pull Request. El detalle completo del
+pipeline está en [`docs/ci-y-despliegue.md`](docs/ci-y-despliegue.md).
 
 ## Estructura del proyecto
 
@@ -91,3 +115,10 @@ Tablas: `categorias`, `marcas`, `unidades_medida`, `tipos_deposito`, `depositos`
 Antes de tocar código, leé la [guía de contribución](CONTRIBUTING.md): explica el
 modelo de ramas, cómo nombrar las ramas y los commits, y el flujo completo para
 abrir un pull request.
+
+Documentación adicional para quien administra el repositorio:
+
+- [`docs/setup-github.md`](docs/setup-github.md): cómo proteger `main` y
+  `develop` (PR obligatorio + 1 aprobación). Requiere permisos de administrador.
+- [`docs/ci-y-despliegue.md`](docs/ci-y-despliegue.md): qué corre el pipeline de
+  CI y cómo queda armado el despliegue en Vercel.
