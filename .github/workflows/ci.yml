@@ -45,50 +45,56 @@ jobs:
   migraciones:
     name: Aplicar migraciones a Supabase (staging)
     needs: verificar
-    # Solo corre en push a develop, nunca en pull_request. Si además ya
-    # están cargados los tres secrets del proyecto de staging, aplica las
-    # migraciones; si no, el paso "Comprobar..." lo detecta y el resto de
-    # los pasos se saltean solos (queda en gris, no en rojo) en vez de
-    # romper el pipeline.
-    # Nota: el contexto `secrets` no está permitido en el `if:` de un job
-    # (GitHub Actions lo rechaza al validar el workflow), por eso la
-    # comprobación de los secrets se hace en un paso, no acá arriba.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    # Solo corre en push a develop, nunca en pull_request, y solo si ya
+    # están cargados los tres secrets del proyecto de staging. Si el equipo
+    # todavía no creó ese proyecto, el job se saltea solo (queda en gris,
+    # no en rojo) en vez de romper el pipeline.
+    if: >
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/develop'
     runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
     steps:
-      - name: Comprobar si están cargados los secrets del proyecto de staging
-        id: secrets-staging
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
-        run: |
-          if [ -n "$SUPABASE_ACCESS_TOKEN" ] && [ -n "$SUPABASE_DB_PASSWORD" ] && [ -n "$SUPABASE_PROJECT_REF" ]; then
-            echo "listos=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "listos=false" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Descargar el código
-        if: steps.secrets-staging.outputs.listos == 'true'
         uses: actions/checkout@v4
 
+      - name: Comprobar configuración Supabase
+        id: check-supabase
+        run: |
+          echo "Comprobando variables de entorno SUPABASE..."
+          configured=true
+          for v in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD SUPABASE_PROJECT_REF; do
+            if [ -z "${!v}" ]; then
+              echo "Falta $v"
+              configured=false
+            fi
+          done
+          echo "supabase_configured=$configured" >> $GITHUB_OUTPUT
+          if [ "$configured" = "false" ]; then
+            echo "Supabase no configurado: se omitirán pasos de migración."
+          else
+            echo "Supabase configurado: se ejecutarán pasos de migración."
+          fi
+
       - name: Instalar Supabase CLI
-        if: steps.secrets-staging.outputs.listos == 'true'
+        if: ${{ steps.check-supabase.outputs.supabase_configured == 'true' }}
         uses: supabase/setup-cli@v1
         with:
           version: latest
 
       - name: Vincular el proyecto de Supabase
-        if: steps.secrets-staging.outputs.listos == 'true'
+        if: ${{ steps.check-supabase.outputs.supabase_configured == 'true' }}
         run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
         env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_ACCESS_TOKEN: ${{ env.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ env.SUPABASE_PROJECT_REF }}
 
       - name: Aplicar las migraciones pendientes
-        if: steps.secrets-staging.outputs.listos == 'true'
+        if: ${{ steps.check-supabase.outputs.supabase_configured == 'true' }}
         run: supabase db push
         env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_ACCESS_TOKEN: ${{ env.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ env.SUPABASE_DB_PASSWORD }}
