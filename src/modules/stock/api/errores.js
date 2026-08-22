@@ -17,3 +17,4 @@ export function errorDeApi(mensaje, status) {
 export const CODIGO_DUPLICADO = '23505' // unique_violation
 export const CODIGO_FK_VIOLADA = '23503' // foreign_key_violation
 export const CODIGO_CHECK_VIOLADO = '23514' // check_violation
+export const CODIGO_UUID_INVALIDO = '22P02' // invalid_text_representation
