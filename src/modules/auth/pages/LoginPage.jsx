@@ -1,12 +1,16 @@
 import { useState } from 'react'
+import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../../lib/AuthContext'
 
 export default function LoginPage() {
-  const { signIn } = useAuth()
+  const { session, signIn } = useAuth()
+  const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
+
+  if (session) return <Navigate to="/stock" replace />
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -14,11 +18,13 @@ export default function LoginPage() {
     setError(null)
     const { error } = await signIn(email, password)
     if (error) setError(error.message)
+    else navigate('/stock')
     setLoading(false)
   }
 
   return (
     <div style={{ maxWidth: 320, margin: '4rem auto' }}>
+      <Link to="/">← Volver al inicio</Link>
       <h1>Ingresar</h1>
       <form onSubmit={handleSubmit}>
         <div>
