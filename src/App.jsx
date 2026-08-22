@@ -4,6 +4,7 @@ import LoginPage from './modules/auth/pages/LoginPage'
 import StockPage from './modules/stock/pages/StockPage'
 import CategoriasPage from './modules/stock/pages/CategoriasPage'
 import MarcasPage from './modules/stock/pages/MarcasPage'
+import UnidadesMedidaPage from './modules/stock/pages/UnidadesMedidaPage'
 
 function App() {
   const { session, loading, signOut } = useAuth()
@@ -29,11 +30,15 @@ function App() {
         <button type="button" onClick={() => setPagina('marcas')}>
           Marcas
         </button>
+        <button type="button" onClick={() => setPagina('unidades')}>
+          Unidades de medida
+        </button>
       </nav>
 
       {pagina === 'stock' && <StockPage />}
       {pagina === 'categorias' && <CategoriasPage />}
       {pagina === 'marcas' && <MarcasPage />}
+      {pagina === 'unidades' && <UnidadesMedidaPage />}
     </div>
   )
 }
