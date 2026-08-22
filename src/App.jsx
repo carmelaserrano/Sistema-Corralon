@@ -3,6 +3,7 @@ import { useAuth } from './lib/AuthContext'
 import LoginPage from './modules/auth/pages/LoginPage'
 import StockPage from './modules/stock/pages/StockPage'
 import CategoriasPage from './modules/stock/pages/CategoriasPage'
+import MarcasPage from './modules/stock/pages/MarcasPage'
 
 function App() {
   const { session, loading, signOut } = useAuth()
@@ -25,10 +26,14 @@ function App() {
         <button type="button" onClick={() => setPagina('categorias')}>
           Categorías
         </button>
+        <button type="button" onClick={() => setPagina('marcas')}>
+          Marcas
+        </button>
       </nav>
 
       {pagina === 'stock' && <StockPage />}
       {pagina === 'categorias' && <CategoriasPage />}
+      {pagina === 'marcas' && <MarcasPage />}
     </div>
   )
 }
