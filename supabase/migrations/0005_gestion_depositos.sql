@@ -20,9 +20,14 @@ alter table stock_x_deposito
   references depositos(id)
   on delete restrict;
 
--- 3) Eliminar el registro viejo de prueba
--- Si estuviera relacionado con stock u otra tabla que impida su baja,
--- PostgreSQL rechazara la eliminacion en lugar de borrar informacion asociada.
+-- 3) Limpiar datos de prueba asociados al deposito viejo
+delete from stock_x_deposito
+where deposito_id in (
+  select id
+  from depositos
+  where nombre = 'Deposito Centro'
+);
+
 delete from depositos
 where nombre = 'Deposito Centro';
 
