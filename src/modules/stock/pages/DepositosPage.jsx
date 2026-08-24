@@ -105,8 +105,12 @@ function DepositosPage() {
       await deleteDeposito(deposito.id)
       await cargarDatos()
     } catch (err) {
-      setError(err.message || 'No se pudo eliminar el depósito')
+      const mensaje = err.message || 'No se pudo eliminar el depósito'
+
+      setError(mensaje)
+      window.alert(mensaje)
     }
+
   }
 
   if (loading) {
