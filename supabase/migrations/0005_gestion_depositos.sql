@@ -1,13 +1,25 @@
--- Migracion 0004: gestion de depositos - US-STK-05
+-- Migracion 0005: gestion de depositos - US-STK-05
 
 begin;
+
 
 -- 1) Agregar los campos requeridos por la historia de usuario
 alter table depositos
   add column if not exists localidad text,
   add column if not exists capacidad_maxima numeric;
 
--- 2) Proteger los registros de stock antes de permitir bajas de depositos
+-- 2) Limpiar datos de prueba asociados al deposito viejo
+delete from stock_x_deposito
+where deposito_id in (
+  select id
+  from depositos
+  where nombre = 'Deposito Centro'
+);
+
+delete from depositos
+where nombre = 'Deposito Centro';
+
+-- 3) Proteger los registros de stock antes de permitir bajas de depositos
 -- Antes existia ON DELETE CASCADE.
 -- Con RESTRICT, un deposito con cualquier registro en stock_x_deposito
 -- no puede eliminarse, aunque la cantidad sea 0.
@@ -19,18 +31,6 @@ alter table stock_x_deposito
   foreign key (deposito_id)
   references depositos(id)
   on delete restrict;
-
--- 3) Limpiar datos de prueba asociados al deposito viejo
-delete from stock_x_deposito
-where deposito_id in (
-  select id
-  from depositos
-  where nombre = 'Deposito Centro'
-);
-
-delete from depositos
-where nombre = 'Deposito Centro';
-
 -- 4) Campos obligatorios
 alter table depositos
   alter column direccion set not null,
