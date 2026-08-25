@@ -130,7 +130,14 @@ function manejarErrorConfiguracion(error) {
 
   throw error
 }
-
+/**
+ * Obtiene las configuraciones de stock.
+ *
+ * @param {Object} filtros
+ * @param {string} [filtros.deposito_id] ID del depósito para filtrar.
+ * @param {string} [filtros.articulo_id] ID del artículo para filtrar.
+ * @returns {Promise<Array>} Lista de configuraciones con stock actual y estado.
+ */
 export async function getConfiguracionesStock({
   deposito_id = '',
   articulo_id = '',
@@ -199,7 +206,16 @@ return {
 }
   })
 }
-
+/**
+ * Crea una configuración de stock para un artículo y depósito.
+ *
+ * @param {Object} configuracion
+ * @param {string} configuracion.articulo_id
+ * @param {string} configuracion.deposito_id
+ * @param {number} configuracion.stock_minimo
+ * @param {number} configuracion.stock_maximo
+ * @returns {Promise<Object>} Configuración creada.
+ */
 export async function createConfiguracionStock(configuracion) {
   validarConfiguracion(configuracion)
 
@@ -223,7 +239,17 @@ export async function createConfiguracionStock(configuracion) {
 
   return data
 }
-
+/**
+ * Actualiza los valores mínimo y máximo de una configuración existente.
+ *
+ * @param {string} id ID de la configuración.
+ * @param {Object} configuracion
+ * @param {string} configuracion.articulo_id
+ * @param {string} configuracion.deposito_id
+ * @param {number} configuracion.stock_minimo
+ * @param {number} configuracion.stock_maximo
+ * @returns {Promise<Object>} Configuración actualizada.
+ */
 export async function updateConfiguracionStock(id, configuracion) {
   validarConfiguracion(configuracion)
 
