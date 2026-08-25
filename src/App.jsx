@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useAuth } from './lib/AuthContext'
 import LoginPage from './modules/auth/pages/LoginPage'
 import StockPage from './modules/stock/pages/StockPage'
+import DepositosPage from './modules/stock/pages/DepositosPage'
 import CategoriasPage from './modules/stock/pages/CategoriasPage'
 import MarcasPage from './modules/stock/pages/MarcasPage'
 import UnidadesMedidaPage from './modules/stock/pages/UnidadesMedidaPage'
@@ -16,7 +17,13 @@ function App() {
 
   return (
     <div>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <header
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+        }}
+      >
         <span>{session.user.email}</span>
         <button onClick={signOut}>Salir</button>
       </header>
@@ -25,25 +32,34 @@ function App() {
         <button type="button" onClick={() => setPagina('stock')}>
           Stock
         </button>
+
+        <button type="button" onClick={() => setPagina('depositos')}>
+          Depósitos
+        </button>
+
         <button type="button" onClick={() => setPagina('categorias')}>
           Categorías
         </button>
+
         <button type="button" onClick={() => setPagina('marcas')}>
           Marcas
         </button>
+
         <button type="button" onClick={() => setPagina('unidades')}>
           Unidades de medida
         </button>
+
         <button type="button" onClick={() => setPagina('articulos')}>
           Artículos
         </button>
       </nav>
 
       {pagina === 'stock' && <StockPage />}
-      {pagina === 'articulos' && <ArticulosPage />}
+      {pagina === 'depositos' && <DepositosPage />}
       {pagina === 'categorias' && <CategoriasPage />}
       {pagina === 'marcas' && <MarcasPage />}
       {pagina === 'unidades' && <UnidadesMedidaPage />}
+      {pagina === 'articulos' && <ArticulosPage />}
     </div>
   )
 }
