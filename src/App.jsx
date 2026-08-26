@@ -7,6 +7,7 @@ import CategoriasPage from './modules/stock/pages/CategoriasPage'
 import MarcasPage from './modules/stock/pages/MarcasPage'
 import UnidadesMedidaPage from './modules/stock/pages/UnidadesMedidaPage'
 import ArticulosPage from './modules/stock/pages/ArticulosPage'
+import MovimientosPage from './modules/stock/pages/MovimientosPage'
 import ConfiguracionStockPage from './modules/stock/pages/ConfiguracionStockPage'
 
 function App() {
@@ -53,11 +54,14 @@ function App() {
         <button type="button" onClick={() => setPagina('articulos')}>
           Artículos
         </button>
-        
+
+        <button type="button" onClick={() => setPagina('movimientos')}>
+          Movimientos
+        </button>
+
         <button type="button" onClick={() => setPagina('configuracion-stock')}>
           Configuración de stock
         </button>
-
       </nav>
 
       {pagina === 'stock' && <StockPage />}
@@ -66,6 +70,7 @@ function App() {
       {pagina === 'marcas' && <MarcasPage />}
       {pagina === 'unidades' && <UnidadesMedidaPage />}
       {pagina === 'articulos' && <ArticulosPage />}
+      {pagina === 'movimientos' && <MovimientosPage />}
       {pagina === 'configuracion-stock' && <ConfiguracionStockPage />}
     </div>
   )
