@@ -9,6 +9,7 @@ import UnidadesMedidaPage from './modules/stock/pages/UnidadesMedidaPage'
 import ArticulosPage from './modules/stock/pages/ArticulosPage'
 import MovimientosPage from './modules/stock/pages/MovimientosPage'
 import ConfiguracionStockPage from './modules/stock/pages/ConfiguracionStockPage'
+import InventarioFisicoPage from './modules/stock/pages/InventarioFisicoPage'
 
 function App() {
   const { session, loading, signOut } = useAuth()
@@ -62,6 +63,13 @@ function App() {
         <button type="button" onClick={() => setPagina('configuracion-stock')}>
           Configuración de stock
         </button>
+
+
+        <button type="button" onClick={() => setPagina('inventario-fisico')}>
+          Inventario físico
+        </button>
+
+
       </nav>
 
       {pagina === 'stock' && <StockPage />}
@@ -72,6 +80,7 @@ function App() {
       {pagina === 'articulos' && <ArticulosPage />}
       {pagina === 'movimientos' && <MovimientosPage />}
       {pagina === 'configuracion-stock' && <ConfiguracionStockPage />}
+      {pagina === 'inventario-fisico' && <InventarioFisicoPage />}
     </div>
   )
 }
