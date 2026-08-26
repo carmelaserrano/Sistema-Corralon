@@ -1,4 +1,4 @@
--- Migracion 0006: registro de movimientos de stock - US-STK-08
+-- Migracion 0007: registro de movimientos de stock - US-STK-08
 --
 -- Historia: "Como Encargado de Deposito quiero registrar ingresos, egresos y
 -- transferencias para mantener la trazabilidad del inventario".
