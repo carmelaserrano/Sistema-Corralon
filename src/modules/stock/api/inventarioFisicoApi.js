@@ -81,25 +81,7 @@ async function obtenerInventarioPorId(id) {
   return data
 }
 
-async function verificarDeposito(depositoId) {
-  const { data, error } = await supabase
-    .from('depositos')
-    .select('id')
-    .eq('id', depositoId)
-    .maybeSingle()
 
-  if (error) {
-    if (error.code === CODIGO_UUID_INVALIDO) {
-      throw errorDeApi('El depósito no existe', 404)
-    }
-
-    throw error
-  }
-
-  if (!data) {
-    throw errorDeApi('El depósito no existe', 404)
-  }
-}
 /**
  * Obtiene la toma abierta de un depósito.
  *
@@ -145,62 +127,36 @@ export async function iniciarInventarioFisico(depositoId) {
     throw errorDeApi('El depósito es obligatorio', 400)
   }
 
-  await verificarDeposito(depositoId)
+  const { data, error } = await supabase.rpc('iniciar_inventario_fisico', {
+    p_deposito_id: depositoId,
+  })
 
-  const { data: abierto, error: abiertoError } = await supabase
-    .from(TABLA_INVENTARIO)
-    .select('id')
-    .eq('deposito_id', depositoId)
-    .in('estado', ['en_carga', 'pendiente_aprobacion'])
-    .maybeSingle()
+  if (error) {
+    if (error.code === CODIGO_UUID_INVALIDO || error.code === 'P0002') {
+      throw errorDeApi('El depósito no existe', 404)
+    }
 
-  if (abiertoError) throw abiertoError
+    if (error.code === CODIGO_DUPLICADO) {
+      throw errorDeApi(
+        'Ya existe una toma de inventario abierta para ese depósito',
+        409,
+      )
+    }
 
-  if (abierto) {
-    throw errorDeApi(
-      'Ya existe una toma de inventario abierta para ese depósito',
-      409,
-    )
+    if (
+      error.code === 'P0001' &&
+      error.message?.includes('no tiene artículos vinculados')
+    ) {
+      throw errorDeApi(
+        'El depósito no tiene artículos vinculados para inventariar',
+        400,
+      )
+    }
+
+    throw error
   }
 
-  const { data: stock, error: stockError } = await supabase
-    .from('stock_x_deposito')
-    .select('producto_id, cantidad')
-    .eq('deposito_id', depositoId)
-
-  if (stockError) throw stockError
-
-  if (!stock || stock.length === 0) {
-    throw errorDeApi(
-      'El depósito no tiene artículos vinculados para inventariar',
-      400,
-    )
-  }
-
-  const { data: inventario, error: inventarioError } = await supabase
-    .from(TABLA_INVENTARIO)
-    .insert({
-      deposito_id: depositoId,
-      estado: 'en_carga',
-    })
-    .select(COLUMNAS_INVENTARIO)
-    .single()
-
-  if (inventarioError) manejarErrorInventario(inventarioError)
-
-  const detalle = stock.map((item) => ({
-    inventario_fisico_id: inventario.id,
-    producto_id: item.producto_id,
-    stock_teorico: Number(item.cantidad),
-  }))
-
-  const { error: detalleError } = await supabase
-    .from(TABLA_DETALLE)
-    .insert(detalle)
-
-  if (detalleError) manejarErrorInventario(detalleError)
-
-  return getInventarioFisico(inventario.id)
+  return getInventarioFisico(data)
 }
 
 /**
@@ -227,111 +183,81 @@ export async function getInventarioFisico(id) {
 }
 
 /**
- * Registra el conteo físico completo de una toma.
- * No permite guardado parcial.
+ * Registra el conteo físico completo de una toma de inventario.
  *
- * @param {string} inventarioId ID de la toma.
+ * Todos los artículos deben informarse en una única operación.
+ * La carga se realiza mediante la RPC `cargar_conteos_inventario`,
+ * que ejecuta la actualización dentro de una transacción en PostgreSQL.
+ * Si ocurre un error durante la operación, no se guarda ningún conteo.
+ *
+ * La diferencia entre la cantidad contada y el stock teórico
+ * se calcula automáticamente en la base de datos.
+ *
+ * @param {string} inventarioId - ID UUID de la toma de inventario.
  * @param {Array<{producto_id: string, cantidad_contada: number}>} conteos
- * @returns {Promise<Object>} Inventario actualizado con diferencias calculadas.
+ * - Conteos físicos de todos los artículos incluidos en la toma.
+ * @returns {Promise<Object>} Inventario actualizado con sus diferencias.
+ * @throws {Error} Error con status 400 si los conteos son inválidos,
+ * incompletos, negativos o contienen artículos repetidos.
+ * @throws {Error} Error con status 404 si la toma no existe.
+ * @throws {Error} Error con status 409 si la toma no está en estado
+ * "en_carga".
  */
 export async function cargarConteosInventario(inventarioId, conteos) {
-  const inventario = await obtenerInventarioPorId(inventarioId)
-
-  if (inventario.estado !== 'en_carga') {
-    throw errorDeApi(
-      'Solo se pueden cargar conteos en una toma en estado en_carga',
-      409,
-    )
+  if (!inventarioId) {
+    throw errorDeApi('La toma de inventario es obligatoria', 400)
   }
 
   if (!Array.isArray(conteos) || conteos.length === 0) {
     throw errorDeApi('El conteo físico es obligatorio', 400)
   }
 
-  const { data: detalleActual, error: detalleError } = await supabase
-    .from(TABLA_DETALLE)
-    .select('id, producto_id')
-    .eq('inventario_fisico_id', inventarioId)
+  const { error } = await supabase.rpc('cargar_conteos_inventario', {
+    p_inventario_id: inventarioId,
+    p_conteos: conteos,
+  })
 
-  if (detalleError) throw detalleError
-
-  if (conteos.length !== detalleActual.length) {
-    throw errorDeApi(
-      'Debe informarse el conteo de todos los artículos de la toma',
-      400,
-    )
-  }
-
-  const productosEsperados = new Set(
-    detalleActual.map((item) => item.producto_id),
-  )
-
-  const productosRecibidos = new Set()
-
-  for (const conteo of conteos) {
-    if (!conteo.producto_id) {
-      throw errorDeApi('El artículo es obligatorio', 400)
+  if (error) {
+    if (error.code === CODIGO_UUID_INVALIDO || error.code === 'P0002') {
+      throw errorDeApi('La toma de inventario no existe', 404)
     }
-
-    if (!productosEsperados.has(conteo.producto_id)) {
-      throw errorDeApi(
-        'El conteo incluye un artículo que no pertenece a la toma',
-        400,
-      )
-    }
-
-    if (productosRecibidos.has(conteo.producto_id)) {
-      throw errorDeApi('No se puede repetir un artículo en el conteo', 400)
-    }
-
-    productosRecibidos.add(conteo.producto_id)
 
     if (
-      conteo.cantidad_contada === '' ||
-      conteo.cantidad_contada === null ||
-      conteo.cantidad_contada === undefined
+      error.code === 'P0001' &&
+      error.message?.includes('estado en_carga')
     ) {
       throw errorDeApi(
-        'Debe informarse la cantidad contada de todos los artículos',
-        400,
+        'Solo se pueden cargar conteos en una toma en estado en_carga',
+        409,
       )
     }
 
-    const cantidad = Number(conteo.cantidad_contada)
-
-    if (Number.isNaN(cantidad)) {
-      throw errorDeApi('La cantidad contada debe ser un número válido', 400)
+    if (error.code === 'P0001') {
+      throw errorDeApi(error.message, 400)
     }
 
-    if (cantidad < 0) {
-      throw errorDeApi('La cantidad contada no puede ser negativa', 400)
-    }
-  }
-
-  for (const conteo of conteos) {
-    const detalle = detalleActual.find(
-      (item) => item.producto_id === conteo.producto_id,
-    )
-
-    const { error } = await supabase
-      .from(TABLA_DETALLE)
-      .update({
-        cantidad_contada: Number(conteo.cantidad_contada),
-      })
-      .eq('id', detalle.id)
-
-    if (error) manejarErrorInventario(error)
+    throw error
   }
 
   return getInventarioFisico(inventarioId)
 }
 
 /**
- * Finaliza la carga y envía la toma a aprobación.
+ * Envía una toma de inventario completa a aprobación.
  *
- * @param {string} inventarioId ID de la toma.
- * @returns {Promise<Object>} Inventario en estado pendiente_aprobacion.
+ * Solo puede enviarse una toma en estado "en_carga" cuando todos sus
+ * artículos tienen una cantidad física registrada.
+ *
+ * Cambia el estado a "pendiente_aprobacion" y registra la fecha de envío.
+ *
+ * @param {string} inventarioId - ID UUID de la toma de inventario.
+ * @returns {Promise<Object>} Inventario actualizado en estado
+ * "pendiente_aprobacion".
+ * @throws {Error} Error con status 404 si la toma no existe.
+ * @throws {Error} Error con status 409 si el estado no permite el envío
+ * o si existen conteos pendientes.
  */
+
 export async function enviarInventarioAprobacion(inventarioId) {
   const inventario = await obtenerInventarioPorId(inventarioId)
 
@@ -376,12 +302,22 @@ export async function enviarInventarioAprobacion(inventarioId) {
 }
 
 /**
- * Aprueba una toma de inventario.
- * La aprobación no modifica stock_x_deposito.
+ * Aprueba una toma de inventario pendiente.
  *
- * @param {string} inventarioId ID de la toma.
+ * Registra el usuario autenticado que realiza la aprobación y la fecha
+ * correspondiente.
+ *
+ * Esta operación NO modifica stock_x_deposito. El ajuste efectivo del
+ * inventario corresponde a la US-STK-12.
+ *
+ * @param {string} inventarioId - ID UUID de la toma de inventario.
  * @returns {Promise<Object>} Inventario aprobado.
+ * @throws {Error} Error con status 401 si no existe un usuario autenticado.
+ * @throws {Error} Error con status 404 si la toma no existe.
+ * @throws {Error} Error con status 409 si la toma no está en estado
+ * "pendiente_aprobacion".
  */
+
 export async function aprobarInventarioFisico(inventarioId) {
   const inventario = await obtenerInventarioPorId(inventarioId)
 

@@ -11,6 +11,7 @@ import {
 vi.mock('../../../lib/supabaseClient', () => ({
   supabase: {
     from: vi.fn(),
+    rpc: vi.fn(),
     auth: {
       getUser: vi.fn(),
     },
@@ -50,40 +51,13 @@ function crearBuilder(resultado = { data: null, error: null }) {
 
 describe('inventarioFisicoApi', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    vi.resetAllMocks()
   })
 
   describe('iniciarInventarioFisico', () => {
-    it('inicia una toma y congela el stock teórico', async () => {
-      const depositoBuilder = crearBuilder({
-        data: { id: 'deposito-1' },
-        error: null,
-      })
-
-      const abiertoBuilder = crearBuilder({
-        data: null,
-        error: null,
-      })
-
-      const stockBuilder = crearBuilder({
-        data: [
-          { producto_id: 'producto-1', cantidad: 10 },
-          { producto_id: 'producto-2', cantidad: 5.5 },
-        ],
-        error: null,
-      })
-
-      const inventarioBuilder = crearBuilder({
-        data: {
-          id: 'inventario-1',
-          deposito_id: 'deposito-1',
-          estado: 'en_carga',
-        },
-        error: null,
-      })
-
-      const detalleInsertBuilder = crearBuilder({
-        data: null,
+    it('inicia una toma y congela el stock teórico mediante RPC', async () => {
+      supabase.rpc.mockResolvedValue({
+        data: 'inventario-1',
         error: null,
       })
 
@@ -115,40 +89,34 @@ describe('inventarioFisicoApi', () => {
       })
 
       supabase.from
-        .mockReturnValueOnce(depositoBuilder)
-        .mockReturnValueOnce(abiertoBuilder)
-        .mockReturnValueOnce(stockBuilder)
-        .mockReturnValueOnce(inventarioBuilder)
-        .mockReturnValueOnce(detalleInsertBuilder)
         .mockReturnValueOnce(inventarioGetBuilder)
         .mockReturnValueOnce(detalleGetBuilder)
 
       const resultado = await iniciarInventarioFisico('deposito-1')
 
+      expect(supabase.rpc).toHaveBeenCalledWith(
+        'iniciar_inventario_fisico',
+        {
+          p_deposito_id: 'deposito-1',
+        },
+      )
+
       expect(resultado.id).toBe('inventario-1')
       expect(resultado.detalle).toHaveLength(2)
 
-      expect(detalleInsertBuilder.insert).toHaveBeenCalledWith([
-        {
-          inventario_fisico_id: 'inventario-1',
-          producto_id: 'producto-1',
-          stock_teorico: 10,
-        },
-        {
-          inventario_fisico_id: 'inventario-1',
-          producto_id: 'producto-2',
-          stock_teorico: 5.5,
-        },
-      ])
+      expect(supabase.from).not.toHaveBeenCalledWith(
+        'stock_x_deposito',
+      )
     })
 
     it('rechaza un depósito inexistente con 404', async () => {
-      const depositoBuilder = crearBuilder({
+      supabase.rpc.mockResolvedValue({
         data: null,
-        error: null,
+        error: {
+          code: 'P0002',
+          message: 'El depósito no existe',
+        },
       })
-
-      supabase.from.mockReturnValueOnce(depositoBuilder)
 
       await expect(
         iniciarInventarioFisico('deposito-inexistente'),
@@ -158,19 +126,13 @@ describe('inventarioFisicoApi', () => {
     })
 
     it('rechaza si ya existe una toma abierta para el depósito', async () => {
-      const depositoBuilder = crearBuilder({
-        data: { id: 'deposito-1' },
-        error: null,
+      supabase.rpc.mockResolvedValue({
+        data: null,
+        error: {
+          code: '23505',
+          message: 'Ya existe una toma de inventario abierta para ese depósito',
+        },
       })
-
-      const abiertoBuilder = crearBuilder({
-        data: { id: 'inventario-abierto' },
-        error: null,
-      })
-
-      supabase.from
-        .mockReturnValueOnce(depositoBuilder)
-        .mockReturnValueOnce(abiertoBuilder)
 
       await expect(
         iniciarInventarioFisico('deposito-1'),
@@ -180,25 +142,14 @@ describe('inventarioFisicoApi', () => {
     })
 
     it('rechaza un depósito sin artículos vinculados', async () => {
-      const depositoBuilder = crearBuilder({
-        data: { id: 'deposito-1' },
-        error: null,
-      })
-
-      const abiertoBuilder = crearBuilder({
+      supabase.rpc.mockResolvedValue({
         data: null,
-        error: null,
+        error: {
+          code: 'P0001',
+          message:
+            'El depósito no tiene artículos vinculados para inventariar',
+        },
       })
-
-      const stockBuilder = crearBuilder({
-        data: [],
-        error: null,
-      })
-
-      supabase.from
-        .mockReturnValueOnce(depositoBuilder)
-        .mockReturnValueOnce(abiertoBuilder)
-        .mockReturnValueOnce(stockBuilder)
 
       await expect(
         iniciarInventarioFisico('deposito-1'),
@@ -209,29 +160,19 @@ describe('inventarioFisicoApi', () => {
   })
 
   describe('cargarConteosInventario', () => {
-    it('carga el conteo completo de todos los artículos', async () => {
-      const inventarioBuilder = crearBuilder({
-        data: {
-          id: 'inventario-1',
-          estado: 'en_carga',
+    it('carga el conteo completo de todos los artículos mediante RPC', async () => {
+      const conteos = [
+        {
+          producto_id: 'producto-1',
+          cantidad_contada: 8,
         },
-        error: null,
-      })
+        {
+          producto_id: 'producto-2',
+          cantidad_contada: 12.5,
+        },
+      ]
 
-      const detalleBuilder = crearBuilder({
-        data: [
-          { id: 'detalle-1', producto_id: 'producto-1' },
-          { id: 'detalle-2', producto_id: 'producto-2' },
-        ],
-        error: null,
-      })
-
-      const update1 = crearBuilder({
-        data: null,
-        error: null,
-      })
-
-      const update2 = crearBuilder({
+      supabase.rpc.mockResolvedValue({
         data: null,
         error: null,
       })
@@ -245,58 +186,54 @@ describe('inventarioFisicoApi', () => {
       })
 
       const detalleGetBuilder = crearBuilder({
-        data: [],
-        error: null,
-      })
-
-      supabase.from
-        .mockReturnValueOnce(inventarioBuilder)
-        .mockReturnValueOnce(detalleBuilder)
-        .mockReturnValueOnce(update1)
-        .mockReturnValueOnce(update2)
-        .mockReturnValueOnce(inventarioGetBuilder)
-        .mockReturnValueOnce(detalleGetBuilder)
-
-      await cargarConteosInventario('inventario-1', [
-        {
-          producto_id: 'producto-1',
-          cantidad_contada: 8,
-        },
-        {
-          producto_id: 'producto-2',
-          cantidad_contada: 12.5,
-        },
-      ])
-
-      expect(update1.update).toHaveBeenCalledWith({
-        cantidad_contada: 8,
-      })
-
-      expect(update2.update).toHaveBeenCalledWith({
-        cantidad_contada: 12.5,
-      })
-    })
-
-    it('rechaza conteos incompletos', async () => {
-      const inventarioBuilder = crearBuilder({
-        data: {
-          id: 'inventario-1',
-          estado: 'en_carga',
-        },
-        error: null,
-      })
-
-      const detalleBuilder = crearBuilder({
         data: [
-          { id: 'detalle-1', producto_id: 'producto-1' },
-          { id: 'detalle-2', producto_id: 'producto-2' },
+          {
+            producto_id: 'producto-1',
+            stock_teorico: 10,
+            cantidad_contada: 8,
+            diferencia: -2,
+          },
+          {
+            producto_id: 'producto-2',
+            stock_teorico: 5.5,
+            cantidad_contada: 12.5,
+            diferencia: 7,
+          },
         ],
         error: null,
       })
 
       supabase.from
-        .mockReturnValueOnce(inventarioBuilder)
-        .mockReturnValueOnce(detalleBuilder)
+        .mockReturnValueOnce(inventarioGetBuilder)
+        .mockReturnValueOnce(detalleGetBuilder)
+
+      const resultado = await cargarConteosInventario(
+        'inventario-1',
+        conteos,
+      )
+
+      expect(supabase.rpc).toHaveBeenCalledWith(
+        'cargar_conteos_inventario',
+        {
+          p_inventario_id: 'inventario-1',
+          p_conteos: conteos,
+        },
+      )
+
+      expect(resultado.detalle).toHaveLength(2)
+      expect(resultado.detalle[0].diferencia).toBe(-2)
+      expect(resultado.detalle[1].diferencia).toBe(7)
+    })
+
+    it('rechaza conteos incompletos', async () => {
+      supabase.rpc.mockResolvedValue({
+        data: null,
+        error: {
+          code: 'P0001',
+          message:
+            'Debe informarse el conteo de todos los artículos de la toma',
+        },
+      })
 
       await expect(
         cargarConteosInventario('inventario-1', [
@@ -311,24 +248,14 @@ describe('inventarioFisicoApi', () => {
     })
 
     it('rechaza cantidades negativas', async () => {
-      const inventarioBuilder = crearBuilder({
-        data: {
-          id: 'inventario-1',
-          estado: 'en_carga',
+      supabase.rpc.mockResolvedValue({
+        data: null,
+        error: {
+          code: 'P0001',
+          message:
+            'Las cantidades contadas deben informarse y no pueden ser negativas',
         },
-        error: null,
       })
-
-      const detalleBuilder = crearBuilder({
-        data: [
-          { id: 'detalle-1', producto_id: 'producto-1' },
-        ],
-        error: null,
-      })
-
-      supabase.from
-        .mockReturnValueOnce(inventarioBuilder)
-        .mockReturnValueOnce(detalleBuilder)
 
       await expect(
         cargarConteosInventario('inventario-1', [
@@ -378,6 +305,7 @@ describe('inventarioFisicoApi', () => {
         await enviarInventarioAprobacion('inventario-1')
 
       expect(resultado.estado).toBe('pendiente_aprobacion')
+
       expect(updateBuilder.update).toHaveBeenCalledWith(
         expect.objectContaining({
           estado: 'pendiente_aprobacion',
