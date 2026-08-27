@@ -13,6 +13,7 @@ import InventarioFisicoPage from './modules/stock/pages/InventarioFisicoPage'
 import HistorialMovimientosPage from './modules/stock/pages/HistorialMovimientosPage'
 import AlertasStockPage from './modules/stock/pages/AlertasStockPage'
 import RecepcionesPage from './modules/stock/pages/RecepcionesPage'
+import ReportesPage from './modules/stock/pages/ReportesPage'
 
 function App() {
   const { session, loading, signOut } = useAuth()
@@ -80,6 +81,10 @@ function App() {
           Recepciones
         </button>
 
+        <button type="button" onClick={() => setPagina('reportes')}>
+          Reportes
+        </button>
+
       </nav>
 
       {pagina === 'stock' && <StockPage />}
@@ -102,6 +107,7 @@ function App() {
       {pagina === 'inventario-fisico' && <InventarioFisicoPage />}
       {pagina === 'alertas-stock' && <AlertasStockPage />}
       {pagina === 'recepciones' && <RecepcionesPage />}
+      {pagina === 'reportes' && <ReportesPage />}
     </div>
   )
 }
