@@ -29,6 +29,7 @@ function crearQueryBuilderConRange(resultado) {
     select: vi.fn(() => builder),
     eq: vi.fn(() => builder),
     or: vi.fn(() => builder),
+    in: vi.fn(() => builder),
     order: vi.fn(() => ({ ...builder, range: vi.fn(() => resultado) })),
   }
 
@@ -72,6 +73,7 @@ describe('stockApi', () => {
         {
           id: 'a1',
           cantidad: 10,
+          comprometido: 4,
           updated_at: '2026-08-01T00:00:00Z',
           producto: { id: 'p1', sku: 'SKU-001', nombre: 'Cemento' },
         },
