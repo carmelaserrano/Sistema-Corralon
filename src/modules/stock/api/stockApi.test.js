@@ -72,10 +72,10 @@ describe('stockApi', () => {
         {
           id: 'a1',
           cantidad: 10,
-          comprometido: 4,
           updated_at: '2026-08-01T00:00:00Z',
           producto: { id: 'p1', sku: 'SKU-001', nombre: 'Cemento' },
         },
+
       ]
       supabase.from.mockReturnValue(
         crearQueryBuilder({ data: stockMock, error: null }),
