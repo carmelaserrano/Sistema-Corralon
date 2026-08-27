@@ -12,6 +12,7 @@ import ConfiguracionStockPage from './modules/stock/pages/ConfiguracionStockPage
 import InventarioFisicoPage from './modules/stock/pages/InventarioFisicoPage'
 import HistorialMovimientosPage from './modules/stock/pages/HistorialMovimientosPage'
 import AlertasStockPage from './modules/stock/pages/AlertasStockPage'
+import RecepcionesPage from './modules/stock/pages/RecepcionesPage'
 
 function App() {
   const { session, loading, signOut } = useAuth()
@@ -75,6 +76,10 @@ function App() {
           Alertas Stock
         </button>
 
+        <button type="button" onClick={() => setPagina('recepciones')}>
+          Recepciones
+        </button>
+
       </nav>
 
       {pagina === 'stock' && <StockPage />}
@@ -96,6 +101,7 @@ function App() {
       {pagina === 'configuracion-stock' && <ConfiguracionStockPage />}
       {pagina === 'inventario-fisico' && <InventarioFisicoPage />}
       {pagina === 'alertas-stock' && <AlertasStockPage />}
+      {pagina === 'recepciones' && <RecepcionesPage />}
     </div>
   )
 }
