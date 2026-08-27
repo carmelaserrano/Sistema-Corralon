@@ -513,6 +513,10 @@ describe('movimientosApi', () => {
     })
 
     expect(supabase.from).toHaveBeenCalledWith('movimientos_stock')
+    expect(builder.select.mock.calls[0][0]).toContain('categoria_ajuste')
+    expect(builder.select.mock.calls[0][0]).toContain('motivo_ajuste')
+    expect(builder.select.mock.calls[0][0]).toContain('origen_ajuste')
+    expect(builder.select.mock.calls[0][0]).toContain('inventario_fisico_id')
 
     expect(builder.eq).toHaveBeenCalledWith(
       'estado_movimiento',

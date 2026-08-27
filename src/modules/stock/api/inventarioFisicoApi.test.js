@@ -417,6 +417,12 @@ describe('inventarioFisicoApi', () => {
       const resultado =
         await getInventarioFisico('inventario-1')
 
+      expect(inventarioBuilder.select.mock.calls[0][0]).toContain(
+        'ajustes_aplicados_at',
+      )
+      expect(inventarioBuilder.select.mock.calls[0][0]).toContain(
+        'ajustes_aplicados_by',
+      )
       expect(resultado.detalle).toEqual([
         {
           producto_id: 'producto-1',
@@ -468,6 +474,22 @@ describe('inventarioFisicoApi', () => {
       })
 
       expect(supabase.rpc).not.toHaveBeenCalled()
+    })
+
+    it('traduce a conflicto el stock insuficiente detectado al confirmar', async () => {
+      supabase.rpc.mockResolvedValue({
+        data: null,
+        error: {
+          code: 'MV004',
+          message: 'La cantidad supera el disponible del deposito origen',
+        },
+      })
+
+      await expect(
+        aplicarAjustesInventarioFisico('inventario-1', {
+          motivo: 'Diferencia de conteo',
+        }),
+      ).rejects.toMatchObject({ status: 409 })
     })
   })
 })

@@ -35,6 +35,7 @@ const etiquetaTipo = {
   [TIPOS.INGRESO]: 'Ingreso',
   [TIPOS.EGRESO]: 'Egreso',
   [TIPOS.TRANSFERENCIA]: 'Transferencia',
+  [TIPOS.AJUSTE]: 'Ajuste',
 }
 
 // El 423 es el único error accionable por el usuario: reintentar. El resto ya
@@ -396,6 +397,9 @@ function MovimientosPage({ onVerHistorial }) {
                 // aunque en esta historia siempre tenga un solo renglón.
                 const renglon = movimiento.detalle?.[0]
                 const procesando = procesandoId === movimiento.id
+                const esAjustePendiente =
+                  movimiento.tipo?.codigo === TIPOS.AJUSTE
+                const puedeProcesar = !esAjustePendiente || puedeAjustar
 
                 return (
                   <tr key={movimiento.id}>
@@ -417,21 +421,27 @@ function MovimientosPage({ onVerHistorial }) {
                     <td>{movimiento.destino?.nombre || '-'}</td>
                     <td>{movimiento.comprobante || '-'}</td>
                     <td>
-                      <button
-                        type="button"
-                        onClick={() => confirmar(movimiento)}
-                        disabled={procesando}
-                      >
-                        {procesando ? 'Procesando...' : 'Confirmar'}
-                      </button>
+                      {puedeProcesar ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => confirmar(movimiento)}
+                            disabled={procesando}
+                          >
+                            {procesando ? 'Procesando...' : 'Confirmar'}
+                          </button>
 
-                      <button
-                        type="button"
-                        onClick={() => cancelar(movimiento)}
-                        disabled={procesando}
-                      >
-                        Cancelar
-                      </button>
+                          <button
+                            type="button"
+                            onClick={() => cancelar(movimiento)}
+                            disabled={procesando}
+                          >
+                            Cancelar
+                          </button>
+                        </>
+                      ) : (
+                        <span>Sin permiso para procesar el ajuste</span>
+                      )}
                     </td>
                   </tr>
                 )

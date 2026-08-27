@@ -19,6 +19,8 @@ const COLUMNAS_INVENTARIO = `
   enviado_at,
   aprobado_by,
   aprobado_at,
+  ajustes_aplicados_by,
+  ajustes_aplicados_at,
   deposito:depositos (
     id,
     nombre
@@ -393,6 +395,7 @@ export async function aplicarAjustesInventarioFisico(
       AJ004: 404,
       AJ005: 409,
       AJ006: 409,
+      MV004: 409,
     }[error.code]
 
     if (status) throw errorDeApi(error.message, status)

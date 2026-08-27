@@ -55,8 +55,8 @@ as $$
       where up.usuario_id = auth.uid()
         and p.nombre = p_nombre
     )
-    or coalesce(auth.jwt() -> 'app_metadata' -> 'rol', '')::text
-      in ('"admin"', '"administrador"')
+    or coalesce(auth.jwt() -> 'app_metadata' ->> 'rol', '')
+      in ('admin', 'administrador')
     or coalesce(auth.jwt() -> 'app_metadata' -> 'permisos', '[]'::jsonb)
       ? p_nombre
   );
@@ -191,6 +191,42 @@ create policy "movimientos_stock_insert_authenticated"
     )
   );
 
+-- Confirmar y cancelar son funciones SECURITY DEFINER disponibles para todos
+-- los usuarios autenticados. Este trigger conserva el control de permisos al
+-- cambiar el estado de un ajuste, aunque el RPC sea invocado directamente.
+create or replace function public.validar_permiso_estado_ajuste()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_codigo text;
+begin
+  if new.estado_movimiento is not distinct from old.estado_movimiento then
+    return new;
+  end if;
+
+  select tm.codigo into v_codigo
+  from public.tipos_movimiento tm
+  where tm.id = new.tipo_movimiento_id;
+
+  if v_codigo = 'ajuste'
+     and not public.usuario_tiene_permiso('Ajuste de inventario') then
+    raise exception 'No tiene permiso para Ajuste de inventario'
+      using errcode = 'AJ002';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_validar_permiso_estado_ajuste
+  on public.movimientos_stock;
+create trigger trg_validar_permiso_estado_ajuste
+  before update of estado_movimiento on public.movimientos_stock
+  for each row execute function public.validar_permiso_estado_ajuste();
+
 -- =====================================================================
 -- 3) Alta manual
 -- =====================================================================
@@ -289,7 +325,6 @@ declare
   v_movimiento_id uuid;
   v_motivo text := nullif(btrim(coalesce(p_motivo, '')), '');
   v_categoria text := lower(btrim(coalesce(p_categoria, '')));
-  v_disponible numeric;
   v_total integer := 0;
 begin
   if not public.usuario_tiene_permiso('Ajuste de inventario') then
@@ -326,23 +361,6 @@ begin
       and d.diferencia <> 0
     order by d.producto_id
   loop
-    if v_detalle.diferencia < 0 then
-      select cantidad - comprometido into v_disponible
-      from public.stock_x_deposito
-      where deposito_id = v_inventario.deposito_id
-        and producto_id = v_detalle.producto_id
-      for update;
-      if coalesce(v_disponible, 0) < abs(v_detalle.diferencia) then
-        raise exception 'La cantidad supera el disponible del deposito'
-          using errcode = 'AJ003';
-      end if;
-    else
-      perform pg_advisory_xact_lock(
-        hashtext(v_detalle.producto_id::text),
-        hashtext(v_inventario.deposito_id::text)
-      );
-    end if;
-
     insert into public.movimientos_stock (
       tipo_movimiento_id, deposito_origen_id, deposito_destino_id,
       categoria_ajuste, motivo_ajuste, origen_ajuste, inventario_fisico_id,
@@ -359,22 +377,9 @@ begin
     insert into public.detalle_movimiento (movimiento_id, producto_id, cantidad)
     values (v_movimiento_id, v_detalle.producto_id, abs(v_detalle.diferencia));
 
-    if v_detalle.diferencia < 0 then
-      update public.stock_x_deposito
-      set cantidad = cantidad - abs(v_detalle.diferencia), updated_at = now()
-      where deposito_id = v_inventario.deposito_id
-        and producto_id = v_detalle.producto_id;
-    else
-      insert into public.stock_x_deposito (producto_id, deposito_id, cantidad, updated_at)
-      values (v_detalle.producto_id, v_inventario.deposito_id,
-              v_detalle.diferencia, now())
-      on conflict (producto_id, deposito_id) do update
-        set cantidad = stock_x_deposito.cantidad + excluded.cantidad,
-            updated_at = now();
-    end if;
-    update public.movimientos_stock
-    set estado_movimiento = 'confirmado'
-    where id = v_movimiento_id;
+    -- Reutiliza la confirmacion central para mantener locks, validacion de
+    -- disponible, actualizacion de stock y alertas de minimo en un solo lugar.
+    perform public.confirmar_movimiento(v_movimiento_id);
     v_total := v_total + 1;
   end loop;
 

@@ -324,6 +324,9 @@ function HistorialMovimientosPage({ onVolver }) {
                   <th>Usuario</th>
                   <th>Comprobante</th>
                   <th>Observaciones</th>
+                  <th>Categoría de ajuste</th>
+                  <th>Motivo del ajuste</th>
+                  <th>Origen del ajuste</th>
                   <th>Estado</th>
                 </tr>
               </thead>
@@ -377,6 +380,23 @@ function HistorialMovimientosPage({ onVolver }) {
                       <td>
                         {movimiento.observaciones ||
                           '-'}
+                      </td>
+
+                      <td>
+                        {movimiento.categoria_ajuste ||
+                          '-'}
+                      </td>
+
+                      <td>
+                        {movimiento.motivo_ajuste || '-'}
+                      </td>
+
+                      <td>
+                        {movimiento.origen_ajuste === 'inventario_fisico'
+                          ? 'Inventario físico'
+                          : movimiento.origen_ajuste === 'manual'
+                            ? 'Manual'
+                            : '-'}
                       </td>
 
                       <td>
