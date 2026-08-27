@@ -233,8 +233,54 @@ describe('movimientosApi', () => {
 
   it('rechaza un tipo de movimiento desconocido', async () => {
     await expect(
-      createMovimiento({ ...transferencia, tipo: 'ajuste' }),
+      createMovimiento({ ...transferencia, tipo: 'desconocido' }),
     ).rejects.toMatchObject({ status: 400 })
+
+    expect(supabase.rpc).not.toHaveBeenCalled()
+  })
+
+  it('registra un ajuste negativo con motivo y categoría', async () => {
+    mockRpc({
+      data: { id: 'mov-ajuste-1', estado_movimiento: 'pendiente' },
+      error: null,
+    })
+
+    const data = await createMovimiento({
+      tipo: 'ajuste',
+      articulo_id: 'art-1',
+      cantidad: -3,
+      deposito_id: 'dep-1',
+      categoria_ajuste: 'rotura',
+      motivo_ajuste: 'Material dañado durante la descarga',
+    })
+
+    expect(supabase.rpc).toHaveBeenCalledWith('crear_ajuste_inventario', {
+      p_deposito_id: 'dep-1',
+      p_producto_id: 'art-1',
+      p_cantidad: -3,
+      p_categoria: 'rotura',
+      p_motivo: 'Material dañado durante la descarga',
+    })
+    expect(data).toEqual({
+      id: 'mov-ajuste-1',
+      estado_movimiento: 'pendiente',
+    })
+  })
+
+  it('rechaza un ajuste sin motivo', async () => {
+    await expect(
+      createMovimiento({
+        tipo: 'ajuste',
+        articulo_id: 'art-1',
+        cantidad: 3,
+        deposito_id: 'dep-1',
+        categoria_ajuste: 'otro',
+        motivo_ajuste: ' ',
+      }),
+    ).rejects.toMatchObject({
+      status: 400,
+      message: 'El motivo del ajuste es obligatorio',
+    })
 
     expect(supabase.rpc).not.toHaveBeenCalled()
   })
@@ -467,6 +513,10 @@ describe('movimientosApi', () => {
     })
 
     expect(supabase.from).toHaveBeenCalledWith('movimientos_stock')
+    expect(builder.select.mock.calls[0][0]).toContain('categoria_ajuste')
+    expect(builder.select.mock.calls[0][0]).toContain('motivo_ajuste')
+    expect(builder.select.mock.calls[0][0]).toContain('origen_ajuste')
+    expect(builder.select.mock.calls[0][0]).toContain('inventario_fisico_id')
 
     expect(builder.eq).toHaveBeenCalledWith(
       'estado_movimiento',

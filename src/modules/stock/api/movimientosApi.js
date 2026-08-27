@@ -12,6 +12,7 @@ export const TIPOS = {
   INGRESO: 'ingreso',
   EGRESO: 'egreso',
   TRANSFERENCIA: 'transferencia',
+  AJUSTE: 'ajuste',
 }
 
 export const ESTADOS = {
@@ -31,6 +32,10 @@ const COLUMNAS = `
   observaciones,
   created_by,
   created_at,
+  categoria_ajuste,
+  motivo_ajuste,
+  origen_ajuste,
+  inventario_fisico_id,
   tipo:tipos_movimiento (id, nombre, codigo),
   origen:depositos!deposito_origen_id (id, nombre),
   destino:depositos!deposito_destino_id (id, nombre),
@@ -48,6 +53,10 @@ const COLUMNAS_HISTORIAL = `
   observaciones,
   created_by,
   created_at,
+  categoria_ajuste,
+  motivo_ajuste,
+  origen_ajuste,
+  inventario_fisico_id,
   tipo:tipos_movimiento!inner (id, nombre, codigo),
   origen:depositos!deposito_origen_id (id, nombre),
   destino:depositos!deposito_destino_id (id, nombre),
@@ -77,6 +86,12 @@ const STATUS_POR_CODIGO = {
   [CODIGO_FK_VIOLADA]: 422,
   [CODIGO_CHECK_VIOLADO]: 400,
   [CODIGO_UUID_INVALIDO]: 400,
+  AJ001: 400, // datos del ajuste inválidos
+  AJ002: 403, // permiso faltante
+  AJ003: 409, // disponible insuficiente
+  AJ004: 404, // inventario inexistente
+  AJ005: 409, // inventario no aprobado
+  AJ006: 409, // ajustes ya aplicados
 }
 
 // Los raise exception de la migración ya están redactados para mostrarse tal
@@ -89,10 +104,11 @@ function manejarErrorMovimiento(error, mensajePorDefecto) {
 
 function validarMovimiento(movimiento) {
   const tipo = movimiento.tipo
+  const cantidad = Number(movimiento.cantidad)
 
   if (!Object.values(TIPOS).includes(tipo)) {
     throw errorDeApi(
-      'El tipo de movimiento debe ser ingreso, egreso o transferencia',
+      'El tipo de movimiento debe ser ingreso, egreso, transferencia o ajuste',
       400,
     )
   }
@@ -101,7 +117,28 @@ function validarMovimiento(movimiento) {
     throw errorDeApi('El artículo es obligatorio', 400)
   }
 
-  const cantidad = Number(movimiento.cantidad)
+  if (tipo === TIPOS.AJUSTE) {
+    if (!movimiento.deposito_id) {
+      throw errorDeApi('El depósito es obligatorio para el ajuste', 400)
+    }
+
+    if (!['rotura', 'vencimiento', 'robo', 'conteo_fisico', 'otro'].includes(
+      movimiento.categoria_ajuste,
+    )) {
+      throw errorDeApi('La categoría del ajuste no es válida', 400)
+    }
+
+    if (!movimiento.motivo_ajuste?.trim()) {
+      throw errorDeApi('El motivo del ajuste es obligatorio', 400)
+    }
+
+    if (!Number.isFinite(cantidad) || cantidad === 0) {
+      throw errorDeApi('La cantidad del ajuste debe ser distinta de 0', 400)
+    }
+
+    return
+  }
+
   if (!Number.isFinite(cantidad) || cantidad <= 0) {
     throw errorDeApi('La cantidad debe ser mayor a 0', 400)
   }
@@ -262,6 +299,19 @@ export async function createMovimiento(movimiento) {
 
   const tipo = movimiento.tipo
 
+  if (tipo === TIPOS.AJUSTE) {
+    const { data, error } = await supabase.rpc('crear_ajuste_inventario', {
+      p_deposito_id: movimiento.deposito_id,
+      p_producto_id: movimiento.articulo_id,
+      p_cantidad: Number(movimiento.cantidad),
+      p_categoria: movimiento.categoria_ajuste,
+      p_motivo: movimiento.motivo_ajuste.trim(),
+    }).single()
+
+    if (error) manejarErrorMovimiento(error, 'No se pudo registrar el ajuste')
+    return data
+  }
+
   // El depósito que no corresponde al tipo se manda en null aunque el
   // formulario traiga un valor colgado: el trigger de la base lo rechazaría.
   const origen =
@@ -284,6 +334,40 @@ export async function createMovimiento(movimiento) {
     .single()
 
   if (error) manejarErrorMovimiento(error, 'No se pudo registrar el movimiento')
+  return data
+}
+
+export async function puedeAjustarInventario() {
+  const { data, error } = await supabase.rpc('usuario_tiene_permiso', {
+    p_nombre: 'Ajuste de inventario',
+  })
+
+  if (error) throw error
+  return data === true
+}
+
+export async function aplicarAjustesInventarioFisico(
+  inventarioId,
+  { categoria = 'conteo_fisico', motivo } = {},
+) {
+  if (!inventarioId) {
+    throw errorDeApi('La toma de inventario es obligatoria', 400)
+  }
+
+  if (!motivo?.trim()) {
+    throw errorDeApi('El motivo del ajuste es obligatorio', 400)
+  }
+
+  const { data, error } = await supabase.rpc(
+    'aplicar_ajustes_inventario_fisico',
+    {
+      p_inventario_id: inventarioId,
+      p_categoria: categoria,
+      p_motivo: motivo.trim(),
+    },
+  )
+
+  if (error) manejarErrorMovimiento(error, 'No se pudieron aplicar los ajustes')
   return data
 }
 

@@ -6,6 +6,8 @@ import {
   enviarInventarioAprobacion,
   getInventarioFisico,
   iniciarInventarioFisico,
+  puedeAjustarInventario,
+  aplicarAjustesInventarioFisico,
 } from './inventarioFisicoApi'
 
 vi.mock('../../../lib/supabaseClient', () => ({
@@ -415,6 +417,12 @@ describe('inventarioFisicoApi', () => {
       const resultado =
         await getInventarioFisico('inventario-1')
 
+      expect(inventarioBuilder.select.mock.calls[0][0]).toContain(
+        'ajustes_aplicados_at',
+      )
+      expect(inventarioBuilder.select.mock.calls[0][0]).toContain(
+        'ajustes_aplicados_by',
+      )
       expect(resultado.detalle).toEqual([
         {
           producto_id: 'producto-1',
@@ -423,6 +431,65 @@ describe('inventarioFisicoApi', () => {
           diferencia: -2,
         },
       ])
+    })
+  })
+
+  describe('ajustes de inventario', () => {
+    it('consulta si el usuario tiene permiso para ajustar', async () => {
+      supabase.rpc.mockResolvedValue({ data: true, error: null })
+
+      await expect(puedeAjustarInventario()).resolves.toBe(true)
+
+      expect(supabase.rpc).toHaveBeenCalledWith('usuario_tiene_permiso', {
+        p_nombre: 'Ajuste de inventario',
+      })
+    })
+
+    it('aplica los ajustes de una toma aprobada mediante RPC', async () => {
+      supabase.rpc.mockResolvedValue({ data: 2, error: null })
+
+      await expect(
+        aplicarAjustesInventarioFisico('inventario-1', {
+          categoria: 'conteo_fisico',
+          motivo: 'Diferencia detectada en el conteo',
+        }),
+      ).resolves.toBe(2)
+
+      expect(supabase.rpc).toHaveBeenCalledWith(
+        'aplicar_ajustes_inventario_fisico',
+        {
+          p_inventario_id: 'inventario-1',
+          p_categoria: 'conteo_fisico',
+          p_motivo: 'Diferencia detectada en el conteo',
+        },
+      )
+    })
+
+    it('rechaza aplicar ajustes sin motivo antes de llamar a Supabase', async () => {
+      await expect(
+        aplicarAjustesInventarioFisico('inventario-1', { motivo: ' ' }),
+      ).rejects.toMatchObject({
+        status: 400,
+        message: 'El motivo del ajuste es obligatorio',
+      })
+
+      expect(supabase.rpc).not.toHaveBeenCalled()
+    })
+
+    it('traduce a conflicto el stock insuficiente detectado al confirmar', async () => {
+      supabase.rpc.mockResolvedValue({
+        data: null,
+        error: {
+          code: 'MV004',
+          message: 'La cantidad supera el disponible del deposito origen',
+        },
+      })
+
+      await expect(
+        aplicarAjustesInventarioFisico('inventario-1', {
+          motivo: 'Diferencia de conteo',
+        }),
+      ).rejects.toMatchObject({ status: 409 })
     })
   })
 })

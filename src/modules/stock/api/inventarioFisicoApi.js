@@ -19,6 +19,8 @@ const COLUMNAS_INVENTARIO = `
   enviado_at,
   aprobado_by,
   aprobado_at,
+  ajustes_aplicados_by,
+  ajustes_aplicados_at,
   deposito:depositos (
     id,
     nombre
@@ -351,6 +353,54 @@ export async function aprobarInventarioFisico(inventarioId) {
     .single()
 
   if (error) manejarErrorInventario(error)
+
+  return data
+}
+
+export async function puedeAjustarInventario() {
+  const { data, error } = await supabase.rpc('usuario_tiene_permiso', {
+    p_nombre: 'Ajuste de inventario',
+  })
+
+  if (error) throw error
+  return data === true
+}
+
+export async function aplicarAjustesInventarioFisico(
+  inventarioId,
+  { categoria = 'conteo_fisico', motivo } = {},
+) {
+  if (!inventarioId) {
+    throw errorDeApi('La toma de inventario es obligatoria', 400)
+  }
+
+  if (!motivo?.trim()) {
+    throw errorDeApi('El motivo del ajuste es obligatorio', 400)
+  }
+
+  const { data, error } = await supabase.rpc(
+    'aplicar_ajustes_inventario_fisico',
+    {
+      p_inventario_id: inventarioId,
+      p_categoria: categoria,
+      p_motivo: motivo.trim(),
+    },
+  )
+
+  if (error) {
+    const status = {
+      AJ001: 400,
+      AJ002: 403,
+      AJ003: 409,
+      AJ004: 404,
+      AJ005: 409,
+      AJ006: 409,
+      MV004: 409,
+    }[error.code]
+
+    if (status) throw errorDeApi(error.message, status)
+    throw error
+  }
 
   return data
 }

@@ -5,6 +5,7 @@ import {
   confirmarMovimiento,
   createMovimiento,
   getMovimientos,
+  puedeAjustarInventario,
 } from '../api/movimientosApi'
 import { getDepositos } from '../api/depositosApi'
 import { getArticulos } from '../api/articulosApi'
@@ -17,12 +18,24 @@ const movimientoInicial = {
   deposito_destino_id: '',
   comprobante: '',
   observaciones: '',
+  deposito_id: '',
+  categoria_ajuste: 'otro',
+  motivo_ajuste: '',
 }
+
+const categoriasAjuste = [
+  ['rotura', 'Rotura'],
+  ['vencimiento', 'Vencimiento'],
+  ['robo', 'Robo'],
+  ['conteo_fisico', 'Conteo físico'],
+  ['otro', 'Otro'],
+]
 
 const etiquetaTipo = {
   [TIPOS.INGRESO]: 'Ingreso',
   [TIPOS.EGRESO]: 'Egreso',
   [TIPOS.TRANSFERENCIA]: 'Transferencia',
+  [TIPOS.AJUSTE]: 'Ajuste',
 }
 
 // El 423 es el único error accionable por el usuario: reintentar. El resto ya
@@ -44,6 +57,7 @@ function MovimientosPage({ onVerHistorial }) {
   const [loading, setLoading] = useState(true)
   const [enviando, setEnviando] = useState(false)
   const [procesandoId, setProcesandoId] = useState(null)
+  const [puedeAjustar, setPuedeAjustar] = useState(false)
 
   async function cargarDatos() {
     try {
@@ -59,6 +73,12 @@ function MovimientosPage({ onVerHistorial }) {
       setDepositos(depositosData)
       setArticulos(articulosData.articulos)
       setPendientes(pendientesData.movimientos)
+
+      try {
+        setPuedeAjustar(await puedeAjustarInventario())
+      } catch {
+        setPuedeAjustar(false)
+      }
     } catch (err) {
       setError(err.message || 'No se pudieron cargar los movimientos')
     } finally {
@@ -158,6 +178,7 @@ function MovimientosPage({ onVerHistorial }) {
 
   const muestraOrigen = form.tipo !== TIPOS.INGRESO
   const muestraDestino = form.tipo !== TIPOS.EGRESO
+  const esAjuste = form.tipo === TIPOS.AJUSTE
 
   return (
     <main>
@@ -184,6 +205,7 @@ function MovimientosPage({ onVerHistorial }) {
               <option value={TIPOS.INGRESO}>Ingreso</option>
               <option value={TIPOS.EGRESO}>Egreso</option>
               <option value={TIPOS.TRANSFERENCIA}>Transferencia</option>
+              {puedeAjustar && <option value={TIPOS.AJUSTE}>Ajuste de inventario</option>}
             </select>
           </div>
 
@@ -206,7 +228,7 @@ function MovimientosPage({ onVerHistorial }) {
             </select>
           </div>
 
-          <div>
+          {!esAjuste && <div>
             <label htmlFor="cantidad">Cantidad</label>
             <input
               id="cantidad"
@@ -218,9 +240,67 @@ function MovimientosPage({ onVerHistorial }) {
               onChange={manejarCambio}
               required
             />
-          </div>
+          </div>}
 
-          {muestraOrigen && (
+          {esAjuste && (
+            <>
+              <div>
+                <label htmlFor="deposito_id">Depósito</label>
+                <select
+                  id="deposito_id"
+                  name="deposito_id"
+                  value={form.deposito_id}
+                  onChange={manejarCambio}
+                  required
+                >
+                  <option value="">Seleccionar...</option>
+                  {depositos.map((deposito) => (
+                    <option key={deposito.id} value={deposito.id}>
+                      {deposito.nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="cantidad">Cantidad (positiva suma, negativa resta)</label>
+                <input
+                  id="cantidad"
+                  name="cantidad"
+                  type="number"
+                  step="any"
+                  value={form.cantidad}
+                  onChange={manejarCambio}
+                  required
+                />
+              </div>
+              <div>
+                <label htmlFor="categoria_ajuste">Categoría del ajuste</label>
+                <select
+                  id="categoria_ajuste"
+                  name="categoria_ajuste"
+                  value={form.categoria_ajuste}
+                  onChange={manejarCambio}
+                  required
+                >
+                  {categoriasAjuste.map(([valor, etiqueta]) => (
+                    <option key={valor} value={valor}>{etiqueta}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="motivo_ajuste">Motivo</label>
+                <textarea
+                  id="motivo_ajuste"
+                  name="motivo_ajuste"
+                  value={form.motivo_ajuste}
+                  onChange={manejarCambio}
+                  required
+                />
+              </div>
+            </>
+          )}
+
+          {!esAjuste && muestraOrigen && (
             <div>
               <label htmlFor="deposito_origen_id">Depósito origen</label>
               <select
@@ -241,7 +321,7 @@ function MovimientosPage({ onVerHistorial }) {
             </div>
           )}
 
-          {muestraDestino && (
+          {!esAjuste && muestraDestino && (
             <div>
               <label htmlFor="deposito_destino_id">Depósito destino</label>
               <select
@@ -264,7 +344,7 @@ function MovimientosPage({ onVerHistorial }) {
             </div>
           )}
 
-          <div>
+          {!esAjuste && <div>
             <label htmlFor="comprobante">Comprobante</label>
             <input
               id="comprobante"
@@ -273,9 +353,9 @@ function MovimientosPage({ onVerHistorial }) {
               onChange={manejarCambio}
               required
             />
-          </div>
+          </div>}
 
-          <div>
+          {!esAjuste && <div>
             <label htmlFor="observaciones">Observaciones</label>
             <textarea
               id="observaciones"
@@ -283,7 +363,7 @@ function MovimientosPage({ onVerHistorial }) {
               value={form.observaciones}
               onChange={manejarCambio}
             />
-          </div>
+          </div>}
 
           <button type="submit" disabled={enviando}>
             {enviando ? 'Registrando...' : 'Registrar movimiento'}
@@ -317,6 +397,9 @@ function MovimientosPage({ onVerHistorial }) {
                 // aunque en esta historia siempre tenga un solo renglón.
                 const renglon = movimiento.detalle?.[0]
                 const procesando = procesandoId === movimiento.id
+                const esAjustePendiente =
+                  movimiento.tipo?.codigo === TIPOS.AJUSTE
+                const puedeProcesar = !esAjustePendiente || puedeAjustar
 
                 return (
                   <tr key={movimiento.id}>
@@ -338,21 +421,27 @@ function MovimientosPage({ onVerHistorial }) {
                     <td>{movimiento.destino?.nombre || '-'}</td>
                     <td>{movimiento.comprobante || '-'}</td>
                     <td>
-                      <button
-                        type="button"
-                        onClick={() => confirmar(movimiento)}
-                        disabled={procesando}
-                      >
-                        {procesando ? 'Procesando...' : 'Confirmar'}
-                      </button>
+                      {puedeProcesar ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => confirmar(movimiento)}
+                            disabled={procesando}
+                          >
+                            {procesando ? 'Procesando...' : 'Confirmar'}
+                          </button>
 
-                      <button
-                        type="button"
-                        onClick={() => cancelar(movimiento)}
-                        disabled={procesando}
-                      >
-                        Cancelar
-                      </button>
+                          <button
+                            type="button"
+                            onClick={() => cancelar(movimiento)}
+                            disabled={procesando}
+                          >
+                            Cancelar
+                          </button>
+                        </>
+                      ) : (
+                        <span>Sin permiso para procesar el ajuste</span>
+                      )}
                     </td>
                   </tr>
                 )
