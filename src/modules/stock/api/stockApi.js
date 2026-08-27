@@ -12,6 +12,14 @@ function validarUuid(label, valor) {
   }
 }
 
+function escaparValorFiltro(valor) {
+  const valorEscapado = String(valor)
+    .replaceAll('\\', '\\\\')
+    .replaceAll('"', '\\"')
+
+  return `"${valorEscapado}"`
+}
+
 function normalizarStock(row) {
   const fisico = Number(row?.cantidad ?? 0)
   const comprometido = Number(row?.comprometido ?? 0)
@@ -97,7 +105,7 @@ export async function getStockDisponibles({
 
   if (search?.trim()) {
     // Buscar los productos que coincidan con el término y filtrar por sus IDs.
-    const patron = `%${search.trim()}%`
+    const patron = escaparValorFiltro(`%${search.trim()}%`)
     const { data: productos, error: productosError } = await supabase
       .from('productos')
       .select('id')
@@ -159,7 +167,7 @@ export function subscribeToStockChanges({
       event: '*',
       schema: 'public',
       table: 'stock_x_deposito',
-      ...(filtros.length > 0 ? { filter: filtros.join(' and ') } : {}),
+      ...(filtros.length > 0 ? { filter: filtros.join(',') } : {}),
     },
     (payload) => {
       onChange?.(payload)

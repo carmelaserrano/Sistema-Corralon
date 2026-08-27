@@ -174,6 +174,28 @@ describe('stockApi', () => {
         }),
       ).rejects.toMatchObject({ status: 400 })
     })
+
+    it('escapa caracteres reservados antes de construir el filtro de búsqueda', async () => {
+      const consultaStock = crearQueryBuilderConRange({
+        data: [],
+        error: null,
+        count: 0,
+      })
+      const consultaProductos = crearQueryBuilder({
+        data: [{ id: '22222222-2222-4222-8222-222222222222' }],
+        error: null,
+      })
+
+      supabase.from
+        .mockReturnValueOnce(consultaStock)
+        .mockReturnValueOnce(consultaProductos)
+
+      await getStockDisponibles({ search: 'cemento, bolsa (50) "premium"' })
+
+      expect(consultaProductos.or).toHaveBeenCalledWith(
+        'nombre.ilike."%cemento, bolsa (50) \\"premium\\"%",sku.ilike."%cemento, bolsa (50) \\"premium\\"%"',
+      )
+    })
   })
 
   describe('subscribeToStockChanges', () => {
@@ -195,7 +217,7 @@ describe('stockApi', () => {
           event: '*',
           schema: 'public',
           table: 'stock_x_deposito',
-          filter: 'producto_id=eq.22222222-2222-4222-8222-222222222222 and deposito_id=eq.11111111-1111-4111-8111-111111111111',
+          filter: 'producto_id=eq.22222222-2222-4222-8222-222222222222,deposito_id=eq.11111111-1111-4111-8111-111111111111',
         }),
         expect.any(Function),
       )
