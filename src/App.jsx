@@ -10,6 +10,7 @@ import ArticulosPage from './modules/stock/pages/ArticulosPage'
 import MovimientosPage from './modules/stock/pages/MovimientosPage'
 import ConfiguracionStockPage from './modules/stock/pages/ConfiguracionStockPage'
 import InventarioFisicoPage from './modules/stock/pages/InventarioFisicoPage'
+import HistorialMovimientosPage from './modules/stock/pages/HistorialMovimientosPage'
 
 function App() {
   const { session, loading, signOut } = useAuth()
@@ -78,7 +79,16 @@ function App() {
       {pagina === 'marcas' && <MarcasPage />}
       {pagina === 'unidades' && <UnidadesMedidaPage />}
       {pagina === 'articulos' && <ArticulosPage />}
-      {pagina === 'movimientos' && <MovimientosPage />}
+      {pagina === 'movimientos' && (
+       <MovimientosPage
+        onVerHistorial={() => setPagina('historial-movimientos')}
+      />
+      )}
+      {pagina === 'historial-movimientos' && (
+       <HistorialMovimientosPage
+        onVolver={() => setPagina('movimientos')}
+       />
+      )}
       {pagina === 'configuracion-stock' && <ConfiguracionStockPage />}
       {pagina === 'inventario-fisico' && <InventarioFisicoPage />}
     </div>
