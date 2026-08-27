@@ -40,6 +40,24 @@ const COLUMNAS = `
     producto:productos (id, sku, nombre)
   )
 `
+const COLUMNAS_HISTORIAL = `
+  id,
+  fecha,
+  estado_movimiento,
+  comprobante,
+  observaciones,
+  created_by,
+  created_at,
+  tipo:tipos_movimiento!inner (id, nombre, codigo),
+  origen:depositos!deposito_origen_id (id, nombre),
+  destino:depositos!deposito_destino_id (id, nombre),
+  detalle:detalle_movimiento!inner (
+    id,
+    producto_id,
+    cantidad,
+    producto:productos (id, sku, nombre)
+  )
+`
 
 // Los códigos MVxxx los define la migración 0006; el resto son estándar de
 // PostgreSQL o de PostgREST.
@@ -161,6 +179,82 @@ export async function getMovimientoById(id) {
   if (!data) throw errorDeApi('El movimiento no existe', 404)
 
   return data
+}
+
+/**
+ * Consulta el historial de movimientos de stock con filtros opcionales.
+ *
+ * Todos los filtros pueden utilizarse de manera independiente o combinada.
+ * La consulta es exclusivamente de lectura y no modifica movimientos.
+ *
+ * @param {Object} filtros - Filtros y datos de paginación.
+ * @param {string} [filtros.articuloId] - ID del artículo.
+ * @param {string} [filtros.tipoId] - ID del tipo de movimiento.
+ * @param {string} [filtros.fechaDesde] - Fecha inicial en formato ISO.
+ * @param {string} [filtros.fechaHasta] - Fecha final en formato ISO.
+ * @param {string} [filtros.depositoOrigenId] - ID del depósito origen.
+ * @param {string} [filtros.depositoDestinoId] - ID del depósito destino.
+ * @param {number} [filtros.page=1] - Página solicitada.
+ * @param {number} [filtros.pageSize=10] - Registros por página.
+ * @returns {Promise<Object>} Movimientos encontrados y datos de paginación.
+ */
+export async function getHistorialMovimientos({
+  articuloId = '',
+  tipoId = '',
+  fechaDesde = '',
+  fechaHasta = '',
+  depositoOrigenId = '',
+  depositoDestinoId = '',
+  page = 1,
+  pageSize = 10,
+} = {}) {
+  let consulta = supabase
+    .from(TABLA)
+    .select(COLUMNAS_HISTORIAL, { count: 'exact' })
+
+  if (articuloId) {
+    consulta = consulta.eq('detalle.producto_id', articuloId)
+  }
+
+  if (tipoId) {
+    consulta = consulta.eq('tipo_movimiento_id', tipoId)
+  }
+
+  if (fechaDesde) {
+    const desdeFecha = new Date(`${fechaDesde}T00:00:00`)
+    consulta = consulta.gte('fecha', desdeFecha.toISOString())
+  } 
+  
+  if (fechaHasta) {
+    const hastaFecha = new Date(`${fechaHasta}T23:59:59.999`)
+    consulta = consulta.lte('fecha', hastaFecha.toISOString())
+  }
+
+  if (depositoOrigenId) {
+    consulta = consulta.eq('deposito_origen_id', depositoOrigenId)
+  }
+
+  if (depositoDestinoId) {
+    consulta = consulta.eq('deposito_destino_id', depositoDestinoId)
+  }
+
+  const desde = (page - 1) * pageSize
+
+  const { data, count, error } = await consulta
+    .order('fecha', { ascending: false })
+    .range(desde, desde + pageSize - 1)
+
+  if (error) throw error
+
+  const total = count ?? 0
+
+  return {
+    movimientos: data ?? [],
+    total,
+    page,
+    pageSize,
+    totalPaginas: Math.max(1, Math.ceil(total / pageSize)),
+  }
 }
 
 export async function createMovimiento(movimiento) {

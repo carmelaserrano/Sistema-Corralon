@@ -6,6 +6,7 @@ import {
   getMovimientoById,
   getMovimientos,
   getTiposMovimiento,
+  getHistorialMovimientos,
 } from './movimientosApi'
 import { supabase } from '../../../lib/supabaseClient'
 
@@ -67,10 +68,11 @@ describe('movimientosApi', () => {
   })
 
   it('registra un ingreso sin depósito origen', async () => {
-    mockRpc({ data: { id: 'mov-2', estado_movimiento: 'pendiente' }, error: null })
+    mockRpc({
+      data: { id: 'mov-2', estado_movimiento: 'pendiente' },
+      error: null,
+    })
 
-    // El origen viene cargado a propósito: la API tiene que descartarlo,
-    // porque el trigger de la base rechaza un ingreso con origen.
     await createMovimiento({
       tipo: 'ingreso',
       articulo_id: 'art-1',
@@ -91,7 +93,10 @@ describe('movimientosApi', () => {
   })
 
   it('registra un egreso sin depósito destino', async () => {
-    mockRpc({ data: { id: 'mov-3', estado_movimiento: 'pendiente' }, error: null })
+    mockRpc({
+      data: { id: 'mov-3', estado_movimiento: 'pendiente' },
+      error: null,
+    })
 
     await createMovimiento({
       tipo: 'egreso',
@@ -183,7 +188,10 @@ describe('movimientosApi', () => {
 
   it('rechaza una transferencia con el mismo depósito de origen y destino', async () => {
     await expect(
-      createMovimiento({ ...transferencia, deposito_destino_id: 'dep-origen' }),
+      createMovimiento({
+        ...transferencia,
+        deposito_destino_id: 'dep-origen',
+      }),
     ).rejects.toMatchObject({
       status: 400,
       message: 'El depósito origen y el destino deben ser distintos',
@@ -276,7 +284,9 @@ describe('movimientosApi', () => {
   })
 
   it('rechaza confirmar sin id', async () => {
-    await expect(confirmarMovimiento('')).rejects.toMatchObject({ status: 400 })
+    await expect(confirmarMovimiento('')).rejects.toMatchObject({
+      status: 400,
+    })
     expect(supabase.rpc).not.toHaveBeenCalled()
   })
 
@@ -297,7 +307,10 @@ describe('movimientosApi', () => {
   it('traduce a 409 un movimiento ya confirmado', async () => {
     mockRpc({
       data: null,
-      error: { code: 'MV003', message: 'El movimiento ya esta confirmado' },
+      error: {
+        code: 'MV003',
+        message: 'El movimiento ya esta confirmado',
+      },
     })
 
     await expect(confirmarMovimiento('mov-1')).rejects.toMatchObject({
@@ -309,7 +322,10 @@ describe('movimientosApi', () => {
   it('traduce a 409 un movimiento ya cancelado', async () => {
     mockRpc({
       data: null,
-      error: { code: 'MV003', message: 'El movimiento ya esta cancelado' },
+      error: {
+        code: 'MV003',
+        message: 'El movimiento ya esta cancelado',
+      },
     })
 
     await expect(confirmarMovimiento('mov-1')).rejects.toMatchObject({
@@ -322,7 +338,8 @@ describe('movimientosApi', () => {
       data: null,
       error: {
         code: 'MV006',
-        message: 'Hay otro movimiento en proceso sobre el mismo articulo/deposito',
+        message:
+          'Hay otro movimiento en proceso sobre el mismo articulo/deposito',
       },
     })
 
@@ -334,7 +351,10 @@ describe('movimientosApi', () => {
   it('traduce a 423 el lock_not_available que levanta PostgreSQL', async () => {
     mockRpc({
       data: null,
-      error: { code: '55P03', message: 'could not obtain lock on row' },
+      error: {
+        code: '55P03',
+        message: 'could not obtain lock on row',
+      },
     })
 
     await expect(confirmarMovimiento('mov-1')).rejects.toMatchObject({
@@ -345,7 +365,10 @@ describe('movimientosApi', () => {
   it('traduce a 404 un movimiento inexistente', async () => {
     mockRpc({
       data: null,
-      error: { code: 'MV002', message: 'El movimiento no existe' },
+      error: {
+        code: 'MV002',
+        message: 'El movimiento no existe',
+      },
     })
 
     await expect(confirmarMovimiento('mov-1')).rejects.toMatchObject({
@@ -354,7 +377,11 @@ describe('movimientosApi', () => {
   })
 
   it('reenvía sin traducir los errores desconocidos', async () => {
-    const error = { code: '42P01', message: 'relation does not exist' }
+    const error = {
+      code: '42P01',
+      message: 'relation does not exist',
+    }
+
     mockRpc({ data: null, error })
 
     await expect(confirmarMovimiento('mov-1')).rejects.toEqual(error)
@@ -364,7 +391,10 @@ describe('movimientosApi', () => {
 
   it('cancela un movimiento pendiente', async () => {
     const resultado = {
-      data: { id: 'mov-1', estado_movimiento: 'cancelado' },
+      data: {
+        id: 'mov-1',
+        estado_movimiento: 'cancelado',
+      },
       error: null,
     }
 
@@ -375,11 +405,15 @@ describe('movimientosApi', () => {
     expect(supabase.rpc).toHaveBeenCalledWith('cancelar_movimiento', {
       p_movimiento_id: 'mov-1',
     })
+
     expect(data).toEqual(resultado.data)
   })
 
   it('rechaza cancelar sin id', async () => {
-    await expect(cancelarMovimiento('')).rejects.toMatchObject({ status: 400 })
+    await expect(cancelarMovimiento('')).rejects.toMatchObject({
+      status: 400,
+    })
+
     expect(supabase.rpc).not.toHaveBeenCalled()
   })
 
@@ -409,7 +443,12 @@ describe('movimientosApi', () => {
 
   it('lista los movimientos filtrando por estado', async () => {
     const resultado = {
-      data: [{ id: 'mov-1', estado_movimiento: 'pendiente' }],
+      data: [
+        {
+          id: 'mov-1',
+          estado_movimiento: 'pendiente',
+        },
+      ],
       count: 1,
       error: null,
     }
@@ -423,10 +462,17 @@ describe('movimientosApi', () => {
 
     supabase.from.mockReturnValue(builder)
 
-    const data = await getMovimientos({ estado: 'pendiente' })
+    const data = await getMovimientos({
+      estado: 'pendiente',
+    })
 
     expect(supabase.from).toHaveBeenCalledWith('movimientos_stock')
-    expect(builder.eq).toHaveBeenCalledWith('estado_movimiento', 'pendiente')
+
+    expect(builder.eq).toHaveBeenCalledWith(
+      'estado_movimiento',
+      'pendiente',
+    )
+
     expect(data).toMatchObject({
       movimientos: resultado.data,
       total: 1,
@@ -435,7 +481,11 @@ describe('movimientosApi', () => {
   })
 
   it('lista los movimientos sin filtro de estado', async () => {
-    const resultado = { data: [], count: 0, error: null }
+    const resultado = {
+      data: [],
+      count: 0,
+      error: null,
+    }
 
     const builder = {
       select: vi.fn(() => builder),
@@ -452,7 +502,12 @@ describe('movimientosApi', () => {
   })
 
   it('obtiene un movimiento por id', async () => {
-    const resultado = { data: { id: 'mov-1' }, error: null }
+    const resultado = {
+      data: {
+        id: 'mov-1',
+      },
+      error: null,
+    }
 
     const builder = {
       select: vi.fn(() => builder),
@@ -464,7 +519,11 @@ describe('movimientosApi', () => {
 
     const data = await getMovimientoById('mov-1')
 
-    expect(builder.eq).toHaveBeenCalledWith('id', 'mov-1')
+    expect(builder.eq).toHaveBeenCalledWith(
+      'id',
+      'mov-1',
+    )
+
     expect(data).toEqual(resultado.data)
   })
 
@@ -472,13 +531,147 @@ describe('movimientosApi', () => {
     const builder = {
       select: vi.fn(() => builder),
       eq: vi.fn(() => builder),
-      maybeSingle: vi.fn(() => ({ data: null, error: null })),
+      maybeSingle: vi.fn(() => ({
+        data: null,
+        error: null,
+      })),
     }
 
     supabase.from.mockReturnValue(builder)
 
-    await expect(getMovimientoById('mov-1')).rejects.toMatchObject({
+    await expect(
+      getMovimientoById('mov-1'),
+    ).rejects.toMatchObject({
       status: 404,
     })
+  })
+
+  // --- Historial de movimientos (US-STK-10) ---
+
+  it('consulta el historial paginado ordenado por fecha descendente', async () => {
+    const resultado = {
+      data: [
+        {
+          id: 'mov-10',
+          fecha: '2026-08-27T15:30:00.000Z',
+          created_by: 'usuario-uuid',
+        },
+      ],
+      count: 21,
+      error: null,
+    }
+
+    const builder = {
+      select: vi.fn(() => builder),
+      eq: vi.fn(() => builder),
+      gte: vi.fn(() => builder),
+      lte: vi.fn(() => builder),
+      order: vi.fn(() => builder),
+      range: vi.fn(() => resultado),
+    }
+
+    supabase.from.mockReturnValue(builder)
+
+    const data = await getHistorialMovimientos({
+      page: 2,
+      pageSize: 10,
+    })
+
+    expect(supabase.from).toHaveBeenCalledWith('movimientos_stock')
+
+    expect(builder.order).toHaveBeenCalledWith('fecha', {
+      ascending: false,
+    })
+
+    expect(builder.range).toHaveBeenCalledWith(10, 19)
+
+    expect(data).toMatchObject({
+      movimientos: resultado.data,
+      total: 21,
+      page: 2,
+      pageSize: 10,
+      totalPaginas: 3,
+    })
+  })
+
+  it('aplica los filtros opcionales del historial', async () => {
+    const resultado = {
+      data: [],
+      count: 0,
+      error: null,
+    }
+
+    const builder = {
+      select: vi.fn(() => builder),
+      eq: vi.fn(() => builder),
+      gte: vi.fn(() => builder),
+      lte: vi.fn(() => builder),
+      order: vi.fn(() => builder),
+      range: vi.fn(() => resultado),
+    }
+
+    supabase.from.mockReturnValue(builder)
+
+    await getHistorialMovimientos({
+      articuloId: 'art-1',
+      tipoId: 'tipo-1',
+      fechaDesde: '2026-08-01',
+      fechaHasta: '2026-08-27',
+      depositoOrigenId: 'dep-1',
+      depositoDestinoId: 'dep-2',
+    })
+
+    expect(builder.eq).toHaveBeenCalledWith(
+      'detalle.producto_id',
+      'art-1',
+    )
+
+    expect(builder.eq).toHaveBeenCalledWith(
+      'tipo_movimiento_id',
+      'tipo-1',
+    )
+
+    expect(builder.eq).toHaveBeenCalledWith(
+      'deposito_origen_id',
+      'dep-1',
+    )
+
+    expect(builder.eq).toHaveBeenCalledWith(
+      'deposito_destino_id',
+      'dep-2',
+    )
+
+    expect(builder.gte).toHaveBeenCalled()
+    expect(builder.lte).toHaveBeenCalled()
+  })
+
+  it('no aplica filtros cuando el historial se consulta completo', async () => {
+    const resultado = {
+      data: [],
+      count: 0,
+      error: null,
+    }
+
+    const builder = {
+      select: vi.fn(() => builder),
+      eq: vi.fn(() => builder),
+      gte: vi.fn(() => builder),
+      lte: vi.fn(() => builder),
+      order: vi.fn(() => builder),
+      range: vi.fn(() => resultado),
+    }
+
+    supabase.from.mockReturnValue(builder)
+
+    await getHistorialMovimientos()
+
+    expect(builder.eq).not.toHaveBeenCalled()
+    expect(builder.gte).not.toHaveBeenCalled()
+    expect(builder.lte).not.toHaveBeenCalled()
+
+    expect(builder.range).toHaveBeenCalledWith(
+      0,
+      9,
+    )
   })
 })

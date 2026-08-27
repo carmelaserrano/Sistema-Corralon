@@ -35,7 +35,7 @@ function mensajeDeError(err, mensajePorDefecto) {
   return err?.message || mensajePorDefecto
 }
 
-function MovimientosPage() {
+function MovimientosPage({ onVerHistorial }) {
   const [depositos, setDepositos] = useState([])
   const [articulos, setArticulos] = useState([])
   const [pendientes, setPendientes] = useState([])
@@ -162,6 +162,9 @@ function MovimientosPage() {
   return (
     <main>
       <h1>Movimientos de stock</h1>
+      <button type="button" onClick={onVerHistorial}>
+        Ver historial
+      </button>
 
       {error && <p role="alert">{error}</p>}
 
