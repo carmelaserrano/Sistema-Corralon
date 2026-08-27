@@ -171,8 +171,9 @@ function RecepcionesPage() {
             <input
               id="orden_compra_id"
               name="orden_compra_id"
-              value={form.orden_compra_id}
-              onChange={manejarCambio}
+              value="(valor nulo por el momento)"
+              disabled
+              readOnly
             />
           </div>
 
