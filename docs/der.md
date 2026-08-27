@@ -94,6 +94,27 @@ erDiagram
     timestamptz created_at
   }
 
+  RECEPCIONES {
+    uuid id PK
+    uuid orden_compra_id
+    uuid deposito_destino_id FK
+    text estado_recepcion
+    text observaciones
+    uuid created_by FK
+    timestamptz created_at
+    uuid confirmado_by FK
+    timestamptz confirmado_at
+  }
+
+  DETALLE_RECEPCION {
+    uuid id PK
+    uuid recepcion_id FK
+    uuid producto_id FK
+    numeric cantidad
+    numeric costo_unitario
+    timestamptz created_at
+  }
+
   %% Relaciones y cardinalidades (según FKs reales)
   TIPOS_DEPOSITO ||--o{ DEPOSITOS : "tipo_deposito_id"
   CATEGORIAS o|--o{ PRODUCTOS : "categoria_id"
@@ -108,6 +129,9 @@ erDiagram
   DEPOSITOS o|--o{ MOVIMIENTOS_STOCK : "deposito_destino_id"
   MOVIMIENTOS_STOCK ||--o{ DETALLE_MOVIMIENTO : "movimiento_id"
   PRODUCTOS ||--o{ DETALLE_MOVIMIENTO : "producto_id"
+  DEPOSITOS ||--o{ RECEPCIONES : "deposito_destino_id"
+  RECEPCIONES ||--o{ DETALLE_RECEPCION : "recepcion_id"
+  PRODUCTOS ||--o{ DETALLE_RECEPCION : "producto_id"
 
 ```
 
@@ -125,6 +149,8 @@ Nota: `movimientos_stock.created_by` es una clave foránea hacia `auth.users(id)
 - `movimientos_stock` y `detalle_movimiento` son históricos e inmutables para usuarios `authenticated`.
 - Para `authenticated` solamente existen permisos `SELECT` e `INSERT` sobre `movimientos_stock` y `detalle_movimiento`.
 - No existen policies `UPDATE` ni `DELETE` para esas dos tablas.
+- `recepciones` y `detalle_recepcion` siguen el mismo criterio: solo `SELECT`/`INSERT` para `authenticated`, y el paso de `pendiente` a `confirmada` ocurre únicamente dentro de la función `confirmar_recepcion` (`SECURITY DEFINER`).
+- `recepciones.orden_compra_id` es un `uuid` sin foreign key: el módulo de Compras todavía no existe en este esquema.
 
 ## Unicidades importantes
 
