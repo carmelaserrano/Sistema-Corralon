@@ -125,8 +125,8 @@ export default function StockPage() {
         </label>
       </div>
 
-      {error && <p style={{ color: 'red' }}>{error}</p>}
-      {loading && <p>Cargando...</p>}
+      {error && <p className="feedback feedback-error">{error}</p>}
+      {loading && <p className="loading-state">Cargando...</p>}
 
       {!loading && (
         <>
