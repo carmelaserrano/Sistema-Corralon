@@ -6,6 +6,8 @@ import {
   enviarInventarioAprobacion,
   getInventarioAbiertoPorDeposito,
   iniciarInventarioFisico,
+  aplicarAjustesInventarioFisico,
+  puedeAjustarInventario,
 } from '../api/inventarioFisicoApi'
 
 function descripcionDiferencia(diferencia) {
@@ -44,6 +46,10 @@ function InventarioFisicoPage() {
   const [error, setError] = useState('')
   const [aviso, setAviso] = useState('')
   const [loading, setLoading] = useState(false)
+  const [puedeAjustar, setPuedeAjustar] = useState(false)
+  const [categoriaAjuste, setCategoriaAjuste] = useState('conteo_fisico')
+  const [motivoAjuste, setMotivoAjuste] = useState('')
+  const [aplicandoAjuste, setAplicandoAjuste] = useState(false)
 
   useEffect(() => {
     getDepositos()
@@ -51,6 +57,15 @@ function InventarioFisicoPage() {
       .catch((err) =>
         setError(err.message || 'No se pudieron cargar los depósitos'),
       )
+  }, [])
+
+  useEffect(() => {
+    puedeAjustarInventario()
+      .then(setPuedeAjustar)
+      .catch((err) => {
+        setPuedeAjustar(false)
+        setError(err.message || 'No se pudo verificar el permiso de ajuste')
+      })
   }, [])
 
   function cargarConteosEnFormulario(detalle) {
@@ -192,6 +207,37 @@ function InventarioFisicoPage() {
       setError(err.message || 'No se pudo aprobar la toma de inventario')
     } finally {
       setLoading(false)
+    }
+
+  }
+
+  async function aplicarAjustes() {
+    if (!inventario || !motivoAjuste.trim()) {
+      setError('El motivo del ajuste es obligatorio')
+      return
+    }
+
+    try {
+      setAplicandoAjuste(true)
+      setError('')
+      setAviso('')
+
+      const total = await aplicarAjustesInventarioFisico(inventario.id, {
+        categoria: categoriaAjuste,
+        motivo: motivoAjuste,
+      })
+
+      setInventario((actual) => ({
+        ...actual,
+        ajustes_aplicados_at: new Date().toISOString(),
+      }))
+      setAviso(
+        `${total} ajuste${total === 1 ? '' : 's'} aplicado${total === 1 ? '' : 's'} al stock. Quedaron registrados con usuario y fecha.`,
+      )
+    } catch (err) {
+      setError(err.message || 'No se pudieron aplicar los ajustes')
+    } finally {
+      setAplicandoAjuste(false)
     }
   }
 
@@ -379,9 +425,48 @@ function InventarioFisicoPage() {
             {inventario.estado === 'aprobado' && (
               <>
                 <p>
-                  Toma aprobada. Las diferencias quedan disponibles para
-                  el ajuste de inventario de US-STK-12.
+                  Toma aprobada. Las diferencias se aplican como ajustes
+                  trazables al stock.
                 </p>
+
+                {inventario.ajustes_aplicados_at ? (
+                  <p role="status">Los ajustes de esta toma ya fueron aplicados.</p>
+                ) : puedeAjustar ? (
+                  <form
+                    onSubmit={(event) => {
+                      event.preventDefault()
+                      aplicarAjustes()
+                    }}
+                  >
+                    <label htmlFor="categoria_ajuste_inventario">
+                      Categoría del ajuste
+                    </label>
+                    <select
+                      id="categoria_ajuste_inventario"
+                      value={categoriaAjuste}
+                      onChange={(event) => setCategoriaAjuste(event.target.value)}
+                      required
+                    >
+                      <option value="conteo_fisico">Conteo físico</option>
+                      <option value="rotura">Rotura</option>
+                      <option value="vencimiento">Vencimiento</option>
+                      <option value="robo">Robo</option>
+                      <option value="otro">Otro</option>
+                    </select>
+                    <label htmlFor="motivo_ajuste_inventario">Motivo</label>
+                    <textarea
+                      id="motivo_ajuste_inventario"
+                      value={motivoAjuste}
+                      onChange={(event) => setMotivoAjuste(event.target.value)}
+                      required
+                    />
+                    <button type="submit" disabled={aplicandoAjuste}>
+                      {aplicandoAjuste ? 'Aplicando...' : 'Aplicar ajustes de las diferencias'}
+                    </button>
+                  </form>
+                ) : (
+                  <p>No tenés permiso para realizar ajustes de inventario.</p>
+                )}
 
                 <button type="button" onClick={nuevaToma}>
                   Nueva toma
