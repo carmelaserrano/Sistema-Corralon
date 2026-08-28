@@ -143,7 +143,7 @@ input:disabled, select:disabled, textarea:disabled { background: var(--surface-s
 input[type="checkbox"], input[type="radio"] { width: 18px; min-height: 18px; accent-color: var(--color-brand); }
 
 .page-canvas table { display: block; width: 100%; margin: var(--space-4) 0 var(--space-5); overflow-x: auto; border: 1px solid var(--border-default); border-radius: var(--radius-lg); border-collapse: separate; border-spacing: 0; background: var(--surface-panel); box-shadow: var(--shadow-1); white-space: nowrap; }
-.page-canvas thead, .page-canvas tbody { display: table; width: 100%; min-width: 760px; table-layout: auto; }
+.page-canvas thead, .page-canvas tbody { display: table; width: 100%; min-width: 760px; table-layout: fixed; }
 th, td { padding: 13px 15px; border-bottom: 1px solid var(--border-default); text-align: left; vertical-align: middle; }
 th { background: var(--surface-subtle); color: var(--text-secondary); font-size: 11px; font-weight: 800; letter-spacing: 0.035em; text-transform: uppercase; }
 td { color: var(--text-secondary); font-size: 13px; }
