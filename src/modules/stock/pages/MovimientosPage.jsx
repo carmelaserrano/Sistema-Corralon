@@ -63,17 +63,21 @@ function MovimientosPage({ onVerHistorial }) {
       setLoading(true)
       setError('')
 
-      const [depositosData, articulosData, pendientesData, permiso] = await Promise.all([
+      const [depositosData, articulosData, pendientesData] = await Promise.all([
         getDepositos(),
         getArticulos({ estado: 'activo', pageSize: 200 }),
         getMovimientos({ estado: 'pendiente', pageSize: 50 }),
-        puedeAjustarInventario(),
       ])
 
       setDepositos(depositosData)
       setArticulos(articulosData.articulos)
       setPendientes(pendientesData.movimientos)
-      setPuedeAjustar(permiso)
+
+      try {
+        setPuedeAjustar(await puedeAjustarInventario())
+      } catch {
+        setPuedeAjustar(false)
+      }
     } catch (err) {
       setError(err.message || 'No se pudieron cargar los movimientos')
     } finally {
