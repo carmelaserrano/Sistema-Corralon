@@ -14,79 +14,29 @@ import HistorialMovimientosPage from './modules/stock/pages/HistorialMovimientos
 import AlertasStockPage from './modules/stock/pages/AlertasStockPage'
 import RecepcionesPage from './modules/stock/pages/RecepcionesPage'
 import ReportesPage from './modules/stock/pages/ReportesPage'
+import AppShell from './components/layout/AppShell'
 
 function App() {
   const { session, loading, signOut } = useAuth()
   const [pagina, setPagina] = useState('stock')
 
-  if (loading) return null
+  if (loading) {
+    return (
+      <div className="app-loading" role="status">
+        <span className="loading-mark" />
+        <strong>Cargando Sistema Corralón…</strong>
+      </div>
+    )
+  }
   if (!session) return <LoginPage />
 
   return (
-    <div>
-      <header
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-        }}
-      >
-        <span>{session.user.email}</span>
-        <button onClick={signOut}>Salir</button>
-      </header>
-
-      <nav style={{ display: 'flex', gap: '8px', margin: '16px 0' }}>
-        <button type="button" onClick={() => setPagina('stock')}>
-          Stock
-        </button>
-
-        <button type="button" onClick={() => setPagina('depositos')}>
-          Depósitos
-        </button>
-
-        <button type="button" onClick={() => setPagina('categorias')}>
-          Categorías
-        </button>
-
-        <button type="button" onClick={() => setPagina('marcas')}>
-          Marcas
-        </button>
-
-        <button type="button" onClick={() => setPagina('unidades')}>
-          Unidades de medida
-        </button>
-
-        <button type="button" onClick={() => setPagina('articulos')}>
-          Artículos
-        </button>
-
-        <button type="button" onClick={() => setPagina('movimientos')}>
-          Movimientos
-        </button>
-
-        <button type="button" onClick={() => setPagina('configuracion-stock')}>
-          Configuración de stock
-        </button>
-
-
-        <button type="button" onClick={() => setPagina('inventario-fisico')}>
-          Inventario físico
-        </button>
-
-        <button type="button" onClick={() => setPagina('alertas-stock')}>
-          Alertas Stock
-        </button>
-
-        <button type="button" onClick={() => setPagina('recepciones')}>
-          Recepciones
-        </button>
-
-        <button type="button" onClick={() => setPagina('reportes')}>
-          Reportes
-        </button>
-
-      </nav>
-
+    <AppShell
+      activePage={pagina}
+      email={session.user.email}
+      onNavigate={setPagina}
+      onSignOut={signOut}
+    >
       {pagina === 'stock' && <StockPage />}
       {pagina === 'depositos' && <DepositosPage />}
       {pagina === 'categorias' && <CategoriasPage />}
@@ -94,21 +44,21 @@ function App() {
       {pagina === 'unidades' && <UnidadesMedidaPage />}
       {pagina === 'articulos' && <ArticulosPage />}
       {pagina === 'movimientos' && (
-       <MovimientosPage
-        onVerHistorial={() => setPagina('historial-movimientos')}
-      />
+        <MovimientosPage
+          onVerHistorial={() => setPagina('historial-movimientos')}
+        />
       )}
       {pagina === 'historial-movimientos' && (
-       <HistorialMovimientosPage
-        onVolver={() => setPagina('movimientos')}
-       />
+        <HistorialMovimientosPage
+          onVolver={() => setPagina('movimientos')}
+        />
       )}
       {pagina === 'configuracion-stock' && <ConfiguracionStockPage />}
       {pagina === 'inventario-fisico' && <InventarioFisicoPage />}
       {pagina === 'alertas-stock' && <AlertasStockPage />}
       {pagina === 'recepciones' && <RecepcionesPage />}
       {pagina === 'reportes' && <ReportesPage />}
-    </div>
+    </AppShell>
   )
 }
 

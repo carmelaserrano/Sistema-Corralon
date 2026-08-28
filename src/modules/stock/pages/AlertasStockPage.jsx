@@ -70,10 +70,7 @@ export default function AlertasStockPage() {
 
           <tbody>
             {alertas.map((alerta) => (
-              <tr
-                key={alerta.id}
-                style={{ backgroundColor: '#fdecea', fontWeight: 'bold' }}
-              >
+              <tr className="alert-row" key={alerta.id}>
                 <td>
                   {alerta.producto?.sku
                     ? `${alerta.producto.sku} - ${alerta.producto.nombre}`
