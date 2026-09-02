@@ -141,6 +141,7 @@ textarea { min-height: 92px; resize: vertical; }
 input::placeholder, textarea::placeholder { color: var(--text-muted); }
 input:disabled, select:disabled, textarea:disabled { background: var(--surface-subtle); color: var(--text-muted); }
 input[type="checkbox"], input[type="radio"] { width: 18px; min-height: 18px; accent-color: var(--color-brand); }
+label.checkbox-field { display: flex; align-items: center; gap: var(--space-2); font-size: 13px; font-weight: 600; cursor: pointer; }
 
 .page-canvas table { display: block; width: 100%; margin: var(--space-4) 0 var(--space-5); overflow-x: auto; border: 1px solid var(--border-default); border-radius: var(--radius-lg); border-collapse: separate; border-spacing: 0; background: var(--surface-panel); box-shadow: var(--shadow-1); white-space: nowrap; }
 .page-canvas thead, .page-canvas tbody { display: table; width: 100%; min-width: 760px; table-layout: fixed; }
