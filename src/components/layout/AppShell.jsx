@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { LogOut, Menu, UserRound } from 'lucide-react'
 import Sidebar from './Sidebar'
-import { pageTitles } from './navigation'
+import { pageModules, pageTitles } from './navigation'
 import Button from '../ui/Button'
 
 export default function AppShell({
@@ -39,7 +39,9 @@ export default function AppShell({
               <Menu size={21} />
             </button>
             <div>
-              <span className="topbar-kicker">Módulo Stock</span>
+              <span className="topbar-kicker">
+                Módulo {pageModules[activePage] ?? 'Stock'}
+              </span>
               <strong>{pageTitles[activePage] ?? 'Stock'}</strong>
             </div>
           </div>

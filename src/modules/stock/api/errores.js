@@ -18,3 +18,9 @@ export const CODIGO_DUPLICADO = '23505' // unique_violation
 export const CODIGO_FK_VIOLADA = '23503' // foreign_key_violation
 export const CODIGO_CHECK_VIOLADO = '23514' // check_violation
 export const CODIGO_UUID_INVALIDO = '22P02' // invalid_text_representation
+export const CODIGO_RESTRICT = '23001' // restrict_violation
+
+// PostgREST, no PostgreSQL: lo devuelve .single() cuando la consulta no
+// trajo exactamente una fila. En un INSERT o UPDATE suele significar que la
+// RLS filtró la fila, no que el registro no exista.
+export const CODIGO_SIN_FILAS = 'PGRST116'

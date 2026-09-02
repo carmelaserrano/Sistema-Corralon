@@ -4,6 +4,7 @@ import {
   Building2,
   ClipboardCheck,
   FileBarChart,
+  FolderTree,
   Layers3,
   PackageCheck,
   PackageOpen,
@@ -16,6 +17,7 @@ import {
 export const navigationGroups = [
   {
     label: 'Operación',
+    module: 'Stock',
     items: [
       { id: 'stock', label: 'Stock', icon: Boxes },
       { id: 'movimientos', label: 'Movimientos', icon: Layers3 },
@@ -24,6 +26,7 @@ export const navigationGroups = [
   },
   {
     label: 'Catálogos',
+    module: 'Stock',
     items: [
       { id: 'articulos', label: 'Artículos', icon: PackageOpen },
       { id: 'categorias', label: 'Categorías', icon: Shapes },
@@ -33,6 +36,7 @@ export const navigationGroups = [
   },
   {
     label: 'Control',
+    module: 'Stock',
     items: [
       { id: 'depositos', label: 'Depósitos', icon: Building2 },
       {
@@ -49,6 +53,11 @@ export const navigationGroups = [
       { id: 'reportes', label: 'Reportes', icon: FileBarChart },
     ],
   },
+  {
+    label: 'Proveedores',
+    module: 'Proveedores',
+    items: [{ id: 'rubros', label: 'Rubros', icon: FolderTree }],
+  },
 ]
 
 export const pageTitles = Object.fromEntries(
@@ -58,4 +67,12 @@ export const pageTitles = Object.fromEntries(
 )
 
 pageTitles['historial-movimientos'] = 'Historial de movimientos'
+
+export const pageModules = Object.fromEntries(
+  navigationGroups.flatMap((group) =>
+    group.items.map((item) => [item.id, group.module]),
+  ),
+)
+
+pageModules['historial-movimientos'] = 'Stock'
 
