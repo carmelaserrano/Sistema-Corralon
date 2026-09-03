@@ -1,6 +1,7 @@
 import { PackageOpen } from 'lucide-react'
 
 export default function EmptyState({
+  children,
   description = 'Ajustá los filtros o creá el primer registro.',
   title = 'Todavía no hay registros',
 }) {
@@ -11,7 +12,7 @@ export default function EmptyState({
       </span>
       <strong>{title}</strong>
       <p>{description}</p>
+      {children}
     </div>
   )
 }
-
