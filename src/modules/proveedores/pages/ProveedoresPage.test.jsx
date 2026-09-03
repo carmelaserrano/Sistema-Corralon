@@ -1,12 +1,15 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import ProveedoresPage from './ProveedoresPage'
 import {
   createProveedor,
+  getHistorialEstadoProveedor,
   getProveedores,
   puedeAltaProveedores,
+  puedeCambiarEstadoProveedores,
   puedeModificarProveedores,
+  setEstadoProveedor,
   updateProveedor,
 } from '../api/proveedoresApi'
 import { getRubros } from '../api/rubrosApi'
@@ -26,15 +29,26 @@ vi.mock('../api/proveedoresApi', () => ({
     { value: '30_60_dias', label: '30/60 días' },
     { value: 'anticipado', label: 'Anticipado' },
   ],
+  ESTADOS: ['activo', 'inactivo'],
   createProveedor: vi.fn(),
+  getHistorialEstadoProveedor: vi.fn(),
   getProveedores: vi.fn(),
   puedeAltaProveedores: vi.fn(),
+  puedeCambiarEstadoProveedores: vi.fn(),
   puedeModificarProveedores: vi.fn(),
+  setEstadoProveedor: vi.fn(),
   updateProveedor: vi.fn(),
 }))
 
 vi.mock('../api/rubrosApi', () => ({
   getRubros: vi.fn(),
+}))
+
+vi.mock('../api/contactosApi', () => ({
+  createContacto: vi.fn(),
+  deleteContacto: vi.fn(),
+  getContactosDeProveedor: vi.fn(() => Promise.resolve([])),
+  updateContacto: vi.fn(),
 }))
 
 function errorDeApi(mensaje, status) {
@@ -79,7 +93,9 @@ describe('ProveedoresPage', () => {
     vi.clearAllMocks()
     puedeAltaProveedores.mockResolvedValue(true)
     puedeModificarProveedores.mockResolvedValue(true)
+    puedeCambiarEstadoProveedores.mockResolvedValue(true)
     getProveedores.mockResolvedValue([corralon])
+    getHistorialEstadoProveedor.mockResolvedValue([])
     getRubros.mockResolvedValue([{ id: 'r1', nombre: 'Cemento' }])
   })
 
@@ -235,7 +251,7 @@ describe('ProveedoresPage', () => {
     render(<ProveedoresPage />)
 
     expect(
-      await screen.findByText(/No tenés el permiso «proveedores.alta»/),
+      await screen.findByText(/no tenés permiso para dar de alta/),
     ).toBeInTheDocument()
     expect(screen.queryByLabelText('Razón Social')).not.toBeInTheDocument()
   })
@@ -333,7 +349,7 @@ describe('ProveedoresPage', () => {
     render(<ProveedoresPage />)
 
     expect(
-      await screen.findByText(/No tenés el permiso «proveedores.modificar»/),
+      await screen.findByText(/no tenés permiso para editar y gestionar contactos/),
     ).toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: 'Editar' }),
@@ -418,5 +434,241 @@ describe('ProveedoresPage', () => {
       expect.anything(),
       null,
     )
+  })
+
+  // --------------------------------------------------------------------
+  // US-PRV-06 · Administración del estado del proveedor
+  // --------------------------------------------------------------------
+
+  describe('estado del proveedor', () => {
+    const inactivo = { ...corralon, id: 'p2', razon_social: 'Hierros SRL', estado: 'inactivo' }
+
+    // CA 1
+    it('desactiva un proveedor activo tras confirmar', async () => {
+      vi.spyOn(window, 'confirm').mockReturnValue(true)
+      setEstadoProveedor.mockResolvedValue({ ...corralon, estado: 'inactivo' })
+      render(<ProveedoresPage />)
+      await screen.findByText('Corralón San Martín S.A.')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Desactivar' }))
+
+      await screen.findByText(/quedó inactivo/)
+      expect(setEstadoProveedor).toHaveBeenCalledWith('p1', 'inactivo')
+    })
+
+    // CA 2
+    it('activa un proveedor inactivo', async () => {
+      vi.spyOn(window, 'confirm').mockReturnValue(true)
+      getProveedores.mockResolvedValue([inactivo])
+      setEstadoProveedor.mockResolvedValue({ ...inactivo, estado: 'activo' })
+      render(<ProveedoresPage />)
+      await screen.findByText('Hierros SRL')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Activar' }))
+
+      await screen.findByText(/quedó activo/)
+      expect(setEstadoProveedor).toHaveBeenCalledWith('p2', 'activo')
+    })
+
+    it('no cambia el estado si se cancela la confirmación', async () => {
+      vi.spyOn(window, 'confirm').mockReturnValue(false)
+      render(<ProveedoresPage />)
+      await screen.findByText('Corralón San Martín S.A.')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Desactivar' }))
+
+      expect(setEstadoProveedor).not.toHaveBeenCalled()
+    })
+
+    // CA 3
+    it('muestra el estado con un indicador visual diferenciado', async () => {
+      getProveedores.mockResolvedValue([corralon, inactivo])
+      const { container } = render(<ProveedoresPage />)
+      await screen.findByText('Corralón San Martín S.A.')
+
+      expect(container.querySelector('.estado-badge-activo')).toHaveTextContent(
+        'Activo',
+      )
+      expect(
+        container.querySelector('.estado-badge-inactivo'),
+      ).toHaveTextContent('Inactivo')
+    })
+
+    // CA 4
+    it('muestra el historial con estado anterior, fecha y usuario', async () => {
+      getHistorialEstadoProveedor.mockResolvedValue([
+        {
+          id: 'h1',
+          estado_anterior: 'activo',
+          estado_nuevo: 'inactivo',
+          cambiado_por: 'usuario-1',
+          cambiado_en: '2026-09-03T12:00:00Z',
+        },
+      ])
+      render(<ProveedoresPage />)
+      await screen.findByText('Corralón San Martín S.A.')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Ver detalle' }))
+      fireEvent.click(
+        await screen.findByRole('tab', { name: 'Historial de estado' }),
+      )
+
+      await screen.findByText('Historial de cambios de estado')
+      expect(getHistorialEstadoProveedor).toHaveBeenCalledWith('p1')
+      expect(screen.getByText('usuario-1')).toBeInTheDocument()
+    })
+
+    it('avisa cuando el proveedor no registra cambios de estado', async () => {
+      render(<ProveedoresPage />)
+      await screen.findByText('Corralón San Martín S.A.')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Ver detalle' }))
+      fireEvent.click(
+        await screen.findByRole('tab', { name: 'Historial de estado' }),
+      )
+
+      expect(
+        await screen.findByText('Este proveedor no registra cambios de estado.'),
+      ).toBeInTheDocument()
+    })
+
+    // CA 6
+    it('no ofrece ninguna acción de borrado físico', async () => {
+      render(<ProveedoresPage />)
+      await screen.findByText('Corralón San Martín S.A.')
+
+      expect(
+        screen.queryByRole('button', { name: /eliminar|borrar/i }),
+      ).not.toBeInTheDocument()
+    })
+
+    it('permite filtrar por estado para poder recuperar un inactivo', async () => {
+      render(<ProveedoresPage />)
+      await screen.findByText('Corralón San Martín S.A.')
+
+      fireEvent.change(screen.getByLabelText('Estado'), {
+        target: { value: 'inactivo' },
+      })
+
+      await waitFor(() =>
+        expect(getProveedores).toHaveBeenLastCalledWith(
+          expect.objectContaining({ estado: 'inactivo' }),
+        ),
+      )
+    })
+
+    it('oculta la acción a quien no tiene el permiso de estado', async () => {
+      puedeCambiarEstadoProveedores.mockResolvedValue(false)
+      render(<ProveedoresPage />)
+
+      expect(
+        await screen.findByText(/no tenés permiso para activar o desactivar/),
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Desactivar' }),
+      ).not.toBeInTheDocument()
+    })
+
+    it('no afirma falta de permiso cuando la verificación falló', async () => {
+      puedeCambiarEstadoProveedores.mockRejectedValue(new Error('rpc caída'))
+      render(<ProveedoresPage />)
+
+      expect(
+        await screen.findByText(/No se pudo verificar tu permiso sobre el estado/),
+      ).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'Desactivar' }),
+      ).toBeInTheDocument()
+    })
+
+    it('muestra el error cuando la RLS descarta el cambio', async () => {
+      vi.spyOn(window, 'confirm').mockReturnValue(true)
+      setEstadoProveedor.mockRejectedValue(
+        errorDeApi('No se pudo guardar el proveedor: no existe o no tenés permiso para modificarlo', 403),
+      )
+      render(<ProveedoresPage />)
+      await screen.findByText('Corralón San Martín S.A.')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Desactivar' }))
+
+      expect(await screen.findByText(/no tenés permiso/)).toBeInTheDocument()
+    })
+  })
+
+  // --------------------------------------------------------------------
+  // US-PRV-05 · Solapas del detalle
+  // --------------------------------------------------------------------
+
+  describe('solapas del detalle', () => {
+    it('abre el detalle en la solapa de datos', async () => {
+      render(<ProveedoresPage />)
+      await screen.findByText('Corralón San Martín S.A.')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Ver detalle' }))
+
+      expect(await screen.findByRole('tab', { name: 'Datos' })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      )
+      expect(screen.getByText('Av. Siempre Viva 123')).toBeInTheDocument()
+    })
+
+    // CA 1
+    it('muestra la solapa Contactos al seleccionarla', async () => {
+      render(<ProveedoresPage />)
+      await screen.findByText('Corralón San Martín S.A.')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Ver detalle' }))
+      fireEvent.click(await screen.findByRole('tab', { name: 'Contactos' }))
+
+      expect(screen.getByRole('tab', { name: 'Contactos' })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      )
+      expect(
+        await screen.findByText('Este proveedor no tiene contactos'),
+      ).toBeInTheDocument()
+    })
+
+    it('vuelve a la solapa de datos al abrir otro proveedor', async () => {
+      render(<ProveedoresPage />)
+      await screen.findByText('Corralón San Martín S.A.')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Ver detalle' }))
+      fireEvent.click(await screen.findByRole('tab', { name: 'Contactos' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Cerrar' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Ver detalle' }))
+
+      expect(await screen.findByRole('tab', { name: 'Datos' })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      )
+    })
+    it('resume los permisos faltantes en un solo aviso', async () => {
+      puedeAltaProveedores.mockResolvedValue(false)
+      puedeModificarProveedores.mockResolvedValue(false)
+      puedeCambiarEstadoProveedores.mockResolvedValue(false)
+      render(<ProveedoresPage />)
+
+      const aviso = await screen.findByText(/Sólo podés consultar el padrón/)
+      expect(aviso).toHaveTextContent(
+        'dar de alta, editar y gestionar contactos y activar o desactivar',
+      )
+      // Un solo cartel, no uno por permiso.
+      expect(screen.getAllByText(/Sólo podés consultar el padrón/)).toHaveLength(1)
+    })
+
+    it('no repite el aviso de permiso dentro de la solapa Contactos', async () => {
+      puedeModificarProveedores.mockResolvedValue(false)
+      render(<ProveedoresPage />)
+      await screen.findByText('Corralón San Martín S.A.')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Ver detalle' }))
+      fireEvent.click(await screen.findByRole('tab', { name: 'Contactos' }))
+
+      expect(
+        screen.queryByText(/Sólo podés consultar los contactos/),
+      ).not.toBeInTheDocument()
+    })
   })
 })

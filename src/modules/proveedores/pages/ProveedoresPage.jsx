@@ -3,13 +3,17 @@ import {
   CONDICIONES_FISCALES,
   CONDICIONES_PAGO,
   createProveedor,
+  getHistorialEstadoProveedor,
   getProveedores,
   puedeAltaProveedores,
+  puedeCambiarEstadoProveedores,
   puedeModificarProveedores,
+  setEstadoProveedor,
   updateProveedor,
 } from '../api/proveedoresApi'
 import { getRubros } from '../api/rubrosApi'
 import { cuitEsValido, formatearCuit } from '../cuit'
+import ContactosProveedor from '../components/ContactosProveedor'
 import Button from '../../../components/ui/Button'
 import EmptyState from '../../../components/ui/EmptyState'
 import Feedback from '../../../components/ui/Feedback'
@@ -17,6 +21,16 @@ import Feedback from '../../../components/ui/Feedback'
 function formatearFecha(iso) {
   if (!iso) return '—'
   return new Date(iso).toLocaleString('es-AR')
+}
+
+// CA 3: el estado se muestra con un indicador visual, no sólo con texto.
+function EstadoBadge({ estado }) {
+  const activo = estado === 'activo'
+  return (
+    <span className={`estado-badge estado-badge-${activo ? 'activo' : 'inactivo'}`}>
+      {activo ? 'Activo' : 'Inactivo'}
+    </span>
+  )
 }
 
 const proveedorInicial = {
@@ -45,6 +59,15 @@ function ProveedoresPage() {
 
   const [busqueda, setBusqueda] = useState('')
   const [busquedaAplicada, setBusquedaAplicada] = useState('')
+  // '' = todos. Sin este filtro un proveedor inactivo desaparecería del
+  // listado y no habría forma de volver a activarlo (CA 2).
+  const [filtroEstado, setFiltroEstado] = useState('activo')
+
+  const [historial, setHistorial] = useState([])
+  const [historialCargando, setHistorialCargando] = useState(false)
+  // Solapa activa del detalle. El detalle pasó a tener tres bloques (datos,
+  // contactos e historial) y apilarlos hacía una pantalla larguísima.
+  const [solapa, setSolapa] = useState('datos')
 
   // Arrancan en true por la misma razón que en RubrosPage: si falla la
   // consulta del permiso, es preferible dejar las acciones a la vista y que
@@ -52,8 +75,10 @@ function ProveedoresPage() {
   // que quizá sí tiene.
   const [puedeCrear, setPuedeCrear] = useState(true)
   const [puedeModificar, setPuedeModificar] = useState(true)
+  const [puedeCambiarEstado, setPuedeCambiarEstado] = useState(true)
   const [avisoPermisoAlta, setAvisoPermisoAlta] = useState('')
   const [avisoPermisoModificar, setAvisoPermisoModificar] = useState('')
+  const [avisoPermisoEstado, setAvisoPermisoEstado] = useState('')
 
   const [error, setError] = useState('')
   const [aviso, setAviso] = useState('')
@@ -94,12 +119,32 @@ function ProveedoresPage() {
     }
   }
 
-  async function cargarProveedores({ search = busqueda } = {}) {
+  async function verificarPermisoEstado() {
+    try {
+      const habilitado = await puedeCambiarEstadoProveedores()
+      setPuedeCambiarEstado(habilitado)
+      setAvisoPermisoEstado(
+        habilitado
+          ? ''
+          : 'No tenés el permiso «proveedores.estado»: podés consultar el padrón, pero no activar ni desactivar proveedores.',
+      )
+    } catch (err) {
+      setPuedeCambiarEstado(true)
+      setAvisoPermisoEstado(
+        `No se pudo verificar tu permiso sobre el estado (${err.message || 'error desconocido'}). La acción queda habilitada, pero si al confirmar no pasa nada, es por esto.`,
+      )
+    }
+  }
+
+  async function cargarProveedores({
+    search = busqueda,
+    estado = filtroEstado,
+  } = {}) {
     try {
       setLoading(true)
       setError('')
 
-      const data = await getProveedores({ search })
+      const data = await getProveedores({ search, estado, soloActivos: false })
       setProveedores(data)
       setBusquedaAplicada(search)
     } catch (err) {
@@ -124,7 +169,8 @@ function ProveedoresPage() {
   useEffect(() => {
     verificarPermisoAlta()
     verificarPermisoModificar()
-    cargarProveedores({ search: '' })
+    verificarPermisoEstado()
+    cargarProveedores({ search: '', estado: 'activo' })
     cargarRubros()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -180,12 +226,64 @@ function ProveedoresPage() {
     setAviso('')
   }
 
+  async function cargarHistorial(proveedorId) {
+    try {
+      setHistorialCargando(true)
+      const data = await getHistorialEstadoProveedor(proveedorId)
+      setHistorial(data)
+    } catch {
+      // El historial es información complementaria del detalle: si falla,
+      // el resto de la ficha se muestra igual.
+      setHistorial([])
+    } finally {
+      setHistorialCargando(false)
+    }
+  }
+
   function verDetalle(proveedor) {
     setDetalleId(proveedor.id)
+    setSolapa('datos')
+    setHistorial([])
+    cargarHistorial(proveedor.id)
   }
 
   function cerrarDetalle() {
     setDetalleId(null)
+    setHistorial([])
+  }
+
+  // CA 1 y 2: única transición posible, entre activo e inactivo.
+  async function cambiarEstado(proveedor) {
+    const desactivando = proveedor.estado === 'activo'
+    const accion = desactivando ? 'desactivar' : 'activar'
+
+    const confirmado = window.confirm(
+      `¿Seguro que querés ${accion} a "${proveedor.razon_social}"?`,
+    )
+
+    if (!confirmado) return
+
+    try {
+      setError('')
+      setAviso('')
+      await setEstadoProveedor(
+        proveedor.id,
+        desactivando ? 'inactivo' : 'activo',
+      )
+      setAviso(
+        `"${proveedor.razon_social}" quedó ${desactivando ? 'inactivo' : 'activo'}`,
+      )
+      await cargarProveedores()
+      if (detalleId === proveedor.id) await cargarHistorial(proveedor.id)
+    } catch (err) {
+      setError(err.message || `No se pudo ${accion} el proveedor`)
+    }
+  }
+
+  function cambiarFiltroEstado(event) {
+    const estado = event.target.value
+    setFiltroEstado(estado)
+    cargarProveedores({ estado })
   }
 
   async function guardarProveedor(event) {
@@ -247,6 +345,29 @@ function ProveedoresPage() {
     cargarProveedores({ search: '' })
   }
 
+  // Un solo aviso en vez de uno por permiso: tres carteles apilados diciendo
+  // variantes de "no podés" son ruido, no información. Los fallos de
+  // verificación se muestran aparte porque significan otra cosa: no es que no
+  // tengas el permiso, es que no se pudo averiguar.
+  const fallosDeVerificacion = [
+    avisoPermisoAlta,
+    avisoPermisoModificar,
+    avisoPermisoEstado,
+  ].filter((texto) => texto.startsWith('No se pudo verificar'))
+
+  const permisosFaltantes = [
+    !puedeCrear && 'dar de alta',
+    !puedeModificar && 'editar y gestionar contactos',
+    !puedeCambiarEstado && 'activar o desactivar',
+  ].filter(Boolean)
+
+  const avisoPermisos =
+    fallosDeVerificacion.length > 0
+      ? fallosDeVerificacion.join(' ')
+      : permisosFaltantes.length > 0
+        ? `Sólo podés consultar el padrón: no tenés permiso para ${new Intl.ListFormat('es-AR', { style: 'long', type: 'conjunction' }).format(permisosFaltantes)} proveedores.`
+        : ''
+
   const proveedorDetalle = detalleId
     ? (proveedores.find((p) => p.id === detalleId) ?? null)
     : null
@@ -257,10 +378,7 @@ function ProveedoresPage() {
 
       {error && <Feedback tone="error">{error}</Feedback>}
       {aviso && <Feedback tone="success">{aviso}</Feedback>}
-      {avisoPermisoAlta && <Feedback tone="info">{avisoPermisoAlta}</Feedback>}
-      {avisoPermisoModificar && (
-        <Feedback tone="info">{avisoPermisoModificar}</Feedback>
-      )}
+      {avisoPermisos && <Feedback tone="info">{avisoPermisos}</Feedback>}
 
       {(puedeCrear || editandoId) && (
         <section>
@@ -454,6 +572,26 @@ function ProveedoresPage() {
           )}
 
           {proveedorDetalle && (
+            <div className="tabs" role="tablist">
+              {[
+                ['datos', 'Datos'],
+                ['contactos', 'Contactos'],
+                ['historial', 'Historial de estado'],
+              ].map(([id, etiqueta]) => (
+                <button
+                  key={id}
+                  type="button"
+                  role="tab"
+                  aria-selected={solapa === id}
+                  onClick={() => setSolapa(id)}
+                >
+                  {etiqueta}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {proveedorDetalle && solapa === 'datos' && (
             <table>
               <tbody>
                 <tr>
@@ -518,7 +656,7 @@ function ProveedoresPage() {
                 <tr>
                   <th>Estado</th>
                   <td>
-                    {proveedorDetalle.estado === 'activo' ? 'Activo' : 'Inactivo'}
+                    <EstadoBadge estado={proveedorDetalle.estado} />
                   </td>
                 </tr>
                 <tr>
@@ -531,6 +669,58 @@ function ProveedoresPage() {
                 </tr>
               </tbody>
             </table>
+          )}
+
+          {proveedorDetalle && solapa === 'contactos' && (
+            <ContactosProveedor
+              proveedorId={proveedorDetalle.id}
+              puedeGestionar={puedeModificar}
+              mostrarAvisoPermiso={false}
+            />
+          )}
+
+          {proveedorDetalle && solapa === 'historial' && (
+          <>
+          <h3>Historial de cambios de estado</h3>
+
+          {historialCargando && (
+            <p className="loading-state" role="status">
+              Cargando historial…
+            </p>
+          )}
+
+          {!historialCargando && historial.length === 0 && (
+            <p>Este proveedor no registra cambios de estado.</p>
+          )}
+
+          {!historialCargando && historial.length > 0 && (
+            <table>
+              <thead>
+                <tr>
+                  <th>Fecha y hora</th>
+                  <th>Estado anterior</th>
+                  <th>Estado nuevo</th>
+                  <th>Usuario</th>
+                </tr>
+              </thead>
+              <tbody>
+                {historial.map((cambio) => (
+                  <tr key={cambio.id}>
+                    <td>{formatearFecha(cambio.cambiado_en)}</td>
+                    <td>
+                      <EstadoBadge estado={cambio.estado_anterior} />
+                    </td>
+                    <td>
+                      <EstadoBadge estado={cambio.estado_nuevo} />
+                    </td>
+                    <td>{cambio.cambiado_por ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          </>
           )}
 
           <Button type="button" variant="ghost" onClick={cerrarDetalle}>
@@ -552,6 +742,20 @@ function ProveedoresPage() {
               onChange={(event) => setBusqueda(event.target.value)}
               autoComplete="off"
             />
+          </div>
+
+          <div>
+            <label htmlFor="filtro-estado">Estado</label>
+            <select
+              id="filtro-estado"
+              name="filtro-estado"
+              value={filtroEstado}
+              onChange={cambiarFiltroEstado}
+            >
+              <option value="activo">Activos</option>
+              <option value="inactivo">Inactivos</option>
+              <option value="">Todos</option>
+            </select>
           </div>
 
           <div>
@@ -623,7 +827,9 @@ function ProveedoresPage() {
                   </td>
                   <td>{proveedor.rubro?.nombre ?? '—'}</td>
                   <td>{proveedor.localidad || '—'}</td>
-                  <td>{proveedor.estado === 'activo' ? 'Activo' : 'Inactivo'}</td>
+                  <td>
+                    <EstadoBadge estado={proveedor.estado} />
+                  </td>
                   <td>
                     <Button
                       type="button"
@@ -632,7 +838,7 @@ function ProveedoresPage() {
                     >
                       Ver detalle
                     </Button>
-                    {puedeModificar ? (
+                    {puedeModificar && (
                       <Button
                         type="button"
                         variant="ghost"
@@ -640,9 +846,19 @@ function ProveedoresPage() {
                       >
                         Editar
                       </Button>
-                    ) : (
-                      <span>—</span>
                     )}
+
+                    {puedeCambiarEstado && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => cambiarEstado(proveedor)}
+                      >
+                        {proveedor.estado === 'activo' ? 'Desactivar' : 'Activar'}
+                      </Button>
+                    )}
+
+                    {!puedeModificar && !puedeCambiarEstado && <span>—</span>}
                   </td>
                 </tr>
               ))}
