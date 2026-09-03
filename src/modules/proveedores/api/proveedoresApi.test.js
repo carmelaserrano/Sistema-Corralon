@@ -3,9 +3,13 @@ import {
   CONDICIONES_FISCALES,
   CONDICIONES_PAGO,
   createProveedor,
+  getHistorialEstadoProveedor,
   getProveedores,
+  getProveedoresSeleccionables,
   puedeAltaProveedores,
+  puedeCambiarEstadoProveedores,
   puedeModificarProveedores,
+  setEstadoProveedor,
   updateProveedor,
 } from './proveedoresApi'
 import { supabase } from '../../../lib/supabaseClient'
@@ -554,6 +558,180 @@ describe('proveedoresApi', () => {
       supabase.rpc.mockResolvedValue({ data: null, error: errorMock })
 
       await expect(puedeAltaProveedores()).rejects.toEqual(errorMock)
+    })
+  })
+
+  // --------------------------------------------------------------------
+  // US-PRV-06 · Administración del estado del proveedor
+  // --------------------------------------------------------------------
+
+  describe('setEstadoProveedor', () => {
+    // CA 1
+    it('desactiva sin borrar el registro', async () => {
+      const builder = crearQueryBuilder({
+        data: { ...filaCorralon, estado: 'inactivo' },
+        error: null,
+      })
+      supabase.from.mockReturnValue(builder)
+
+      const resultado = await setEstadoProveedor('p1', 'inactivo')
+
+      expect(supabase.from).toHaveBeenCalledWith('proveedores')
+      expect(builder.update).toHaveBeenCalledWith({ estado: 'inactivo' })
+      expect(builder.eq).toHaveBeenCalledWith('id', 'p1')
+      expect(builder.delete).not.toHaveBeenCalled()
+      expect(resultado.estado).toBe('inactivo')
+    })
+
+    // CA 2
+    it('reactiva un proveedor inactivo', async () => {
+      const builder = crearQueryBuilder({
+        data: { ...filaCorralon, estado: 'activo' },
+        error: null,
+      })
+      supabase.from.mockReturnValue(builder)
+
+      await setEstadoProveedor('p1', 'activo')
+
+      expect(builder.update).toHaveBeenCalledWith({ estado: 'activo' })
+    })
+
+    // CA 6: no hay un tercer estado ni una baja fisica
+    it('rechaza con 400 cualquier estado fuera de activo/inactivo', async () => {
+      await expect(setEstadoProveedor('p1', 'eliminado')).rejects.toMatchObject({
+        status: 400,
+        message: 'El estado debe ser "activo" o "inactivo"',
+      })
+      expect(supabase.from).not.toHaveBeenCalled()
+    })
+
+    it('traduce a 403 el UPDATE que la RLS deja sin filas', async () => {
+      supabase.from.mockReturnValue(
+        crearQueryBuilder({ data: null, error: { code: 'PGRST116' } }),
+      )
+
+      await expect(setEstadoProveedor('p1', 'inactivo')).rejects.toMatchObject({
+        status: 403,
+      })
+    })
+
+    it('propaga cualquier otro error', async () => {
+      const errorMock = { code: '08006', message: 'connection failure' }
+      supabase.from.mockReturnValue(
+        crearQueryBuilder({ data: null, error: errorMock }),
+      )
+
+      await expect(setEstadoProveedor('p1', 'inactivo')).rejects.toEqual(errorMock)
+    })
+  })
+
+  describe('getHistorialEstadoProveedor', () => {
+    // CA 4
+    it('devuelve los cambios del mas reciente al mas antiguo', async () => {
+      const historial = [
+        {
+          id: 'h1',
+          estado_anterior: 'activo',
+          estado_nuevo: 'inactivo',
+          cambiado_por: 'u1',
+          cambiado_en: '2026-09-03T12:00:00Z',
+        },
+      ]
+      const builder = crearQueryBuilder({ data: historial, error: null })
+      supabase.from.mockReturnValue(builder)
+
+      const resultado = await getHistorialEstadoProveedor('p1')
+
+      expect(supabase.from).toHaveBeenCalledWith('historial_estado_proveedor')
+      expect(builder.eq).toHaveBeenCalledWith('proveedor_id', 'p1')
+      expect(builder.order).toHaveBeenCalledWith('cambiado_en', {
+        ascending: false,
+      })
+      expect(resultado).toEqual(historial)
+    })
+
+    it('devuelve una lista vacia cuando no hay datos', async () => {
+      supabase.from.mockReturnValue(
+        crearQueryBuilder({ data: null, error: null }),
+      )
+
+      await expect(getHistorialEstadoProveedor('p1')).resolves.toEqual([])
+    })
+
+    it('lanza el error cuando la consulta falla', async () => {
+      const errorMock = { message: 'error al leer el historial' }
+      supabase.from.mockReturnValue(
+        crearQueryBuilder({ data: null, error: errorMock }),
+      )
+
+      await expect(getHistorialEstadoProveedor('p1')).rejects.toEqual(errorMock)
+    })
+  })
+
+  describe('getProveedoresSeleccionables', () => {
+    // CA 5
+    it('excluye a los inactivos', async () => {
+      const builder = crearQueryBuilder({ data: [filaCorralon], error: null })
+      supabase.from.mockReturnValue(builder)
+
+      await getProveedoresSeleccionables()
+
+      expect(builder.eq).toHaveBeenCalledWith('estado', 'activo')
+    })
+  })
+
+  describe('getProveedores con filtro de estado', () => {
+    it('filtra por el estado pedido', async () => {
+      const builder = crearQueryBuilder({ data: [], error: null })
+      supabase.from.mockReturnValue(builder)
+
+      await getProveedores({ estado: 'inactivo' })
+
+      expect(builder.eq).toHaveBeenCalledWith('estado', 'inactivo')
+    })
+
+    it('devuelve todos cuando no se filtra por estado ni por activos', async () => {
+      const builder = crearQueryBuilder({ data: [], error: null })
+      supabase.from.mockReturnValue(builder)
+
+      await getProveedores({ estado: '', soloActivos: false })
+
+      expect(builder.eq).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('puedeCambiarEstadoProveedores', () => {
+    it('alcanza con el permiso de estado', async () => {
+      supabase.rpc.mockResolvedValue({ data: true, error: null })
+
+      await expect(puedeCambiarEstadoProveedores()).resolves.toBe(true)
+      expect(supabase.rpc).toHaveBeenCalledWith('usuario_tiene_permiso', {
+        p_nombre: 'proveedores.estado',
+      })
+    })
+
+    it('cae al permiso de modificacion si no tiene el de estado', async () => {
+      supabase.rpc
+        .mockResolvedValueOnce({ data: false, error: null })
+        .mockResolvedValueOnce({ data: true, error: null })
+
+      await expect(puedeCambiarEstadoProveedores()).resolves.toBe(true)
+      expect(supabase.rpc).toHaveBeenLastCalledWith('usuario_tiene_permiso', {
+        p_nombre: 'proveedores.modificar',
+      })
+    })
+
+    it('devuelve false cuando no tiene ninguno de los dos', async () => {
+      supabase.rpc.mockResolvedValue({ data: false, error: null })
+
+      await expect(puedeCambiarEstadoProveedores()).resolves.toBe(false)
+    })
+
+    it('lanza el error cuando la consulta falla', async () => {
+      const errorMock = { message: 'no se pudo verificar el permiso' }
+      supabase.rpc.mockResolvedValue({ data: null, error: errorMock })
+
+      await expect(puedeCambiarEstadoProveedores()).rejects.toEqual(errorMock)
     })
   })
 })
