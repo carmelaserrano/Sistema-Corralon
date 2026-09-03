@@ -178,33 +178,6 @@ export async function getTiposMovimiento() {
   return data
 }
 
-export async function getMovimientos({
-  estado = '',
-  page = 1,
-  pageSize = 10,
-} = {}) {
-  let consulta = supabase.from(TABLA).select(COLUMNAS, { count: 'exact' })
-
-  if (estado) consulta = consulta.eq('estado_movimiento', estado)
-
-  const desde = (page - 1) * pageSize
-  const { data, count, error } = await consulta
-    .order('fecha', { ascending: false })
-    .range(desde, desde + pageSize - 1)
-
-  if (error) throw error
-
-  const total = count ?? 0
-
-  return {
-    movimientos: data ?? [],
-    total,
-    page,
-    pageSize,
-    totalPaginas: Math.max(1, Math.ceil(total / pageSize)),
-  }
-}
-
 export async function getMovimientoById(id) {
   const { data, error } = await supabase
     .from(TABLA)

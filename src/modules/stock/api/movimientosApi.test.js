@@ -4,7 +4,6 @@ import {
   confirmarMovimiento,
   createMovimiento,
   getMovimientoById,
-  getMovimientos,
   getTiposMovimiento,
   getHistorialMovimientos,
 } from './movimientosApi'
@@ -485,70 +484,6 @@ describe('movimientosApi', () => {
 
     expect(supabase.from).toHaveBeenCalledWith('tipos_movimiento')
     expect(data).toEqual(resultado.data)
-  })
-
-  it('lista los movimientos filtrando por estado', async () => {
-    const resultado = {
-      data: [
-        {
-          id: 'mov-1',
-          estado_movimiento: 'pendiente',
-        },
-      ],
-      count: 1,
-      error: null,
-    }
-
-    const builder = {
-      select: vi.fn(() => builder),
-      eq: vi.fn(() => builder),
-      order: vi.fn(() => builder),
-      range: vi.fn(() => resultado),
-    }
-
-    supabase.from.mockReturnValue(builder)
-
-    const data = await getMovimientos({
-      estado: 'pendiente',
-    })
-
-    expect(supabase.from).toHaveBeenCalledWith('movimientos_stock')
-    expect(builder.select.mock.calls[0][0]).toContain('categoria_ajuste')
-    expect(builder.select.mock.calls[0][0]).toContain('motivo_ajuste')
-    expect(builder.select.mock.calls[0][0]).toContain('origen_ajuste')
-    expect(builder.select.mock.calls[0][0]).toContain('inventario_fisico_id')
-
-    expect(builder.eq).toHaveBeenCalledWith(
-      'estado_movimiento',
-      'pendiente',
-    )
-
-    expect(data).toMatchObject({
-      movimientos: resultado.data,
-      total: 1,
-      totalPaginas: 1,
-    })
-  })
-
-  it('lista los movimientos sin filtro de estado', async () => {
-    const resultado = {
-      data: [],
-      count: 0,
-      error: null,
-    }
-
-    const builder = {
-      select: vi.fn(() => builder),
-      eq: vi.fn(() => builder),
-      order: vi.fn(() => builder),
-      range: vi.fn(() => resultado),
-    }
-
-    supabase.from.mockReturnValue(builder)
-
-    await getMovimientos()
-
-    expect(builder.eq).not.toHaveBeenCalled()
   })
 
   it('obtiene un movimiento por id', async () => {

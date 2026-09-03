@@ -1,10 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   TIPOS,
-  cancelarMovimiento,
-  confirmarMovimiento,
   createMovimiento,
-  getMovimientos,
   puedeAjustarInventario,
 } from '../api/movimientosApi'
 import { getDepositos } from '../api/depositosApi'
@@ -31,13 +28,6 @@ const categoriasAjuste = [
   ['otro', 'Otro'],
 ]
 
-const etiquetaTipo = {
-  [TIPOS.INGRESO]: 'Ingreso',
-  [TIPOS.EGRESO]: 'Egreso',
-  [TIPOS.TRANSFERENCIA]: 'Transferencia',
-  [TIPOS.AJUSTE]: 'Ajuste',
-}
-
 // El 423 es el único error accionable por el usuario: reintentar. El resto ya
 // vienen con un mensaje específico en castellano desde la validación o la base.
 function mensajeDeError(err, mensajePorDefecto) {
@@ -51,12 +41,10 @@ function mensajeDeError(err, mensajePorDefecto) {
 function MovimientosPage({ onVerHistorial }) {
   const [depositos, setDepositos] = useState([])
   const [articulos, setArticulos] = useState([])
-  const [pendientes, setPendientes] = useState([])
   const [form, setForm] = useState(movimientoInicial)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [enviando, setEnviando] = useState(false)
-  const [procesandoId, setProcesandoId] = useState(null)
   const [puedeAjustar, setPuedeAjustar] = useState(false)
 
   async function cargarDatos() {
@@ -64,15 +52,13 @@ function MovimientosPage({ onVerHistorial }) {
       setLoading(true)
       setError('')
 
-      const [depositosData, articulosData, pendientesData] = await Promise.all([
+      const [depositosData, articulosData] = await Promise.all([
         getDepositos(),
         getArticulos({ estado: 'activo', pageSize: 200 }),
-        getMovimientos({ estado: 'pendiente', pageSize: 50 }),
       ])
 
       setDepositos(depositosData)
       setArticulos(articulosData.articulos)
-      setPendientes(pendientesData.movimientos)
 
       try {
         setPuedeAjustar(await puedeAjustarInventario())
@@ -129,46 +115,6 @@ function MovimientosPage({ onVerHistorial }) {
       setError(mensajeDeError(err, 'No se pudo registrar el movimiento'))
     } finally {
       setEnviando(false)
-    }
-  }
-
-  async function confirmar(movimiento) {
-    const confirmado = window.confirm(
-      `¿Confirmar el movimiento ${movimiento.comprobante || ''}? Se va a aplicar el impacto en el stock.`,
-    )
-
-    if (!confirmado) return
-
-    try {
-      setError('')
-      setProcesandoId(movimiento.id)
-
-      await confirmarMovimiento(movimiento.id)
-      await cargarDatos()
-    } catch (err) {
-      setError(mensajeDeError(err, 'No se pudo confirmar el movimiento'))
-    } finally {
-      setProcesandoId(null)
-    }
-  }
-
-  async function cancelar(movimiento) {
-    const confirmado = window.confirm(
-      `¿Cancelar el movimiento ${movimiento.comprobante || ''}? No se va a aplicar en el stock.`,
-    )
-
-    if (!confirmado) return
-
-    try {
-      setError('')
-      setProcesandoId(movimiento.id)
-
-      await cancelarMovimiento(movimiento.id)
-      await cargarDatos()
-    } catch (err) {
-      setError(mensajeDeError(err, 'No se pudo cancelar el movimiento'))
-    } finally {
-      setProcesandoId(null)
     }
   }
 
@@ -371,85 +317,6 @@ function MovimientosPage({ onVerHistorial }) {
         </form>
       </section>
 
-      <section>
-        <h2>Movimientos pendientes</h2>
-
-        {pendientes.length === 0 ? (
-          <p>No hay movimientos pendientes.</p>
-        ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>Fecha</th>
-                <th>Tipo</th>
-                <th>Artículo</th>
-                <th>Cantidad</th>
-                <th>Origen</th>
-                <th>Destino</th>
-                <th>Comprobante</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {pendientes.map((movimiento) => {
-                // detalle es una relación uno a muchos: llega como array
-                // aunque en esta historia siempre tenga un solo renglón.
-                const renglon = movimiento.detalle?.[0]
-                const procesando = procesandoId === movimiento.id
-                const esAjustePendiente =
-                  movimiento.tipo?.codigo === TIPOS.AJUSTE
-                const puedeProcesar = !esAjustePendiente || puedeAjustar
-
-                return (
-                  <tr key={movimiento.id}>
-                    <td>
-                      {new Date(movimiento.fecha).toLocaleString('es-AR')}
-                    </td>
-                    <td>
-                      {etiquetaTipo[movimiento.tipo?.codigo] ||
-                        movimiento.tipo?.nombre ||
-                        '-'}
-                    </td>
-                    <td>
-                      {renglon
-                        ? `${renglon.producto?.sku} — ${renglon.producto?.nombre}`
-                        : '-'}
-                    </td>
-                    <td>{renglon?.cantidad ?? '-'}</td>
-                    <td>{movimiento.origen?.nombre || '-'}</td>
-                    <td>{movimiento.destino?.nombre || '-'}</td>
-                    <td>{movimiento.comprobante || '-'}</td>
-                    <td>
-                      {puedeProcesar ? (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => confirmar(movimiento)}
-                            disabled={procesando}
-                          >
-                            {procesando ? 'Procesando...' : 'Confirmar'}
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => cancelar(movimiento)}
-                            disabled={procesando}
-                          >
-                            Cancelar
-                          </button>
-                        </>
-                      ) : (
-                        <span>Sin permiso para procesar el ajuste</span>
-                      )}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        )}
-      </section>
     </main>
   )
 }
