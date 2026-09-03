@@ -1,73 +1,83 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import MovimientosPage from './MovimientosPage'
-import {
-  getMovimientos,
-  puedeAjustarInventario,
-} from '../api/movimientosApi'
+import { createMovimientoMultiarticulo } from '../api/movimientosApi'
 import { getDepositos } from '../api/depositosApi'
 import { getArticulos } from '../api/articulosApi'
+import { getStockByDeposito } from '../api/stockApi'
 
 vi.mock('../api/movimientosApi', () => ({
-  TIPOS: {
-    INGRESO: 'ingreso',
-    EGRESO: 'egreso',
-    TRANSFERENCIA: 'transferencia',
-    AJUSTE: 'ajuste',
-  },
-  cancelarMovimiento: vi.fn(),
-  confirmarMovimiento: vi.fn(),
-  createMovimiento: vi.fn(),
-  getMovimientos: vi.fn(),
-  puedeAjustarInventario: vi.fn(),
+  TIPOS: { INGRESO: 'ingreso', EGRESO: 'egreso', TRANSFERENCIA: 'transferencia' },
+  createMovimientoMultiarticulo: vi.fn(),
 }))
+vi.mock('../api/depositosApi', () => ({ getDepositos: vi.fn() }))
+vi.mock('../api/articulosApi', () => ({ getArticulos: vi.fn() }))
+vi.mock('../api/stockApi', () => ({ getStockByDeposito: vi.fn() }))
 
-vi.mock('../api/depositosApi', () => ({
-  getDepositos: vi.fn(),
-}))
+const articulos = [
+  { id: 'art-1', sku: 'CEM', nombre: 'Cemento Portland' },
+  { id: 'art-2', sku: 'ARE', nombre: 'Arena' },
+]
 
-vi.mock('../api/articulosApi', () => ({
-  getArticulos: vi.fn(),
-}))
-
-const ajustePendiente = {
-  id: 'ajuste-1',
-  fecha: '2026-08-27T20:00:00.000Z',
-  tipo: { codigo: 'ajuste', nombre: 'Ajuste' },
-  detalle: [
-    {
-      cantidad: 3,
-      producto: { sku: 'CEM-1', nombre: 'Cemento' },
-    },
-  ],
-  origen: { nombre: 'Depósito Central' },
-  destino: null,
-}
-
-describe('MovimientosPage', () => {
+describe('MovimientosPage multiartículo', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    getDepositos.mockResolvedValue([])
-    getArticulos.mockResolvedValue({ articulos: [] })
-    getMovimientos.mockResolvedValue({ movimientos: [ajustePendiente] })
+    getDepositos.mockResolvedValue([{ id: 'dep-1', nombre: 'Centro' }])
+    getArticulos.mockResolvedValue({ articulos })
+    getStockByDeposito.mockResolvedValue([
+      { producto: articulos[0], disponible: 25 },
+      { producto: articulos[1], disponible: 40 },
+    ])
+    createMovimientoMultiarticulo.mockResolvedValue({ id: 'mov-1' })
   })
 
-  it('oculta las acciones de un ajuste a usuarios sin permiso', async () => {
-    puedeAjustarInventario.mockResolvedValue(false)
-
+  it('exige elegir primero el depósito', async () => {
     render(<MovimientosPage onVerHistorial={vi.fn()} />)
-
-    await screen.findByText('Sin permiso para procesar el ajuste')
-    expect(screen.queryByRole('button', { name: 'Confirmar' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Cancelar' })).toBeNull()
+    const tipo = await screen.findByLabelText('Operación')
+    expect(tipo.disabled).toBe(true)
+    fireEvent.change(screen.getByLabelText('Depósito de operación'), { target: { value: 'dep-1' } })
+    await waitFor(() => expect(tipo.disabled).toBe(false))
+    expect(getStockByDeposito).toHaveBeenCalledWith('dep-1')
   })
 
-  it('habilita confirmar y cancelar ajustes a usuarios autorizados', async () => {
-    puedeAjustarInventario.mockResolvedValue(true)
-
+  it('agrega dos artículos y los confirma como un único movimiento', async () => {
     render(<MovimientosPage onVerHistorial={vi.fn()} />)
+    fireEvent.change(await screen.findByLabelText('Depósito de operación'), { target: { value: 'dep-1' } })
+    fireEvent.change(screen.getByLabelText('Operación'), { target: { value: 'egreso' } })
+    await waitFor(() => expect(screen.getByText(/Stock actual:/).textContent).toContain('-'))
 
-    expect(await screen.findByRole('button', { name: 'Confirmar' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Cancelar' })).toBeTruthy()
+    for (const [id, cantidad] of [['art-1', '10'], ['art-2', '10']]) {
+      fireEvent.change(screen.getByLabelText('Artículo'), { target: { value: id } })
+      expect(screen.getByText(/Stock actual:/).textContent).toContain(
+        String(id === 'art-1' ? 25 : 40),
+      )
+      fireEvent.change(screen.getByLabelText('Cantidad'), { target: { value: cantidad } })
+      fireEvent.click(screen.getByRole('button', { name: 'Agregar artículo' }))
+    }
+
+    fireEvent.change(screen.getByLabelText('Comprobante'), { target: { value: 'REM-10' } })
+    fireEvent.click(screen.getByRole('button', { name: /Confirmar movimiento/ }))
+
+    await waitFor(() => expect(createMovimientoMultiarticulo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        deposito_id: 'dep-1', tipo: 'egreso',
+        items: [
+          expect.objectContaining({ producto_id: 'art-1', cantidad: 10 }),
+          expect.objectContaining({ producto_id: 'art-2', cantidad: 10 }),
+        ],
+      }),
+    ))
+  })
+
+  it('impide confirmar con el carrito vacío', async () => {
+    render(<MovimientosPage onVerHistorial={vi.fn()} />)
+    fireEvent.change(await screen.findByLabelText('Depósito de operación'), { target: { value: 'dep-1' } })
+    fireEvent.change(screen.getByLabelText('Operación'), { target: { value: 'ingreso' } })
+    fireEvent.change(screen.getByLabelText('Comprobante'), { target: { value: 'FC-1' } })
+    fireEvent.click(screen.getByRole('button', { name: /Confirmar movimiento/ }))
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      'Agregá al menos un artículo',
+    )
+    expect(createMovimientoMultiarticulo).not.toHaveBeenCalled()
   })
 })
