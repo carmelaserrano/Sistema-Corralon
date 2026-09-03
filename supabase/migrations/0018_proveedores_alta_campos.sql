@@ -48,6 +48,20 @@ begin
     alter table public.proveedores add constraint chk_proveedor_email
       check (email is null or email ~* '^[^@\s]+@[^@\s]+\.[^@\s]+$');
   end if;
+
+  -- Condición de Pago Habitual: desplegable cerrado, pero a diferencia de
+  -- Condición Fiscal es opcional (puede quedar sin definir en el alta).
+  if not exists (
+    select 1 from pg_constraint where conname = 'chk_proveedor_condicion_pago'
+  ) then
+    alter table public.proveedores add constraint chk_proveedor_condicion_pago
+      check (
+        condicion_pago_habitual is null
+        or condicion_pago_habitual in (
+          'contado', '15_dias', '30_dias', '60_dias', '30_60_dias', 'anticipado'
+        )
+      );
+  end if;
 end $$;
 
 

@@ -16,6 +16,14 @@ vi.mock('../api/proveedoresApi', () => ({
     { value: 'exento', label: 'Exento' },
     { value: 'consumidor_final', label: 'Consumidor Final' },
   ],
+  CONDICIONES_PAGO: [
+    { value: 'contado', label: 'Contado' },
+    { value: '15_dias', label: '15 días' },
+    { value: '30_dias', label: '30 días' },
+    { value: '60_dias', label: '60 días' },
+    { value: '30_60_dias', label: '30/60 días' },
+    { value: 'anticipado', label: 'Anticipado' },
+  ],
   createProveedor: vi.fn(),
   getProveedores: vi.fn(),
   puedeAltaProveedores: vi.fn(),
@@ -36,6 +44,7 @@ const corralon = {
   razon_social: 'Corralón San Martín S.A.',
   cuit: '20123456786',
   condicion_fiscal: 'responsable_inscripto',
+  condicion_pago_habitual: '30_dias',
   localidad: 'Salta',
   estado: 'activo',
   rubro: { id: 'r1', nombre: 'Cemento' },
@@ -87,7 +96,21 @@ describe('ProveedoresPage', () => {
     }
   })
 
-  it('lista los proveedores existentes con su rubro', async () => {
+  it('ofrece la condición de pago como desplegable opcional', async () => {
+    render(<ProveedoresPage />)
+    await screen.findByText('Corralón San Martín S.A.')
+
+    const select = screen.getByLabelText('Condición de Pago Habitual')
+    expect(select).toHaveValue('')
+    expect(
+      screen.getByRole('option', { name: '30/60 días' }),
+    ).toBeInTheDocument()
+
+    fireEvent.change(select, { target: { value: '30_dias' } })
+    expect(select).toHaveValue('30_dias')
+  })
+
+  it('lista los proveedores existentes con su rubro y condición de pago', async () => {
     render(<ProveedoresPage />)
 
     const fila = (await screen.findByText('Corralón San Martín S.A.')).closest(
@@ -95,6 +118,19 @@ describe('ProveedoresPage', () => {
     )
     expect(fila).toHaveTextContent('Cemento')
     expect(fila).toHaveTextContent('Responsable Inscripto')
+    expect(fila).toHaveTextContent('30 días')
+  })
+
+  it('muestra un guion cuando el proveedor no tiene condición de pago', async () => {
+    getProveedores.mockResolvedValue([
+      { ...corralon, condicion_pago_habitual: null },
+    ])
+    render(<ProveedoresPage />)
+
+    const fila = (await screen.findByText('Corralón San Martín S.A.')).closest(
+      'tr',
+    )
+    expect(fila).toHaveTextContent('—')
   })
 
   // CA: Razón Social obligatoria

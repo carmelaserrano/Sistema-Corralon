@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
   CONDICIONES_FISCALES,
+  CONDICIONES_PAGO,
   createProveedor,
   getProveedores,
   puedeAltaProveedores,
@@ -59,6 +60,19 @@ describe('proveedoresApi', () => {
         'monotributista',
         'exento',
         'consumidor_final',
+      ])
+    })
+  })
+
+  describe('CONDICIONES_PAGO', () => {
+    it('ofrece las 6 opciones acordadas', () => {
+      expect(CONDICIONES_PAGO.map((o) => o.value)).toEqual([
+        'contado',
+        '15_dias',
+        '30_dias',
+        '60_dias',
+        '30_60_dias',
+        'anticipado',
       ])
     })
   })
@@ -150,6 +164,30 @@ describe('proveedoresApi', () => {
         status: 400,
         message: 'La condición fiscal es obligatoria',
       })
+    })
+
+    it('acepta que la condición de pago quede sin especificar', async () => {
+      const builder = crearQueryBuilder({ data: filaCorralon, error: null })
+      supabase.from.mockReturnValue(builder)
+
+      await createProveedor({ ...datosValidos, condicion_pago_habitual: '' })
+
+      expect(builder.insert).toHaveBeenCalledWith(
+        expect.objectContaining({ condicion_pago_habitual: null }),
+      )
+    })
+
+    it('rechaza con 400 una condición de pago fuera de la lista', async () => {
+      await expect(
+        createProveedor({
+          ...datosValidos,
+          condicion_pago_habitual: 'a-90-dias',
+        }),
+      ).rejects.toMatchObject({
+        status: 400,
+        message: 'La condición de pago habitual no es válida',
+      })
+      expect(supabase.from).not.toHaveBeenCalled()
     })
 
     it('rechaza con 400 cuando el email tiene formato inválido', async () => {
@@ -281,6 +319,24 @@ describe('proveedoresApi', () => {
       await expect(createProveedor(datosValidos)).rejects.toMatchObject({
         status: 400,
         message: 'La condición fiscal no es válida',
+      })
+    })
+
+    it('traduce el check de condición de pago a un mensaje legible', async () => {
+      supabase.from.mockReturnValue(
+        crearQueryBuilder({
+          data: null,
+          error: {
+            code: '23514',
+            message:
+              'new row for relation "proveedores" violates check constraint "chk_proveedor_condicion_pago"',
+          },
+        }),
+      )
+
+      await expect(createProveedor(datosValidos)).rejects.toMatchObject({
+        status: 400,
+        message: 'La condición de pago habitual no es válida',
       })
     })
 

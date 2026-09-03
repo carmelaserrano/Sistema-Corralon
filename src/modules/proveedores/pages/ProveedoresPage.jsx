@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   CONDICIONES_FISCALES,
+  CONDICIONES_PAGO,
   createProveedor,
   getProveedores,
   puedeAltaProveedores,
@@ -301,14 +302,19 @@ function ProveedoresPage() {
               <label htmlFor="condicion_pago_habitual">
                 Condición de Pago Habitual
               </label>
-              <input
+              <select
                 id="condicion_pago_habitual"
                 name="condicion_pago_habitual"
                 value={form.condicion_pago_habitual}
                 onChange={manejarCambio}
-                placeholder="Cuenta corriente 30 días"
-                autoComplete="off"
-              />
+              >
+                <option value="">Sin especificar</option>
+                {CONDICIONES_PAGO.map((opcion) => (
+                  <option key={opcion.value} value={opcion.value}>
+                    {opcion.label}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>
@@ -389,6 +395,7 @@ function ProveedoresPage() {
                 <th>Razón Social</th>
                 <th>CUIT</th>
                 <th>Condición Fiscal</th>
+                <th>Condición de Pago</th>
                 <th>Rubro</th>
                 <th>Localidad</th>
                 <th>Estado</th>
@@ -403,6 +410,12 @@ function ProveedoresPage() {
                     {CONDICIONES_FISCALES.find(
                       (opcion) => opcion.value === proveedor.condicion_fiscal,
                     )?.label ?? proveedor.condicion_fiscal}
+                  </td>
+                  <td>
+                    {CONDICIONES_PAGO.find(
+                      (opcion) =>
+                        opcion.value === proveedor.condicion_pago_habitual,
+                    )?.label ?? '—'}
                   </td>
                   <td>{proveedor.rubro?.nombre ?? '—'}</td>
                   <td>{proveedor.localidad || '—'}</td>

@@ -19,6 +19,17 @@ export const CONDICIONES_FISCALES = [
   { value: 'consumidor_final', label: 'Consumidor Final' },
 ]
 
+// A diferencia de Condición Fiscal, es opcional: el proveedor puede quedar
+// sin una condición de pago definida en el alta.
+export const CONDICIONES_PAGO = [
+  { value: 'contado', label: 'Contado' },
+  { value: '15_dias', label: '15 días' },
+  { value: '30_dias', label: '30 días' },
+  { value: '60_dias', label: '60 días' },
+  { value: '30_60_dias', label: '30/60 días' },
+  { value: 'anticipado', label: 'Anticipado' },
+]
+
 // El Rubro se resuelve vía proveedor_rubro (N:N, 0013), no una columna propia:
 // esa tabla ya la usa el ABM de Rubros para contar proveedores asociados, y
 // mover el vínculo a otro lado rompería ese conteo.
@@ -61,7 +72,13 @@ function normalizarProveedor(fila) {
   }
 }
 
-function validarProveedor({ razon_social, cuit, condicion_fiscal, email }) {
+function validarProveedor({
+  razon_social,
+  cuit,
+  condicion_fiscal,
+  condicion_pago_habitual,
+  email,
+}) {
   if (!razon_social?.trim()) {
     throw errorDeApi('La Razón Social es obligatoria', 400)
   }
@@ -70,6 +87,12 @@ function validarProveedor({ razon_social, cuit, condicion_fiscal, email }) {
   }
   if (!CONDICIONES_FISCALES.some((opcion) => opcion.value === condicion_fiscal)) {
     throw errorDeApi('La condición fiscal es obligatoria', 400)
+  }
+  if (
+    condicion_pago_habitual &&
+    !CONDICIONES_PAGO.some((opcion) => opcion.value === condicion_pago_habitual)
+  ) {
+    throw errorDeApi('La condición de pago habitual no es válida', 400)
   }
   if (email?.trim() && !EMAIL_REGEX.test(email.trim())) {
     throw errorDeApi('El email no tiene un formato válido', 400)
@@ -109,6 +132,9 @@ async function manejarErrorProveedor(error, { cuit } = {}) {
   if (error?.code === CODIGO_CHECK_VIOLADO) {
     if (error.message?.includes('chk_proveedor_condicion_fiscal')) {
       throw errorDeApi('La condición fiscal no es válida', 400)
+    }
+    if (error.message?.includes('chk_proveedor_condicion_pago')) {
+      throw errorDeApi('La condición de pago habitual no es válida', 400)
     }
     if (error.message?.includes('chk_proveedor_email')) {
       throw errorDeApi('El email no tiene un formato válido', 400)
