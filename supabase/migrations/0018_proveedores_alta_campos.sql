@@ -1,4 +1,4 @@
--- Migración 0019: campos y permisos para el alta de proveedores.
+-- Migración 0018: campos y permisos para el alta de proveedores.
 --
 -- Historia: alta de proveedores (Como Administrador necesito registrar
 -- nuevos proveedores para mantener actualizado el padrón de proveedores).
@@ -69,4 +69,4 @@ create policy "proveedor_rubro_insert" on public.proveedor_rubro
 
 commit;
 
--- Fin migración 0019
+-- Fin migración 0018
