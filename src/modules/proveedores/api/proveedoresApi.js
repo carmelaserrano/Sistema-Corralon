@@ -9,9 +9,15 @@ import { cuitEsValido, limpiarCuit } from '../cuit'
 
 const TABLA = 'proveedores'
 const TABLA_RUBRO = 'proveedor_rubro'
+const TABLA_HISTORIAL = 'historial_estado_proveedor'
 
 export const PERMISO_ALTA = 'proveedores.alta'
 export const PERMISO_MODIFICAR = 'proveedores.modificar'
+export const PERMISO_ESTADO = 'proveedores.estado'
+
+// Las dos únicas transiciones posibles (CA 6): no existe un tercer estado ni
+// una baja física.
+export const ESTADOS = ['activo', 'inactivo']
 
 export const CONDICIONES_FISCALES = [
   { value: 'responsable_inscripto', label: 'Responsable Inscripto' },
@@ -161,12 +167,24 @@ async function manejarErrorProveedor(error, { cuit } = {}) {
  * @param {Object} [filtros]
  * @param {string} [filtros.search] Texto a buscar dentro de la razón social.
  * @param {boolean} [filtros.soloActivos=true] Excluir los inactivos.
+ * @param {string} [filtros.estado] Filtrar por un estado puntual ('activo' o
+ *   'inactivo'). Tiene prioridad sobre `soloActivos`: pasar `estado: ''`
+ *   junto a `soloActivos: false` devuelve todos.
  * @returns {Promise<Array<Object>>} Proveedores con `rubro` resuelto.
  */
-export async function getProveedores({ search = '', soloActivos = true } = {}) {
+export async function getProveedores({
+  search = '',
+  soloActivos = true,
+  estado = '',
+} = {}) {
   let consulta = supabase.from(TABLA).select(COLUMNAS)
 
-  if (soloActivos) consulta = consulta.eq('estado', 'activo')
+  if (estado) {
+    consulta = consulta.eq('estado', estado)
+  } else if (soloActivos) {
+    consulta = consulta.eq('estado', 'activo')
+  }
+
   if (search.trim()) {
     consulta = consulta.ilike('razon_social', `%${search.trim()}%`)
   }
@@ -175,6 +193,20 @@ export async function getProveedores({ search = '', soloActivos = true } = {}) {
 
   if (error) throw error
   return (data ?? []).map(normalizarProveedor)
+}
+
+/**
+ * Proveedores que pueden elegirse en un comprobante (Orden de Compra,
+ * recepción, factura). Excluye los inactivos: ése es el CA 5 de US-PRV-06.
+ *
+ * Existe como función propia y no como `getProveedores()` a secas para que
+ * el módulo de Compras, cuando se construya, tenga una opción obvia y no
+ * dependa de acordarse del valor por defecto de un parámetro.
+ *
+ * @returns {Promise<Array<Object>>} Proveedores en estado activo.
+ */
+export async function getProveedoresSeleccionables() {
+  return getProveedores({ estado: 'activo' })
 }
 
 /**
@@ -316,6 +348,81 @@ export async function updateProveedor(id, datos, rubroId = null) {
 
   if (errorRefetch) throw errorRefetch
   return normalizarProveedor(dataFinal)
+}
+
+/**
+ * Cambia el estado de un proveedor entre 'activo' e 'inactivo'.
+ *
+ * Es una baja lógica: el registro nunca se elimina de la base (CA 1). No
+ * existe una función de borrado en este módulo, ni una policy de DELETE
+ * sobre `proveedores`, así que tampoco hay forma de hacerlo por accidente.
+ *
+ * El historial (usuario, fecha/hora y estado anterior, CA 4) lo escribe el
+ * trigger trg_proveedores_historial_estado de la migración 0020, no esta
+ * función: así queda registrado cualquier cambio, venga de donde venga.
+ *
+ * @param {string} id ID del proveedor.
+ * @param {'activo'|'inactivo'} estado Estado al que se pasa.
+ * @returns {Promise<Object>} Proveedor actualizado, con `rubro` resuelto.
+ * @throws {Error} 400 si el estado no es uno de los dos válidos; 403 si la
+ *   RLS descarta el UPDATE por falta de permiso.
+ */
+export async function setEstadoProveedor(id, estado) {
+  if (!ESTADOS.includes(estado)) {
+    throw errorDeApi('El estado debe ser "activo" o "inactivo"', 400)
+  }
+
+  const { data, error } = await supabase
+    .from(TABLA)
+    .update({ estado })
+    .eq('id', id)
+    .select(COLUMNAS)
+    .single()
+
+  if (error) await manejarErrorProveedor(error)
+  return normalizarProveedor(data)
+}
+
+/**
+ * Devuelve los cambios de estado de un proveedor, del más reciente al más
+ * antiguo (CA 4).
+ *
+ * `cambiado_por` es el uuid del usuario de Supabase Auth. No se resuelve a un
+ * nombre o email porque el esquema `auth` no está expuesto por PostgREST y el
+ * proyecto todavía no tiene una tabla de perfiles.
+ *
+ * @param {string} id ID del proveedor.
+ * @returns {Promise<Array<Object>>} Cambios de estado registrados.
+ */
+export async function getHistorialEstadoProveedor(id) {
+  const { data, error } = await supabase
+    .from(TABLA_HISTORIAL)
+    .select('id, estado_anterior, estado_nuevo, cambiado_por, cambiado_en')
+    .eq('proveedor_id', id)
+    .order('cambiado_en', { ascending: false })
+
+  if (error) throw error
+  return data ?? []
+}
+
+/**
+ * Indica si el usuario actual puede cambiar el estado de un proveedor.
+ *
+ * La policy proveedores_update (0013) acepta 'proveedores.modificar' o
+ * 'proveedores.estado', así que se consulta el segundo y se cae al primero:
+ * alcanza con cualquiera de los dos.
+ *
+ * @returns {Promise<boolean>} true si tiene alguno de los dos permisos.
+ */
+export async function puedeCambiarEstadoProveedores() {
+  const { data, error } = await supabase.rpc('usuario_tiene_permiso', {
+    p_nombre: PERMISO_ESTADO,
+  })
+
+  if (error) throw error
+  if (data === true) return true
+
+  return puedeModificarProveedores()
 }
 
 /**
