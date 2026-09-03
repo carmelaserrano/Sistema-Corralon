@@ -5,6 +5,8 @@ import {
   createProveedor,
   getProveedores,
   puedeAltaProveedores,
+  puedeModificarProveedores,
+  updateProveedor,
 } from './proveedoresApi'
 import { supabase } from '../../../lib/supabaseClient'
 
@@ -19,6 +21,7 @@ function crearQueryBuilder(resultado) {
     select: vi.fn(() => builder),
     insert: vi.fn(() => builder),
     update: vi.fn(() => builder),
+    delete: vi.fn(() => builder),
     eq: vi.fn(() => builder),
     ilike: vi.fn(() => builder),
     order: vi.fn(() => Promise.resolve(resultado)),
@@ -347,6 +350,186 @@ describe('proveedoresApi', () => {
       )
 
       await expect(createProveedor(datosValidos)).rejects.toEqual(errorMock)
+    })
+  })
+
+  describe('updateProveedor', () => {
+    const filaActualizada = { ...filaCorralon, localidad: 'Jujuy' }
+
+    // CA: se puede modificar todo salvo el CUIT
+    it('actualiza los campos sin exigir ni mandar el CUIT', async () => {
+      const builderUpdate = crearQueryBuilder({ error: null })
+      const builderBorrado = crearQueryBuilder({ error: null })
+      const builderRefetch = crearQueryBuilder({
+        data: filaActualizada,
+        error: null,
+      })
+      supabase.from
+        .mockReturnValueOnce(builderUpdate)
+        .mockReturnValueOnce(builderBorrado)
+        .mockReturnValueOnce(builderRefetch)
+
+      const resultado = await updateProveedor(
+        'p1',
+        { razon_social: 'Corralón San Martín S.A.', condicion_fiscal: 'responsable_inscripto', localidad: 'Jujuy' },
+        null,
+      )
+
+      expect(builderUpdate.update).toHaveBeenCalledWith(
+        expect.objectContaining({ localidad: 'Jujuy' }),
+      )
+      expect(builderUpdate.update.mock.calls[0][0]).not.toHaveProperty('cuit')
+      expect(builderUpdate.eq).toHaveBeenCalledWith('id', 'p1')
+      expect(resultado.localidad).toBe('Jujuy')
+    })
+
+    it('rechaza con 400 cuando falta la razón social, sin llamar a Supabase', async () => {
+      await expect(
+        updateProveedor('p1', {
+          razon_social: '',
+          condicion_fiscal: 'responsable_inscripto',
+        }),
+      ).rejects.toMatchObject({
+        status: 400,
+        message: 'La Razón Social es obligatoria',
+      })
+      expect(supabase.from).not.toHaveBeenCalled()
+    })
+
+    it('no valida el CUIT aunque venga vacío o inválido en los datos', async () => {
+      const builderUpdate = crearQueryBuilder({ error: null })
+      const builderBorrado = crearQueryBuilder({ error: null })
+      const builderRefetch = crearQueryBuilder({
+        data: filaCorralon,
+        error: null,
+      })
+      supabase.from
+        .mockReturnValueOnce(builderUpdate)
+        .mockReturnValueOnce(builderBorrado)
+        .mockReturnValueOnce(builderRefetch)
+
+      await expect(
+        updateProveedor('p1', {
+          razon_social: 'Corralón San Martín S.A.',
+          condicion_fiscal: 'responsable_inscripto',
+          cuit: 'esto-no-es-un-cuit',
+        }),
+      ).resolves.toBeDefined()
+    })
+
+    // CA: se puede cambiar el rubro
+    it('borra el vínculo anterior y crea el nuevo cuando se pasa un rubro', async () => {
+      const builderUpdate = crearQueryBuilder({ error: null })
+      const builderBorrado = crearQueryBuilder({ error: null })
+      const builderInsert = crearQueryBuilder({ error: null })
+      const builderRefetch = crearQueryBuilder({
+        data: {
+          ...filaCorralon,
+          proveedor_rubro: [{ rubro: { id: 'r2', nombre: 'Hierros' } }],
+        },
+        error: null,
+      })
+      supabase.from
+        .mockReturnValueOnce(builderUpdate)
+        .mockReturnValueOnce(builderBorrado)
+        .mockReturnValueOnce(builderInsert)
+        .mockReturnValueOnce(builderRefetch)
+
+      const resultado = await updateProveedor(
+        'p1',
+        {
+          razon_social: 'Corralón San Martín S.A.',
+          condicion_fiscal: 'responsable_inscripto',
+        },
+        'r2',
+      )
+
+      expect(builderBorrado.delete).toHaveBeenCalled()
+      expect(builderBorrado.eq).toHaveBeenCalledWith('proveedor_id', 'p1')
+      expect(builderInsert.insert).toHaveBeenCalledWith({
+        proveedor_id: 'p1',
+        rubro_id: 'r2',
+      })
+      expect(resultado.rubro).toEqual({ id: 'r2', nombre: 'Hierros' })
+    })
+
+    it('solo borra el vínculo cuando el rubro queda sin especificar', async () => {
+      const builderUpdate = crearQueryBuilder({ error: null })
+      const builderBorrado = crearQueryBuilder({ error: null })
+      const builderRefetch = crearQueryBuilder({
+        data: filaCorralon,
+        error: null,
+      })
+      supabase.from
+        .mockReturnValueOnce(builderUpdate)
+        .mockReturnValueOnce(builderBorrado)
+        .mockReturnValueOnce(builderRefetch)
+
+      await updateProveedor(
+        'p1',
+        {
+          razon_social: 'Corralón San Martín S.A.',
+          condicion_fiscal: 'responsable_inscripto',
+        },
+        null,
+      )
+
+      expect(builderBorrado.delete).toHaveBeenCalled()
+      expect(supabase.from).toHaveBeenCalledTimes(3)
+    })
+
+    it('avisa si los datos se guardaron pero no se pudo actualizar el rubro', async () => {
+      const builderUpdate = crearQueryBuilder({ error: null })
+      const builderBorrado = crearQueryBuilder({
+        error: { message: 'timeout' },
+      })
+      supabase.from
+        .mockReturnValueOnce(builderUpdate)
+        .mockReturnValueOnce(builderBorrado)
+
+      await expect(
+        updateProveedor('p1', {
+          razon_social: 'Corralón San Martín S.A.',
+          condicion_fiscal: 'responsable_inscripto',
+        }),
+      ).rejects.toMatchObject({
+        status: 409,
+        message: expect.stringContaining('Se guardaron los datos del proveedor'),
+      })
+    })
+
+    it('traduce a 403 el UPDATE que la RLS deja sin filas', async () => {
+      supabase.from.mockReturnValue(
+        crearQueryBuilder({ error: { code: 'PGRST116' } }),
+      )
+
+      await expect(
+        updateProveedor('p1', {
+          razon_social: 'Corralón San Martín S.A.',
+          condicion_fiscal: 'responsable_inscripto',
+        }),
+      ).rejects.toMatchObject({
+        status: 403,
+        message:
+          'No se pudo guardar el proveedor: no existe o no tenés permiso para modificarlo',
+      })
+    })
+  })
+
+  describe('puedeModificarProveedores', () => {
+    it('consulta el permiso de modificación de proveedores', async () => {
+      supabase.rpc.mockResolvedValue({ data: true, error: null })
+
+      await expect(puedeModificarProveedores()).resolves.toBe(true)
+      expect(supabase.rpc).toHaveBeenCalledWith('usuario_tiene_permiso', {
+        p_nombre: 'proveedores.modificar',
+      })
+    })
+
+    it('devuelve false cuando la función no responde true', async () => {
+      supabase.rpc.mockResolvedValue({ data: null, error: null })
+
+      await expect(puedeModificarProveedores()).resolves.toBe(false)
     })
   })
 

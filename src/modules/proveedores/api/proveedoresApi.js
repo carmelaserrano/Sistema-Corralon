@@ -11,6 +11,7 @@ const TABLA = 'proveedores'
 const TABLA_RUBRO = 'proveedor_rubro'
 
 export const PERMISO_ALTA = 'proveedores.alta'
+export const PERMISO_MODIFICAR = 'proveedores.modificar'
 
 export const CONDICIONES_FISCALES = [
   { value: 'responsable_inscripto', label: 'Responsable Inscripto' },
@@ -72,17 +73,14 @@ function normalizarProveedor(fila) {
   }
 }
 
-function validarProveedor({
-  razon_social,
-  cuit,
-  condicion_fiscal,
-  condicion_pago_habitual,
-  email,
-}) {
+function validarProveedor(
+  { razon_social, cuit, condicion_fiscal, condicion_pago_habitual, email },
+  { validarCuit = true } = {},
+) {
   if (!razon_social?.trim()) {
     throw errorDeApi('La Razón Social es obligatoria', 400)
   }
-  if (!cuitEsValido(cuit)) {
+  if (validarCuit && !cuitEsValido(cuit)) {
     throw errorDeApi('CUIT inválido', 400)
   }
   if (!CONDICIONES_FISCALES.some((opcion) => opcion.value === condicion_fiscal)) {
@@ -120,7 +118,7 @@ async function buscarRazonSocialPorCuit(cuit) {
 
 async function manejarErrorProveedor(error, { cuit } = {}) {
   if (error?.code === CODIGO_DUPLICADO) {
-    const razonSocial = await buscarRazonSocialPorCuit(cuit)
+    const razonSocial = cuit ? await buscarRazonSocialPorCuit(cuit) : null
     throw errorDeApi(
       razonSocial
         ? `Ya existe un proveedor con ese CUIT: ${razonSocial}`
@@ -250,6 +248,77 @@ export async function createProveedor(datos, rubroId = null) {
 }
 
 /**
+ * Modifica un proveedor existente. El CUIT no se toca: es inmutable una vez
+ * dado de alta, y ni siquiera se manda en el UPDATE.
+ *
+ * A diferencia del alta, acá el rubro se sincroniza siempre (se borra el
+ * vínculo vigente y, si se pasó uno, se crea el nuevo), porque a diferencia
+ * de un proveedor recién creado, uno existente puede tener un vínculo previo
+ * que haya que reemplazar o quitar.
+ *
+ * @param {string} id ID del proveedor.
+ * @param {Object} datos Mismos campos que createProveedor, sin `cuit`.
+ * @param {string|null} [rubroId] Rubro a asociar, o null para dejarlo sin rubro.
+ * @returns {Promise<Object>} Proveedor actualizado, con `rubro` resuelto.
+ * @throws {Error} 400 si falta un campo obligatorio.
+ */
+export async function updateProveedor(id, datos, rubroId = null) {
+  validarProveedor(datos, { validarCuit: false })
+
+  const { error } = await supabase
+    .from(TABLA)
+    .update({
+      razon_social: datos.razon_social.trim(),
+      nombre_fantasia: datos.nombre_fantasia?.trim() || null,
+      condicion_fiscal: datos.condicion_fiscal,
+      condicion_pago_habitual: datos.condicion_pago_habitual?.trim() || null,
+      domicilio: datos.domicilio?.trim() || null,
+      localidad: datos.localidad?.trim() || null,
+      provincia: datos.provincia?.trim() || null,
+      telefono: datos.telefono?.trim() || null,
+      email: datos.email?.trim() || null,
+      observaciones: datos.observaciones?.trim() || null,
+    })
+    .eq('id', id)
+
+  if (error) await manejarErrorProveedor(error)
+
+  const { error: errorBorrado } = await supabase
+    .from(TABLA_RUBRO)
+    .delete()
+    .eq('proveedor_id', id)
+
+  if (errorBorrado) {
+    throw errorDeApi(
+      `Se guardaron los datos del proveedor, pero no se pudo actualizar el rubro (${errorBorrado.message || 'error desconocido'}).`,
+      409,
+    )
+  }
+
+  if (rubroId) {
+    const { error: errorVinculo } = await supabase
+      .from(TABLA_RUBRO)
+      .insert({ proveedor_id: id, rubro_id: rubroId })
+
+    if (errorVinculo) {
+      throw errorDeApi(
+        `Se guardaron los datos del proveedor, pero no se pudo asociar el rubro (${errorVinculo.message || 'error desconocido'}).`,
+        409,
+      )
+    }
+  }
+
+  const { data: dataFinal, error: errorRefetch } = await supabase
+    .from(TABLA)
+    .select(COLUMNAS)
+    .eq('id', id)
+    .single()
+
+  if (errorRefetch) throw errorRefetch
+  return normalizarProveedor(dataFinal)
+}
+
+/**
  * Indica si el usuario actual puede dar de alta proveedores.
  *
  * Igual que puedeGestionarRubros: consultarlo antes evita que el usuario
@@ -260,6 +329,20 @@ export async function createProveedor(datos, rubroId = null) {
 export async function puedeAltaProveedores() {
   const { data, error } = await supabase.rpc('usuario_tiene_permiso', {
     p_nombre: PERMISO_ALTA,
+  })
+
+  if (error) throw error
+  return data === true
+}
+
+/**
+ * Indica si el usuario actual puede modificar proveedores existentes.
+ *
+ * @returns {Promise<boolean>} true si tiene el permiso.
+ */
+export async function puedeModificarProveedores() {
+  const { data, error } = await supabase.rpc('usuario_tiene_permiso', {
+    p_nombre: PERMISO_MODIFICAR,
   })
 
   if (error) throw error

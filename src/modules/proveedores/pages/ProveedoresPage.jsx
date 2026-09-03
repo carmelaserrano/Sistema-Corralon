@@ -5,12 +5,19 @@ import {
   createProveedor,
   getProveedores,
   puedeAltaProveedores,
+  puedeModificarProveedores,
+  updateProveedor,
 } from '../api/proveedoresApi'
 import { getRubros } from '../api/rubrosApi'
 import { cuitEsValido, formatearCuit } from '../cuit'
 import Button from '../../../components/ui/Button'
 import EmptyState from '../../../components/ui/EmptyState'
 import Feedback from '../../../components/ui/Feedback'
+
+function formatearFecha(iso) {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleString('es-AR')
+}
 
 const proveedorInicial = {
   razon_social: '',
@@ -31,36 +38,58 @@ function ProveedoresPage() {
   const [rubros, setRubros] = useState([])
   const [form, setForm] = useState(proveedorInicial)
   const [rubroId, setRubroId] = useState('')
+  const [editandoId, setEditandoId] = useState(null)
+  const [formOriginal, setFormOriginal] = useState(null)
+  const [detalleId, setDetalleId] = useState(null)
   const [cuitError, setCuitError] = useState('')
 
   const [busqueda, setBusqueda] = useState('')
   const [busquedaAplicada, setBusquedaAplicada] = useState('')
 
-  // Arranca en true por la misma razón que en RubrosPage: si falla la
+  // Arrancan en true por la misma razón que en RubrosPage: si falla la
   // consulta del permiso, es preferible dejar las acciones a la vista y que
   // la base rechace, antes que afirmarle al usuario que no tiene un permiso
   // que quizá sí tiene.
   const [puedeCrear, setPuedeCrear] = useState(true)
-  const [avisoPermiso, setAvisoPermiso] = useState('')
+  const [puedeModificar, setPuedeModificar] = useState(true)
+  const [avisoPermisoAlta, setAvisoPermisoAlta] = useState('')
+  const [avisoPermisoModificar, setAvisoPermisoModificar] = useState('')
 
   const [error, setError] = useState('')
   const [aviso, setAviso] = useState('')
   const [loading, setLoading] = useState(true)
   const [guardando, setGuardando] = useState(false)
 
-  async function verificarPermiso() {
+  async function verificarPermisoAlta() {
     try {
       const habilitado = await puedeAltaProveedores()
       setPuedeCrear(habilitado)
-      setAvisoPermiso(
+      setAvisoPermisoAlta(
         habilitado
           ? ''
-          : 'Sólo podés consultar los proveedores. Para dar de alta necesitás el permiso «proveedores.alta».',
+          : 'No tenés el permiso «proveedores.alta»: podés modificar proveedores existentes, pero no dar de alta nuevos.',
       )
     } catch (err) {
       setPuedeCrear(true)
-      setAvisoPermiso(
-        `No se pudo verificar tu permiso sobre proveedores (${err.message || 'error desconocido'}). Las acciones quedan habilitadas, pero si al guardar no pasa nada, es por esto.`,
+      setAvisoPermisoAlta(
+        `No se pudo verificar tu permiso de alta (${err.message || 'error desconocido'}). La acción queda habilitada, pero si al crear no pasa nada, es por esto.`,
+      )
+    }
+  }
+
+  async function verificarPermisoModificar() {
+    try {
+      const habilitado = await puedeModificarProveedores()
+      setPuedeModificar(habilitado)
+      setAvisoPermisoModificar(
+        habilitado
+          ? ''
+          : 'No tenés el permiso «proveedores.modificar»: podés dar de alta proveedores, pero no editar los existentes.',
+      )
+    } catch (err) {
+      setPuedeModificar(true)
+      setAvisoPermisoModificar(
+        `No se pudo verificar tu permiso de modificación (${err.message || 'error desconocido'}). La acción queda habilitada, pero si al guardar no pasa nada, es por esto.`,
       )
     }
   }
@@ -93,7 +122,8 @@ function ProveedoresPage() {
   }
 
   useEffect(() => {
-    verificarPermiso()
+    verificarPermisoAlta()
+    verificarPermisoModificar()
     cargarProveedores({ search: '' })
     cargarRubros()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -118,15 +148,66 @@ function ProveedoresPage() {
   function limpiarFormulario() {
     setForm(proveedorInicial)
     setRubroId('')
+    setEditandoId(null)
+    setFormOriginal(null)
     setCuitError('')
     setError('')
+  }
+
+  function comenzarEdicion(proveedor) {
+    const datosForm = {
+      razon_social: proveedor.razon_social ?? '',
+      nombre_fantasia: proveedor.nombre_fantasia ?? '',
+      cuit: formatearCuit(proveedor.cuit ?? ''),
+      condicion_fiscal: proveedor.condicion_fiscal ?? '',
+      condicion_pago_habitual: proveedor.condicion_pago_habitual ?? '',
+      domicilio: proveedor.domicilio ?? '',
+      localidad: proveedor.localidad ?? '',
+      provincia: proveedor.provincia ?? '',
+      telefono: proveedor.telefono ?? '',
+      email: proveedor.email ?? '',
+      observaciones: proveedor.observaciones ?? '',
+    }
+    const rubroSeleccionado = proveedor.rubro?.id ?? ''
+
+    setForm(datosForm)
+    setRubroId(rubroSeleccionado)
+    setEditandoId(proveedor.id)
+    setFormOriginal({ ...datosForm, rubroId: rubroSeleccionado })
+    setDetalleId(null)
+    setCuitError('')
+    setError('')
+    setAviso('')
+  }
+
+  function verDetalle(proveedor) {
+    setDetalleId(proveedor.id)
+  }
+
+  function cerrarDetalle() {
+    setDetalleId(null)
   }
 
   async function guardarProveedor(event) {
     event.preventDefault()
 
-    if (form.cuit && !cuitEsValido(form.cuit)) {
+    // El CUIT no se valida en modo edición: el campo queda deshabilitado y
+    // no se manda en el UPDATE, es inmutable una vez dado de alta.
+    if (!editandoId && form.cuit && !cuitEsValido(form.cuit)) {
       setCuitError('CUIT inválido')
+      return
+    }
+
+    // Sin esto, guardar sin tocar nada igual dispara el UPDATE y el trigger
+    // de auditoría deja registrado un cambio que en realidad no existió.
+    if (
+      editandoId &&
+      formOriginal &&
+      JSON.stringify({ ...form, rubroId: rubroId || '' }) ===
+        JSON.stringify(formOriginal)
+    ) {
+      setAviso(`No se hicieron cambios en "${form.razon_social}"`)
+      limpiarFormulario()
       return
     }
 
@@ -135,8 +216,17 @@ function ProveedoresPage() {
       setError('')
       setAviso('')
 
-      const creado = await createProveedor(form, rubroId || null)
-      setAviso(`Proveedor "${creado.razon_social}" creado`)
+      if (editandoId) {
+        const actualizado = await updateProveedor(
+          editandoId,
+          form,
+          rubroId || null,
+        )
+        setAviso(`Proveedor "${actualizado.razon_social}" actualizado`)
+      } else {
+        const creado = await createProveedor(form, rubroId || null)
+        setAviso(`Proveedor "${creado.razon_social}" creado`)
+      }
 
       limpiarFormulario()
       await cargarProveedores()
@@ -157,17 +247,24 @@ function ProveedoresPage() {
     cargarProveedores({ search: '' })
   }
 
+  const proveedorDetalle = detalleId
+    ? (proveedores.find((p) => p.id === detalleId) ?? null)
+    : null
+
   return (
     <main>
       <h1>Proveedores</h1>
 
       {error && <Feedback tone="error">{error}</Feedback>}
       {aviso && <Feedback tone="success">{aviso}</Feedback>}
-      {avisoPermiso && <Feedback tone="info">{avisoPermiso}</Feedback>}
+      {avisoPermisoAlta && <Feedback tone="info">{avisoPermisoAlta}</Feedback>}
+      {avisoPermisoModificar && (
+        <Feedback tone="info">{avisoPermisoModificar}</Feedback>
+      )}
 
-      {puedeCrear && (
+      {(puedeCrear || editandoId) && (
         <section>
-          <h2>Nuevo proveedor</h2>
+          <h2>{editandoId ? 'Editar proveedor' : 'Nuevo proveedor'}</h2>
 
           <form onSubmit={guardarProveedor}>
             <div>
@@ -204,7 +301,9 @@ function ProveedoresPage() {
                 placeholder="20-12345678-9"
                 autoComplete="off"
                 inputMode="numeric"
+                disabled={Boolean(editandoId)}
               />
+              {editandoId && <small>El CUIT no se puede modificar.</small>}
               {cuitError && <Feedback tone="error">{cuitError}</Feedback>}
             </div>
 
@@ -329,10 +428,114 @@ function ProveedoresPage() {
 
             <div>
               <Button type="submit" loading={guardando}>
-                Crear proveedor
+                {editandoId ? 'Guardar cambios' : 'Crear proveedor'}
               </Button>
+
+              {editandoId && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={limpiarFormulario}
+                >
+                  Cancelar
+                </Button>
+              )}
             </div>
           </form>
+        </section>
+      )}
+
+      {detalleId && (
+        <section>
+          <h2>Detalle del proveedor</h2>
+
+          {!proveedorDetalle && (
+            <p>Este proveedor ya no está en el listado actual.</p>
+          )}
+
+          {proveedorDetalle && (
+            <table>
+              <tbody>
+                <tr>
+                  <th>Razón Social</th>
+                  <td>{proveedorDetalle.razon_social}</td>
+                </tr>
+                <tr>
+                  <th>Nombre de Fantasía</th>
+                  <td>{proveedorDetalle.nombre_fantasia || '—'}</td>
+                </tr>
+                <tr>
+                  <th>CUIT</th>
+                  <td>{formatearCuit(proveedorDetalle.cuit)}</td>
+                </tr>
+                <tr>
+                  <th>Condición Fiscal</th>
+                  <td>
+                    {CONDICIONES_FISCALES.find(
+                      (opcion) =>
+                        opcion.value === proveedorDetalle.condicion_fiscal,
+                    )?.label ?? proveedorDetalle.condicion_fiscal}
+                  </td>
+                </tr>
+                <tr>
+                  <th>Condición de Pago Habitual</th>
+                  <td>
+                    {CONDICIONES_PAGO.find(
+                      (opcion) =>
+                        opcion.value ===
+                        proveedorDetalle.condicion_pago_habitual,
+                    )?.label ?? '—'}
+                  </td>
+                </tr>
+                <tr>
+                  <th>Rubro</th>
+                  <td>{proveedorDetalle.rubro?.nombre ?? '—'}</td>
+                </tr>
+                <tr>
+                  <th>Domicilio</th>
+                  <td>{proveedorDetalle.domicilio || '—'}</td>
+                </tr>
+                <tr>
+                  <th>Localidad</th>
+                  <td>{proveedorDetalle.localidad || '—'}</td>
+                </tr>
+                <tr>
+                  <th>Provincia</th>
+                  <td>{proveedorDetalle.provincia || '—'}</td>
+                </tr>
+                <tr>
+                  <th>Teléfono</th>
+                  <td>{proveedorDetalle.telefono || '—'}</td>
+                </tr>
+                <tr>
+                  <th>Email</th>
+                  <td>{proveedorDetalle.email || '—'}</td>
+                </tr>
+                <tr>
+                  <th>Observaciones</th>
+                  <td>{proveedorDetalle.observaciones || '—'}</td>
+                </tr>
+                <tr>
+                  <th>Estado</th>
+                  <td>
+                    {proveedorDetalle.estado === 'activo' ? 'Activo' : 'Inactivo'}
+                  </td>
+                </tr>
+                <tr>
+                  <th>Creado el</th>
+                  <td>{formatearFecha(proveedorDetalle.created_at)}</td>
+                </tr>
+                <tr>
+                  <th>Última modificación</th>
+                  <td>{formatearFecha(proveedorDetalle.updated_at)}</td>
+                </tr>
+              </tbody>
+            </table>
+          )}
+
+          <Button type="button" variant="ghost" onClick={cerrarDetalle}>
+            Cerrar
+          </Button>
         </section>
       )}
 
@@ -399,6 +602,7 @@ function ProveedoresPage() {
                 <th>Rubro</th>
                 <th>Localidad</th>
                 <th>Estado</th>
+                <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -420,6 +624,26 @@ function ProveedoresPage() {
                   <td>{proveedor.rubro?.nombre ?? '—'}</td>
                   <td>{proveedor.localidad || '—'}</td>
                   <td>{proveedor.estado === 'activo' ? 'Activo' : 'Inactivo'}</td>
+                  <td>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => verDetalle(proveedor)}
+                    >
+                      Ver detalle
+                    </Button>
+                    {puedeModificar ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => comenzarEdicion(proveedor)}
+                      >
+                        Editar
+                      </Button>
+                    ) : (
+                      <span>—</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

@@ -6,6 +6,8 @@ import {
   createProveedor,
   getProveedores,
   puedeAltaProveedores,
+  puedeModificarProveedores,
+  updateProveedor,
 } from '../api/proveedoresApi'
 import { getRubros } from '../api/rubrosApi'
 
@@ -27,6 +29,8 @@ vi.mock('../api/proveedoresApi', () => ({
   createProveedor: vi.fn(),
   getProveedores: vi.fn(),
   puedeAltaProveedores: vi.fn(),
+  puedeModificarProveedores: vi.fn(),
+  updateProveedor: vi.fn(),
 }))
 
 vi.mock('../api/rubrosApi', () => ({
@@ -42,11 +46,19 @@ function errorDeApi(mensaje, status) {
 const corralon = {
   id: 'p1',
   razon_social: 'Corralón San Martín S.A.',
+  nombre_fantasia: 'El Corralón',
   cuit: '20123456786',
   condicion_fiscal: 'responsable_inscripto',
   condicion_pago_habitual: '30_dias',
+  domicilio: 'Av. Siempre Viva 123',
   localidad: 'Salta',
+  provincia: 'Salta',
+  telefono: '387-4000000',
+  email: 'contacto@corralon.com',
+  observaciones: 'Cliente frecuente',
   estado: 'activo',
+  created_at: '2026-09-01T10:00:00Z',
+  updated_at: '2026-09-02T15:30:00Z',
   rubro: { id: 'r1', nombre: 'Cemento' },
 }
 
@@ -66,6 +78,7 @@ describe('ProveedoresPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     puedeAltaProveedores.mockResolvedValue(true)
+    puedeModificarProveedores.mockResolvedValue(true)
     getProveedores.mockResolvedValue([corralon])
     getRubros.mockResolvedValue([{ id: 'r1', nombre: 'Cemento' }])
   })
@@ -221,7 +234,9 @@ describe('ProveedoresPage', () => {
     puedeAltaProveedores.mockResolvedValue(false)
     render(<ProveedoresPage />)
 
-    expect(await screen.findByText(/Sólo podés consultar/)).toBeInTheDocument()
+    expect(
+      await screen.findByText(/No tenés el permiso «proveedores.alta»/),
+    ).toBeInTheDocument()
     expect(screen.queryByLabelText('Razón Social')).not.toBeInTheDocument()
   })
 
@@ -232,5 +247,176 @@ describe('ProveedoresPage', () => {
     expect(
       await screen.findByText('Todavía no hay proveedores'),
     ).toBeInTheDocument()
+  })
+
+  // CA: modificar todos los campos menos el CUIT
+  it('carga el proveedor en el formulario al editar, con el CUIT deshabilitado', async () => {
+    render(<ProveedoresPage />)
+    await screen.findByText('Corralón San Martín S.A.')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }))
+
+    expect(screen.getByLabelText('Razón Social')).toHaveValue(
+      'Corralón San Martín S.A.',
+    )
+    expect(screen.getByLabelText('Localidad')).toHaveValue('Salta')
+    expect(screen.getByLabelText('Rubro')).toHaveValue('r1')
+    expect(screen.getByLabelText('Condición de Pago Habitual')).toHaveValue(
+      '30_dias',
+    )
+    expect(screen.getByLabelText('CUIT')).toBeDisabled()
+    expect(
+      screen.getByRole('button', { name: 'Guardar cambios' }),
+    ).toBeInTheDocument()
+  })
+
+  it('actualiza el proveedor y refresca el listado sin recargar', async () => {
+    updateProveedor.mockResolvedValue({
+      ...corralon,
+      localidad: 'Jujuy',
+    })
+    render(<ProveedoresPage />)
+    await screen.findByText('Corralón San Martín S.A.')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }))
+    fireEvent.change(screen.getByLabelText('Localidad'), {
+      target: { value: 'Jujuy' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }))
+
+    expect(
+      await screen.findByText('Proveedor "Corralón San Martín S.A." actualizado'),
+    ).toBeInTheDocument()
+    expect(updateProveedor).toHaveBeenCalledWith(
+      'p1',
+      expect.objectContaining({ localidad: 'Jujuy' }),
+      'r1',
+    )
+    expect(getProveedores).toHaveBeenCalledTimes(2)
+  })
+
+  it('no manda el CUIT en el UPDATE al editar', async () => {
+    updateProveedor.mockResolvedValue(corralon)
+    render(<ProveedoresPage />)
+    await screen.findByText('Corralón San Martín S.A.')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }))
+    fireEvent.change(screen.getByLabelText('Localidad'), {
+      target: { value: 'Jujuy' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }))
+
+    await screen.findByText(/actualizado/)
+    const [, datosEnviados] = updateProveedor.mock.calls[0]
+    expect(datosEnviados.cuit).not.toBe('20123456786')
+  })
+
+  it('cancela la edición y vuelve al formulario de alta', async () => {
+    render(<ProveedoresPage />)
+    await screen.findByText('Corralón San Martín S.A.')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }))
+    expect(screen.getByLabelText('Razón Social')).toHaveValue(
+      'Corralón San Martín S.A.',
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
+
+    expect(screen.getByLabelText('Razón Social')).toHaveValue('')
+    expect(
+      screen.getByRole('button', { name: 'Crear proveedor' }),
+    ).toBeInTheDocument()
+  })
+
+  it('oculta el botón Editar a quien no tiene el permiso de modificación', async () => {
+    puedeModificarProveedores.mockResolvedValue(false)
+    render(<ProveedoresPage />)
+
+    expect(
+      await screen.findByText(/No tenés el permiso «proveedores.modificar»/),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Editar' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('muestra todos los campos del proveedor al ver el detalle', async () => {
+    render(<ProveedoresPage />)
+    await screen.findByText('Corralón San Martín S.A.')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ver detalle' }))
+
+    const detalle = (await screen.findByText('Detalle del proveedor'))
+      .closest('section')
+
+    for (const valor of [
+      'El Corralón',
+      'Av. Siempre Viva 123',
+      'Salta',
+      '387-4000000',
+      'contacto@corralon.com',
+      'Cliente frecuente',
+      'Cemento',
+      '30 días',
+    ]) {
+      expect(detalle).toHaveTextContent(valor)
+    }
+  })
+
+  it('cierra el detalle del proveedor', async () => {
+    render(<ProveedoresPage />)
+    await screen.findByText('Corralón San Martín S.A.')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ver detalle' }))
+    await screen.findByText('Detalle del proveedor')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cerrar' }))
+
+    expect(screen.queryByText('Detalle del proveedor')).not.toBeInTheDocument()
+  })
+
+  it('no exige el permiso de modificación para ver el detalle', async () => {
+    puedeModificarProveedores.mockResolvedValue(false)
+    render(<ProveedoresPage />)
+    await screen.findByText('Corralón San Martín S.A.')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ver detalle' }))
+
+    expect(await screen.findByText('Detalle del proveedor')).toBeInTheDocument()
+  })
+
+  it('avisa que no hubo cambios en vez de llamar a la API si se guarda sin editar nada', async () => {
+    render(<ProveedoresPage />)
+    await screen.findByText('Corralón San Martín S.A.')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }))
+
+    expect(
+      await screen.findByText('No se hicieron cambios en "Corralón San Martín S.A."'),
+    ).toBeInTheDocument()
+    expect(updateProveedor).not.toHaveBeenCalled()
+    expect(
+      screen.getByRole('button', { name: 'Crear proveedor' }),
+    ).toBeInTheDocument()
+  })
+
+  it('sí llama a la API si se cambia solo el rubro sin tocar otro campo', async () => {
+    updateProveedor.mockResolvedValue(corralon)
+    render(<ProveedoresPage />)
+    await screen.findByText('Corralón San Martín S.A.')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }))
+    fireEvent.change(screen.getByLabelText('Rubro'), {
+      target: { value: '' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }))
+
+    await screen.findByText(/actualizado/)
+    expect(updateProveedor).toHaveBeenCalledWith(
+      'p1',
+      expect.anything(),
+      null,
+    )
   })
 })
