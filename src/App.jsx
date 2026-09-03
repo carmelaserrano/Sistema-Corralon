@@ -14,6 +14,7 @@ import HistorialMovimientosPage from './modules/stock/pages/HistorialMovimientos
 import AlertasStockPage from './modules/stock/pages/AlertasStockPage'
 import RecepcionesPage from './modules/stock/pages/RecepcionesPage'
 import ReportesPage from './modules/stock/pages/ReportesPage'
+import ProveedoresPage from './modules/proveedores/pages/ProveedoresPage'
 import RubrosPage from './modules/proveedores/pages/RubrosPage'
 import AppShell from './components/layout/AppShell'
 
@@ -59,6 +60,7 @@ function App() {
       {pagina === 'alertas-stock' && <AlertasStockPage />}
       {pagina === 'recepciones' && <RecepcionesPage />}
       {pagina === 'reportes' && <ReportesPage />}
+      {pagina === 'proveedores' && <ProveedoresPage />}
       {pagina === 'rubros' && <RubrosPage />}
     </AppShell>
   )
