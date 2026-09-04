@@ -168,6 +168,41 @@ function validarMovimiento(movimiento) {
   }
 }
 
+function validarMovimientoMultiarticulo(movimiento) {
+  if (!movimiento.deposito_id) {
+    throw errorDeApi('El depósito es obligatorio', 400)
+  }
+  if (![TIPOS.INGRESO, TIPOS.EGRESO, TIPOS.TRANSFERENCIA].includes(
+    movimiento.tipo,
+  )) {
+    throw errorDeApi('El tipo de movimiento no es válido', 400)
+  }
+  if (!Array.isArray(movimiento.items) || movimiento.items.length === 0) {
+    throw errorDeApi('Agregá al menos un artículo al movimiento', 400)
+  }
+  const ids = new Set()
+  for (const item of movimiento.items) {
+    const cantidad = Number(item.cantidad)
+    if (!item.producto_id || !Number.isInteger(cantidad) || cantidad <= 0) {
+      throw errorDeApi(
+        'Todos los artículos deben tener una cantidad entera mayor a 0',
+        400,
+      )
+    }
+    if (ids.has(item.producto_id)) {
+      throw errorDeApi('No se puede repetir un artículo en el movimiento', 400)
+    }
+    ids.add(item.producto_id)
+  }
+  if (
+    movimiento.tipo === TIPOS.TRANSFERENCIA &&
+    (!movimiento.deposito_destino_id ||
+      movimiento.deposito_destino_id === movimiento.deposito_id)
+  ) {
+    throw errorDeApi('Seleccioná otro depósito de destino', 400)
+  }
+}
+
 export async function getTiposMovimiento() {
   const { data, error } = await supabase
     .from('tipos_movimiento')
@@ -310,6 +345,36 @@ export async function createMovimiento(movimiento) {
   return data
 }
 
+/**
+ * Crea una cabecera con todos los renglones y confirma el impacto de stock
+ * dentro de una única transacción de PostgreSQL.
+ */
+export async function createMovimientoMultiarticulo(movimiento) {
+  validarMovimientoMultiarticulo(movimiento)
+
+  const { data, error } = await supabase
+    .rpc('crear_movimiento_multiarticulo', {
+      p_tipo: movimiento.tipo,
+      p_deposito_id: movimiento.deposito_id,
+      p_items: movimiento.items.map((item) => ({
+        producto_id: item.producto_id,
+        cantidad: Number(item.cantidad),
+      })),
+      p_deposito_destino_id:
+        movimiento.tipo === TIPOS.TRANSFERENCIA
+          ? movimiento.deposito_destino_id
+          : null,
+      p_comprobante: movimiento.comprobante?.trim() || null,
+      p_observaciones: movimiento.observaciones?.trim() || null,
+    })
+    .single()
+
+  if (error) {
+    manejarErrorMovimiento(error, 'No se pudo confirmar el movimiento')
+  }
+  return data
+}
+
 export async function puedeAjustarInventario() {
   const { data, error } = await supabase.rpc('usuario_tiene_permiso', {
     p_nombre: 'Ajuste de inventario',
@@ -341,27 +406,5 @@ export async function aplicarAjustesInventarioFisico(
   )
 
   if (error) manejarErrorMovimiento(error, 'No se pudieron aplicar los ajustes')
-  return data
-}
-
-export async function confirmarMovimiento(id) {
-  if (!id) throw errorDeApi('El movimiento es obligatorio', 400)
-
-  const { data, error } = await supabase
-    .rpc('confirmar_movimiento', { p_movimiento_id: id })
-    .single()
-
-  if (error) manejarErrorMovimiento(error, 'No se pudo confirmar el movimiento')
-  return data
-}
-
-export async function cancelarMovimiento(id) {
-  if (!id) throw errorDeApi('El movimiento es obligatorio', 400)
-
-  const { data, error } = await supabase
-    .rpc('cancelar_movimiento', { p_movimiento_id: id })
-    .single()
-
-  if (error) manejarErrorMovimiento(error, 'No se pudo cancelar el movimiento')
   return data
 }

@@ -12,6 +12,7 @@ import {
   Settings2,
   Shapes,
   Tags,
+  Truck,
 } from 'lucide-react'
 
 export const navigationGroups = [
@@ -56,7 +57,10 @@ export const navigationGroups = [
   {
     label: 'Proveedores',
     module: 'Proveedores',
-    items: [{ id: 'rubros', label: 'Rubros', icon: FolderTree }],
+    items: [
+      { id: 'proveedores', label: 'Proveedores', icon: Truck },
+      { id: 'rubros', label: 'Rubros', icon: FolderTree },
+    ],
   },
 ]
 

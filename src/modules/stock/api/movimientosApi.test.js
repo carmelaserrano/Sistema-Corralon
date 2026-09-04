@@ -1,8 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  cancelarMovimiento,
-  confirmarMovimiento,
   createMovimiento,
+  createMovimientoMultiarticulo,
   getMovimientoById,
   getTiposMovimiento,
   getHistorialMovimientos,
@@ -35,6 +34,47 @@ const transferencia = {
 describe('movimientosApi', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('envía todos los artículos a la RPC multiartículo', async () => {
+    mockRpc({ data: { id: 'mov-multi', estado_movimiento: 'confirmado' }, error: null })
+
+    await createMovimientoMultiarticulo({
+      tipo: 'egreso',
+      deposito_id: 'dep-1',
+      comprobante: 'REM-1',
+      items: [
+        { producto_id: 'art-1', cantidad: 10 },
+        { producto_id: 'art-2', cantidad: '5' },
+      ],
+    })
+
+    expect(supabase.rpc).toHaveBeenCalledWith('crear_movimiento_multiarticulo', {
+      p_tipo: 'egreso',
+      p_deposito_id: 'dep-1',
+      p_items: [
+        { producto_id: 'art-1', cantidad: 10 },
+        { producto_id: 'art-2', cantidad: 5 },
+      ],
+      p_deposito_destino_id: null,
+      p_comprobante: 'REM-1',
+      p_observaciones: null,
+    })
+  })
+
+  it('rechaza un movimiento multiartículo sin renglones', async () => {
+    await expect(createMovimientoMultiarticulo({
+      tipo: 'ingreso', deposito_id: 'dep-1', items: [],
+    })).rejects.toMatchObject({ status: 400 })
+    expect(supabase.rpc).not.toHaveBeenCalled()
+  })
+
+  it('rechaza cantidades decimales en un movimiento multiartículo', async () => {
+    await expect(createMovimientoMultiarticulo({
+      tipo: 'ingreso', deposito_id: 'dep-1',
+      items: [{ producto_id: 'art-1', cantidad: 1.01 }],
+    })).rejects.toMatchObject({ status: 400 })
+    expect(supabase.rpc).not.toHaveBeenCalled()
   })
 
   // --- Alta: camino feliz (TC-STK-08-01) ---
@@ -308,158 +348,6 @@ describe('movimientosApi', () => {
       status: 409,
       message: 'La cantidad supera el disponible del deposito origen',
     })
-  })
-
-  // --- Confirmación (TC-STK-08-02, 05, 06, 07) ---
-
-  it('confirma un movimiento pendiente', async () => {
-    const resultado = {
-      data: { id: 'mov-1', estado_movimiento: 'confirmado' },
-      error: null,
-    }
-
-    mockRpc(resultado)
-
-    const data = await confirmarMovimiento('mov-1')
-
-    expect(supabase.rpc).toHaveBeenCalledWith('confirmar_movimiento', {
-      p_movimiento_id: 'mov-1',
-    })
-    expect(data).toEqual(resultado.data)
-  })
-
-  it('rechaza confirmar sin id', async () => {
-    await expect(confirmarMovimiento('')).rejects.toMatchObject({
-      status: 400,
-    })
-    expect(supabase.rpc).not.toHaveBeenCalled()
-  })
-
-  it('traduce a 409 el disponible insuficiente detectado al confirmar', async () => {
-    mockRpc({
-      data: null,
-      error: {
-        code: 'MV004',
-        message: 'La cantidad supera el disponible del deposito origen',
-      },
-    })
-
-    await expect(confirmarMovimiento('mov-1')).rejects.toMatchObject({
-      status: 409,
-    })
-  })
-
-  it('traduce a 409 un movimiento ya confirmado', async () => {
-    mockRpc({
-      data: null,
-      error: {
-        code: 'MV003',
-        message: 'El movimiento ya esta confirmado',
-      },
-    })
-
-    await expect(confirmarMovimiento('mov-1')).rejects.toMatchObject({
-      status: 409,
-      message: 'El movimiento ya esta confirmado',
-    })
-  })
-
-  it('traduce a 409 un movimiento ya cancelado', async () => {
-    mockRpc({
-      data: null,
-      error: {
-        code: 'MV003',
-        message: 'El movimiento ya esta cancelado',
-      },
-    })
-
-    await expect(confirmarMovimiento('mov-1')).rejects.toMatchObject({
-      status: 409,
-    })
-  })
-
-  it('traduce a 423 el bloqueo por otro movimiento en proceso', async () => {
-    mockRpc({
-      data: null,
-      error: {
-        code: 'MV006',
-        message:
-          'Hay otro movimiento en proceso sobre el mismo articulo/deposito',
-      },
-    })
-
-    await expect(confirmarMovimiento('mov-1')).rejects.toMatchObject({
-      status: 423,
-    })
-  })
-
-  it('traduce a 423 el lock_not_available que levanta PostgreSQL', async () => {
-    mockRpc({
-      data: null,
-      error: {
-        code: '55P03',
-        message: 'could not obtain lock on row',
-      },
-    })
-
-    await expect(confirmarMovimiento('mov-1')).rejects.toMatchObject({
-      status: 423,
-    })
-  })
-
-  it('traduce a 404 un movimiento inexistente', async () => {
-    mockRpc({
-      data: null,
-      error: {
-        code: 'MV002',
-        message: 'El movimiento no existe',
-      },
-    })
-
-    await expect(confirmarMovimiento('mov-1')).rejects.toMatchObject({
-      status: 404,
-    })
-  })
-
-  it('reenvía sin traducir los errores desconocidos', async () => {
-    const error = {
-      code: '42P01',
-      message: 'relation does not exist',
-    }
-
-    mockRpc({ data: null, error })
-
-    await expect(confirmarMovimiento('mov-1')).rejects.toEqual(error)
-  })
-
-  // --- Cancelación ---
-
-  it('cancela un movimiento pendiente', async () => {
-    const resultado = {
-      data: {
-        id: 'mov-1',
-        estado_movimiento: 'cancelado',
-      },
-      error: null,
-    }
-
-    mockRpc(resultado)
-
-    const data = await cancelarMovimiento('mov-1')
-
-    expect(supabase.rpc).toHaveBeenCalledWith('cancelar_movimiento', {
-      p_movimiento_id: 'mov-1',
-    })
-
-    expect(data).toEqual(resultado.data)
-  })
-
-  it('rechaza cancelar sin id', async () => {
-    await expect(cancelarMovimiento('')).rejects.toMatchObject({
-      status: 400,
-    })
-
-    expect(supabase.rpc).not.toHaveBeenCalled()
   })
 
   // --- Consultas ---

@@ -1,324 +1,125 @@
-import { useEffect, useState } from 'react'
-import {
-  TIPOS,
-  createMovimiento,
-  puedeAjustarInventario,
-} from '../api/movimientosApi'
+import { useEffect, useMemo, useState } from 'react'
+import { TIPOS, createMovimientoMultiarticulo } from '../api/movimientosApi'
 import { getDepositos } from '../api/depositosApi'
 import { getArticulos } from '../api/articulosApi'
+import { getStockByDeposito } from '../api/stockApi'
 
-const movimientoInicial = {
-  tipo: TIPOS.TRANSFERENCIA,
-  articulo_id: '',
-  cantidad: '',
-  deposito_origen_id: '',
-  deposito_destino_id: '',
-  comprobante: '',
-  observaciones: '',
-  deposito_id: '',
-  categoria_ajuste: 'otro',
-  motivo_ajuste: '',
-}
+const inicial = { deposito_id: '', tipo: '', deposito_destino_id: '', comprobante: '', observaciones: '' }
 
-const categoriasAjuste = [
-  ['rotura', 'Rotura'],
-  ['vencimiento', 'Vencimiento'],
-  ['robo', 'Robo'],
-  ['conteo_fisico', 'Conteo físico'],
-  ['otro', 'Otro'],
-]
-
-// El 423 es el único error accionable por el usuario: reintentar. El resto ya
-// vienen con un mensaje específico en castellano desde la validación o la base.
-function mensajeDeError(err, mensajePorDefecto) {
-  if (err?.status === 423) {
-    return 'Hay otro movimiento en proceso sobre el mismo artículo o depósito. Esperá unos segundos y volvé a intentar.'
-  }
-
-  return err?.message || mensajePorDefecto
+function mensajeDeError(error, respaldo) {
+  if (error?.status === 423) return 'Hay otro movimiento en proceso sobre el mismo artículo o depósito. Esperá unos segundos y volvé a intentar.'
+  return error?.message || respaldo
 }
 
 function MovimientosPage({ onVerHistorial }) {
   const [depositos, setDepositos] = useState([])
   const [articulos, setArticulos] = useState([])
-  const [form, setForm] = useState(movimientoInicial)
-  const [error, setError] = useState('')
+  const [stock, setStock] = useState(new Map())
+  const [form, setForm] = useState(inicial)
+  const [productoId, setProductoId] = useState('')
+  const [cantidad, setCantidad] = useState('')
+  const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
+  const [cargandoStock, setCargandoStock] = useState(false)
   const [enviando, setEnviando] = useState(false)
-  const [puedeAjustar, setPuedeAjustar] = useState(false)
-
-  async function cargarDatos() {
-    try {
-      setLoading(true)
-      setError('')
-
-      const [depositosData, articulosData] = await Promise.all([
-        getDepositos(),
-        getArticulos({ estado: 'activo', pageSize: 200 }),
-      ])
-
-      setDepositos(depositosData)
-      setArticulos(articulosData.articulos)
-
-      try {
-        setPuedeAjustar(await puedeAjustarInventario())
-      } catch {
-        setPuedeAjustar(false)
-      }
-    } catch (err) {
-      setError(err.message || 'No se pudieron cargar los movimientos')
-    } finally {
-      setLoading(false)
-    }
-  }
+  const [error, setError] = useState('')
+  const [exito, setExito] = useState('')
 
   useEffect(() => {
-    cargarDatos()
+    Promise.all([getDepositos(), getArticulos({ estado: 'activo', pageSize: 200 })])
+      .then(([deps, arts]) => { setDepositos(deps); setArticulos(arts.articulos) })
+      .catch((err) => setError(mensajeDeError(err, 'No se pudieron cargar los datos')))
+      .finally(() => setLoading(false))
   }, [])
 
-  function manejarCambio(event) {
-    const { name, value } = event.target
-
-    setForm((actual) => ({
-      ...actual,
-      [name]: value,
-    }))
-  }
-
-  // Al cambiar el tipo hay que limpiar el depósito que se oculta: si queda un
-  // valor colgado en el state, el trigger de la base rechaza el movimiento.
-  function manejarCambioTipo(event) {
-    const tipo = event.target.value
-
-    setForm((actual) => ({
-      ...actual,
-      tipo,
-      deposito_origen_id:
-        tipo === TIPOS.INGRESO ? '' : actual.deposito_origen_id,
-      deposito_destino_id:
-        tipo === TIPOS.EGRESO ? '' : actual.deposito_destino_id,
-    }))
-  }
-
-  async function registrarMovimiento(event) {
-    event.preventDefault()
-
+  async function cargarStock(depositoId) {
+    if (!depositoId) { setStock(new Map()); return }
     try {
-      setError('')
-      setEnviando(true)
-
-      await createMovimiento(form)
-
-      setForm(movimientoInicial)
-      await cargarDatos()
+      setCargandoStock(true)
+      const filas = await getStockByDeposito(depositoId)
+      setStock(new Map(filas.map((fila) => [fila.producto.id, fila.disponible])))
     } catch (err) {
-      setError(mensajeDeError(err, 'No se pudo registrar el movimiento'))
-    } finally {
-      setEnviando(false)
+      setError(mensajeDeError(err, 'No se pudo consultar el stock del depósito'))
+    } finally { setCargandoStock(false) }
+  }
+
+  async function cambiarDeposito(event) {
+    const depositoId = event.target.value
+    setForm({ ...inicial, deposito_id: depositoId })
+    setItems([]); setProductoId(''); setCantidad(''); setError(''); setExito('')
+    await cargarStock(depositoId)
+  }
+
+  function cambiarCampo(event) {
+    const { name, value } = event.target
+    setForm((actual) => ({ ...actual, [name]: value,
+      ...(name === 'tipo' && value !== TIPOS.TRANSFERENCIA ? { deposito_destino_id: '' } : {}) }))
+    if (name === 'tipo') { setItems([]); setProductoId(''); setCantidad('') }
+    setError(''); setExito('')
+  }
+
+  const disponibles = useMemo(() => articulos.filter(
+    (articulo) => !items.some((item) => item.producto_id === articulo.id),
+  ), [articulos, items])
+  const tipoCompleto = Boolean(form.tipo) &&
+    (form.tipo !== TIPOS.TRANSFERENCIA || Boolean(form.deposito_destino_id))
+
+  function agregarArticulo() {
+    setError('')
+    const articulo = articulos.find((item) => item.id === productoId)
+    const numero = Number(cantidad)
+    if (!articulo) return setError('Seleccioná un artículo')
+    if (!Number.isInteger(numero) || numero <= 0) return setError('La cantidad debe ser un número entero mayor a 0')
+    const disponible = stock.get(productoId) ?? 0
+    if (form.tipo !== TIPOS.INGRESO && numero > disponible) {
+      return setError(`Stock insuficiente: hay ${disponible} unidades disponibles`)
     }
+    setItems((actuales) => [...actuales, { producto_id: articulo.id, sku: articulo.sku,
+      nombre: articulo.nombre, cantidad: numero, stock_actual: disponible }])
+    setProductoId(''); setCantidad('')
   }
 
-  if (loading) {
-    return <p>Cargando movimientos...</p>
+  async function confirmar(event) {
+    event.preventDefault()
+    if (items.length === 0) return setError('Agregá al menos un artículo antes de confirmar')
+    try {
+      setEnviando(true); setError('')
+      await createMovimientoMultiarticulo({ ...form, items })
+      setItems([]); setForm(inicial); setProductoId(''); setCantidad('')
+      setExito('Movimiento confirmado. El stock se actualizó correctamente.')
+      await cargarStock(form.deposito_id)
+    } catch (err) { setError(mensajeDeError(err, 'No se pudo confirmar el movimiento')) }
+    finally { setEnviando(false) }
   }
 
-  const muestraOrigen = form.tipo !== TIPOS.INGRESO
-  const muestraDestino = form.tipo !== TIPOS.EGRESO
-  const esAjuste = form.tipo === TIPOS.AJUSTE
-
-  return (
-    <main>
-      <h1>Movimientos de stock</h1>
-      <button type="button" onClick={onVerHistorial}>
-        Ver historial
-      </button>
-
-      {error && <p role="alert">{error}</p>}
-
-      <section>
-        <h2>Nuevo movimiento</h2>
-
-        <form onSubmit={registrarMovimiento}>
-          <div>
-            <label htmlFor="tipo">Tipo</label>
-            <select
-              id="tipo"
-              name="tipo"
-              value={form.tipo}
-              onChange={manejarCambioTipo}
-              required
-            >
-              <option value={TIPOS.INGRESO}>Ingreso</option>
-              <option value={TIPOS.EGRESO}>Egreso</option>
-              <option value={TIPOS.TRANSFERENCIA}>Transferencia</option>
-              {puedeAjustar && <option value={TIPOS.AJUSTE}>Ajuste de inventario</option>}
-            </select>
-          </div>
-
-          <div>
-            <label htmlFor="articulo_id">Artículo</label>
-            <select
-              id="articulo_id"
-              name="articulo_id"
-              value={form.articulo_id}
-              onChange={manejarCambio}
-              required
-            >
-              <option value="">Seleccionar...</option>
-
-              {articulos.map((articulo) => (
-                <option key={articulo.id} value={articulo.id}>
-                  {articulo.sku} — {articulo.nombre}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {!esAjuste && <div>
-            <label htmlFor="cantidad">Cantidad</label>
-            <input
-              id="cantidad"
-              name="cantidad"
-              type="number"
-              min="0"
-              step="any"
-              value={form.cantidad}
-              onChange={manejarCambio}
-              required
-            />
-          </div>}
-
-          {esAjuste && (
-            <>
-              <div>
-                <label htmlFor="deposito_id">Depósito</label>
-                <select
-                  id="deposito_id"
-                  name="deposito_id"
-                  value={form.deposito_id}
-                  onChange={manejarCambio}
-                  required
-                >
-                  <option value="">Seleccionar...</option>
-                  {depositos.map((deposito) => (
-                    <option key={deposito.id} value={deposito.id}>
-                      {deposito.nombre}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label htmlFor="cantidad">Cantidad (positiva suma, negativa resta)</label>
-                <input
-                  id="cantidad"
-                  name="cantidad"
-                  type="number"
-                  step="any"
-                  value={form.cantidad}
-                  onChange={manejarCambio}
-                  required
-                />
-              </div>
-              <div>
-                <label htmlFor="categoria_ajuste">Categoría del ajuste</label>
-                <select
-                  id="categoria_ajuste"
-                  name="categoria_ajuste"
-                  value={form.categoria_ajuste}
-                  onChange={manejarCambio}
-                  required
-                >
-                  {categoriasAjuste.map(([valor, etiqueta]) => (
-                    <option key={valor} value={valor}>{etiqueta}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label htmlFor="motivo_ajuste">Motivo</label>
-                <textarea
-                  id="motivo_ajuste"
-                  name="motivo_ajuste"
-                  value={form.motivo_ajuste}
-                  onChange={manejarCambio}
-                  required
-                />
-              </div>
-            </>
-          )}
-
-          {!esAjuste && muestraOrigen && (
-            <div>
-              <label htmlFor="deposito_origen_id">Depósito origen</label>
-              <select
-                id="deposito_origen_id"
-                name="deposito_origen_id"
-                value={form.deposito_origen_id}
-                onChange={manejarCambio}
-                required
-              >
-                <option value="">Seleccionar...</option>
-
-                {depositos.map((deposito) => (
-                  <option key={deposito.id} value={deposito.id}>
-                    {deposito.nombre}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {!esAjuste && muestraDestino && (
-            <div>
-              <label htmlFor="deposito_destino_id">Depósito destino</label>
-              <select
-                id="deposito_destino_id"
-                name="deposito_destino_id"
-                value={form.deposito_destino_id}
-                onChange={manejarCambio}
-                required
-              >
-                <option value="">Seleccionar...</option>
-
-                {depositos
-                  .filter((deposito) => deposito.id !== form.deposito_origen_id)
-                  .map((deposito) => (
-                    <option key={deposito.id} value={deposito.id}>
-                      {deposito.nombre}
-                    </option>
-                  ))}
-              </select>
-            </div>
-          )}
-
-          {!esAjuste && <div>
-            <label htmlFor="comprobante">Comprobante</label>
-            <input
-              id="comprobante"
-              name="comprobante"
-              value={form.comprobante}
-              onChange={manejarCambio}
-              required
-            />
-          </div>}
-
-          {!esAjuste && <div>
-            <label htmlFor="observaciones">Observaciones</label>
-            <textarea
-              id="observaciones"
-              name="observaciones"
-              value={form.observaciones}
-              onChange={manejarCambio}
-            />
-          </div>}
-
-          <button type="submit" disabled={enviando}>
-            {enviando ? 'Registrando...' : 'Registrar movimiento'}
-          </button>
-        </form>
-      </section>
-
-    </main>
-  )
+  if (loading) return <p role="status">Cargando movimientos...</p>
+  return <main className="movements-page">
+    <header className="movements-header"><div><p className="eyebrow">Operación de stock</p><h1>Nuevo movimiento</h1>
+      <p>Elegí el depósito, definí la operación y agregá todos los artículos antes de confirmar.</p></div>
+      <button type="button" className="secondary-action" onClick={onVerHistorial}>Ver historial</button></header>
+    {error && <p role="alert">{error}</p>}{exito && <p role="status">{exito}</p>}
+    <section className="movement-card"><form className="movements-form" onSubmit={confirmar}>
+      <div className="movement-step"><span className="step-number">1</span><div className="step-content"><h2>Depósito</h2><p>Seleccioná dónde se realizará el movimiento.</p>
+        <label htmlFor="deposito_id">Depósito de operación</label>
+        <select id="deposito_id" value={form.deposito_id} onChange={cambiarDeposito} required><option value="">Seleccionar depósito...</option>
+          {depositos.map((d) => <option key={d.id} value={d.id}>{d.nombre}</option>)}</select></div></div>
+      <div className={`movement-step ${!form.deposito_id ? 'is-disabled' : ''}`}><span className="step-number">2</span><div className="step-content"><h2>Tipo de movimiento</h2><p>Indicá cómo se modificará el stock del depósito.</p>
+        <label htmlFor="tipo">Operación</label>
+        <select id="tipo" name="tipo" value={form.tipo} onChange={cambiarCampo} disabled={!form.deposito_id} required><option value="">Seleccionar tipo...</option><option value={TIPOS.INGRESO}>Ingreso al depósito</option><option value={TIPOS.EGRESO}>Egreso del depósito</option><option value={TIPOS.TRANSFERENCIA}>Transferencia a otro depósito</option></select>
+        {form.tipo === TIPOS.TRANSFERENCIA && <><label htmlFor="deposito_destino_id">Depósito destino</label><select id="deposito_destino_id" name="deposito_destino_id" value={form.deposito_destino_id} onChange={cambiarCampo} required><option value="">Seleccionar destino...</option>{depositos.filter((d) => d.id !== form.deposito_id).map((d) => <option key={d.id} value={d.id}>{d.nombre}</option>)}</select></>}</div></div>
+      <fieldset className={`movement-step articles-step ${!tipoCompleto ? 'is-disabled' : ''}`} disabled={!tipoCompleto || cargandoStock}><legend><span className="step-number">3</span><span><strong>Artículos</strong><small>Armá el detalle del movimiento.</small></span></legend>
+        <div className="article-entry"><div className="article-field"><label htmlFor="articulo_id">Artículo</label><select id="articulo_id" value={productoId} onChange={(e) => setProductoId(e.target.value)} disabled={!tipoCompleto || cargandoStock}><option value="">Seleccionar artículo...</option>{disponibles.map((a) => <option key={a.id} value={a.id}>{a.sku} — {a.nombre}</option>)}</select></div>
+          <div className="quantity-field"><label htmlFor="cantidad">Cantidad</label><input id="cantidad" type="number" min="1" step="1" inputMode="numeric" value={cantidad} onChange={(e) => setCantidad(e.target.value)} disabled={!tipoCompleto || cargandoStock} /></div>
+          <p className="stock-indicator">{cargandoStock ? 'Consultando stock...' : <>Stock actual: <strong>{productoId ? (stock.get(productoId) ?? 0) : '-'}</strong></>}</p><button type="button" onClick={agregarArticulo} disabled={!tipoCompleto || cargandoStock}>Agregar artículo</button></div>
+      </fieldset>
+      <div className="cart-section"><div className="cart-heading"><div><span className="step-number">4</span><div><h2>Detalle del movimiento</h2><p>{items.length} artículo{items.length === 1 ? '' : 's'} agregado{items.length === 1 ? '' : 's'}</p></div></div></div>
+        {items.length === 0 ? <p className="empty-cart">Todavía no agregaste artículos al movimiento.</p> : <table><thead><tr><th>Artículo</th><th>Stock actual</th><th>Cantidad</th><th>Acción</th></tr></thead><tbody>{items.map((item) => <tr key={item.producto_id}><td>{item.sku} — {item.nombre}</td><td>{item.stock_actual}</td><td>{item.cantidad}</td><td><button type="button" className="danger-action" onClick={() => setItems((lista) => lista.filter((fila) => fila.producto_id !== item.producto_id))}>Quitar</button></td></tr>)}</tbody></table>}</div>
+      <div className={`movement-step ${items.length === 0 ? 'is-disabled' : ''}`}><span className="step-number">5</span><div className="step-content"><h2>Datos del movimiento</h2><p>Cuando termines el carrito, completá los datos antes de confirmar.</p>
+        <label htmlFor="comprobante">Comprobante</label><input id="comprobante" name="comprobante" value={form.comprobante} onChange={cambiarCampo} disabled={items.length === 0} required />
+        <label htmlFor="observaciones">Observaciones</label><textarea id="observaciones" name="observaciones" value={form.observaciones} onChange={cambiarCampo} disabled={items.length === 0} /></div></div>
+      <footer className="movement-actions"><p>Se aplicará el stock de todos los artículos en una única operación.</p><button type="submit" disabled={enviando || !tipoCompleto}>{enviando ? 'Confirmando...' : `Confirmar movimiento${items.length ? ` (${items.length})` : ''}`}</button></footer>
+    </form></section>
+  </main>
 }
 
 export default MovimientosPage

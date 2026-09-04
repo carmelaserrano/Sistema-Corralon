@@ -1,0 +1,737 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import {
+  CONDICIONES_FISCALES,
+  CONDICIONES_PAGO,
+  createProveedor,
+  getHistorialEstadoProveedor,
+  getProveedores,
+  getProveedoresSeleccionables,
+  puedeAltaProveedores,
+  puedeCambiarEstadoProveedores,
+  puedeModificarProveedores,
+  setEstadoProveedor,
+  updateProveedor,
+} from './proveedoresApi'
+import { supabase } from '../../../lib/supabaseClient'
+
+vi.mock('../../../lib/supabaseClient', () => ({
+  supabase: { from: vi.fn(), rpc: vi.fn() },
+}))
+
+// Mismo helper que rubrosApi.test.js: imita el query builder de supabase-js,
+// "thenable" para los casos que no terminan en .single()/.maybeSingle().
+function crearQueryBuilder(resultado) {
+  const builder = {
+    select: vi.fn(() => builder),
+    insert: vi.fn(() => builder),
+    update: vi.fn(() => builder),
+    delete: vi.fn(() => builder),
+    eq: vi.fn(() => builder),
+    ilike: vi.fn(() => builder),
+    order: vi.fn(() => Promise.resolve(resultado)),
+    single: vi.fn(() => Promise.resolve(resultado)),
+    maybeSingle: vi.fn(() => Promise.resolve(resultado)),
+    then: (resolve, reject) => Promise.resolve(resultado).then(resolve, reject),
+  }
+  return builder
+}
+
+const CUIT_VALIDO = '20-12345678-6'
+const CUIT_NORMALIZADO = '20123456786'
+
+const datosValidos = {
+  razon_social: 'Corralón San Martín S.A.',
+  cuit: CUIT_VALIDO,
+  condicion_fiscal: 'responsable_inscripto',
+}
+
+const filaCorralon = {
+  id: 'p1',
+  razon_social: 'Corralón San Martín S.A.',
+  cuit: CUIT_NORMALIZADO,
+  condicion_fiscal: 'responsable_inscripto',
+  estado: 'activo',
+  created_at: '2026-09-03T10:00:00Z',
+  proveedor_rubro: [],
+}
+
+describe('proveedoresApi', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  describe('CONDICIONES_FISCALES', () => {
+    it('ofrece las 4 opciones del criterio de aceptación', () => {
+      expect(CONDICIONES_FISCALES.map((o) => o.value)).toEqual([
+        'responsable_inscripto',
+        'monotributista',
+        'exento',
+        'consumidor_final',
+      ])
+    })
+  })
+
+  describe('CONDICIONES_PAGO', () => {
+    it('ofrece las 6 opciones acordadas', () => {
+      expect(CONDICIONES_PAGO.map((o) => o.value)).toEqual([
+        'contado',
+        '15_dias',
+        '30_dias',
+        '60_dias',
+        '30_60_dias',
+        'anticipado',
+      ])
+    })
+  })
+
+  describe('getProveedores', () => {
+    it('lista ordenado por razón social y aplana el rubro embebido', async () => {
+      const builder = crearQueryBuilder({
+        data: [
+          {
+            ...filaCorralon,
+            proveedor_rubro: [{ rubro: { id: 'r1', nombre: 'Cemento' } }],
+          },
+        ],
+        error: null,
+      })
+      supabase.from.mockReturnValue(builder)
+
+      const [proveedor] = await getProveedores()
+
+      expect(supabase.from).toHaveBeenCalledWith('proveedores')
+      expect(builder.order).toHaveBeenCalledWith('razon_social')
+      expect(proveedor.rubro).toEqual({ id: 'r1', nombre: 'Cemento' })
+      expect(proveedor.proveedor_rubro).toBeUndefined()
+    })
+
+    it('devuelve rubro null cuando no hay vínculo', async () => {
+      supabase.from.mockReturnValue(
+        crearQueryBuilder({ data: [filaCorralon], error: null }),
+      )
+
+      const [proveedor] = await getProveedores()
+
+      expect(proveedor.rubro).toBeNull()
+    })
+
+    it('filtra los inactivos por defecto', async () => {
+      const builder = crearQueryBuilder({ data: [], error: null })
+      supabase.from.mockReturnValue(builder)
+
+      await getProveedores()
+
+      expect(builder.eq).toHaveBeenCalledWith('estado', 'activo')
+    })
+
+    it('aplica el buscador por razón social', async () => {
+      const builder = crearQueryBuilder({ data: [], error: null })
+      supabase.from.mockReturnValue(builder)
+
+      await getProveedores({ search: '  corralón  ' })
+
+      expect(builder.ilike).toHaveBeenCalledWith('razon_social', '%corralón%')
+    })
+
+    it('lanza el error cuando Supabase falla', async () => {
+      const errorMock = { message: 'no se pudo conectar con la base' }
+      supabase.from.mockReturnValue(
+        crearQueryBuilder({ data: null, error: errorMock }),
+      )
+
+      await expect(getProveedores()).rejects.toEqual(errorMock)
+    })
+  })
+
+  describe('createProveedor', () => {
+    // CA: Razón Social obligatoria
+    it('rechaza con 400 cuando falta la razón social', async () => {
+      await expect(
+        createProveedor({ ...datosValidos, razon_social: '  ' }),
+      ).rejects.toMatchObject({
+        status: 400,
+        message: 'La Razón Social es obligatoria',
+      })
+      expect(supabase.from).not.toHaveBeenCalled()
+    })
+
+    // CA: formato + dígito verificador de CUIT
+    it('rechaza con 400 cuando el CUIT es inválido', async () => {
+      await expect(
+        createProveedor({ ...datosValidos, cuit: '20-12345678-0' }),
+      ).rejects.toMatchObject({ status: 400, message: 'CUIT inválido' })
+      expect(supabase.from).not.toHaveBeenCalled()
+    })
+
+    // CA: Condición Fiscal obligatoria
+    it('rechaza con 400 cuando falta la condición fiscal', async () => {
+      await expect(
+        createProveedor({ ...datosValidos, condicion_fiscal: '' }),
+      ).rejects.toMatchObject({
+        status: 400,
+        message: 'La condición fiscal es obligatoria',
+      })
+    })
+
+    it('acepta que la condición de pago quede sin especificar', async () => {
+      const builder = crearQueryBuilder({ data: filaCorralon, error: null })
+      supabase.from.mockReturnValue(builder)
+
+      await createProveedor({ ...datosValidos, condicion_pago_habitual: '' })
+
+      expect(builder.insert).toHaveBeenCalledWith(
+        expect.objectContaining({ condicion_pago_habitual: null }),
+      )
+    })
+
+    it('rechaza con 400 una condición de pago fuera de la lista', async () => {
+      await expect(
+        createProveedor({
+          ...datosValidos,
+          condicion_pago_habitual: 'a-90-dias',
+        }),
+      ).rejects.toMatchObject({
+        status: 400,
+        message: 'La condición de pago habitual no es válida',
+      })
+      expect(supabase.from).not.toHaveBeenCalled()
+    })
+
+    it('rechaza con 400 cuando el email tiene formato inválido', async () => {
+      await expect(
+        createProveedor({ ...datosValidos, email: 'no-es-un-email' }),
+      ).rejects.toMatchObject({ status: 400 })
+    })
+
+    // CA: alta válida, estado activo por defecto, sin rubro
+    it('crea el proveedor con el CUIT normalizado a 11 dígitos', async () => {
+      const builder = crearQueryBuilder({ data: filaCorralon, error: null })
+      supabase.from.mockReturnValue(builder)
+
+      const resultado = await createProveedor(datosValidos)
+
+      expect(builder.insert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          razon_social: 'Corralón San Martín S.A.',
+          cuit: CUIT_NORMALIZADO,
+          condicion_fiscal: 'responsable_inscripto',
+        }),
+      )
+      expect(resultado.rubro).toBeNull()
+      expect(resultado.estado).toBe('activo')
+    })
+
+    // CA: alta con rubro asociado
+    it('vincula el rubro elegido y devuelve el proveedor con el rubro resuelto', async () => {
+      const builderInsert = crearQueryBuilder({ data: filaCorralon, error: null })
+      const builderVinculo = crearQueryBuilder({ error: null })
+      const builderRefetch = crearQueryBuilder({
+        data: {
+          ...filaCorralon,
+          proveedor_rubro: [{ rubro: { id: 'r1', nombre: 'Cemento' } }],
+        },
+        error: null,
+      })
+      supabase.from
+        .mockReturnValueOnce(builderInsert)
+        .mockReturnValueOnce(builderVinculo)
+        .mockReturnValueOnce(builderRefetch)
+
+      const resultado = await createProveedor(datosValidos, 'r1')
+
+      expect(builderVinculo.insert).toHaveBeenCalledWith({
+        proveedor_id: 'p1',
+        rubro_id: 'r1',
+      })
+      expect(resultado.rubro).toEqual({ id: 'r1', nombre: 'Cemento' })
+    })
+
+    it('avisa si el proveedor se creó pero no se pudo vincular el rubro', async () => {
+      const builderInsert = crearQueryBuilder({ data: filaCorralon, error: null })
+      const builderVinculo = crearQueryBuilder({
+        error: { message: 'foreign key violation' },
+      })
+      supabase.from
+        .mockReturnValueOnce(builderInsert)
+        .mockReturnValueOnce(builderVinculo)
+
+      await expect(
+        createProveedor(datosValidos, 'rubro-inexistente'),
+      ).rejects.toMatchObject({
+        status: 409,
+        message: expect.stringContaining('El proveedor se creó'),
+      })
+    })
+
+    // CA: CUIT duplicado, con la razón social del proveedor existente
+    it('rechaza con 409 e indica la razón social del proveedor existente', async () => {
+      const builderInsert = crearQueryBuilder({
+        data: null,
+        error: { code: '23505' },
+      })
+      const builderBusqueda = crearQueryBuilder({
+        data: { razon_social: 'Ferretería del Sur' },
+        error: null,
+      })
+      supabase.from
+        .mockReturnValueOnce(builderInsert)
+        .mockReturnValueOnce(builderBusqueda)
+
+      await expect(createProveedor(datosValidos)).rejects.toMatchObject({
+        status: 409,
+        message: 'Ya existe un proveedor con ese CUIT: Ferretería del Sur',
+      })
+    })
+
+    it('usa un mensaje genérico si no puede resolver la razón social existente', async () => {
+      const builderInsert = crearQueryBuilder({
+        data: null,
+        error: { code: '23505' },
+      })
+      const builderBusqueda = crearQueryBuilder({ data: null, error: null })
+      supabase.from
+        .mockReturnValueOnce(builderInsert)
+        .mockReturnValueOnce(builderBusqueda)
+
+      await expect(createProveedor(datosValidos)).rejects.toMatchObject({
+        status: 409,
+        message: 'Ya existe un proveedor con ese CUIT',
+      })
+    })
+
+    it('traduce a 403 el INSERT que la RLS deja sin filas', async () => {
+      supabase.from.mockReturnValue(
+        crearQueryBuilder({ data: null, error: { code: 'PGRST116' } }),
+      )
+
+      await expect(createProveedor(datosValidos)).rejects.toMatchObject({
+        status: 403,
+        message:
+          'No se pudo guardar el proveedor: no existe o no tenés permiso para modificarlo',
+      })
+    })
+
+    it('traduce el check de condición fiscal a un mensaje legible', async () => {
+      supabase.from.mockReturnValue(
+        crearQueryBuilder({
+          data: null,
+          error: {
+            code: '23514',
+            message:
+              'new row for relation "proveedores" violates check constraint "chk_proveedor_condicion_fiscal"',
+          },
+        }),
+      )
+
+      await expect(createProveedor(datosValidos)).rejects.toMatchObject({
+        status: 400,
+        message: 'La condición fiscal no es válida',
+      })
+    })
+
+    it('traduce el check de condición de pago a un mensaje legible', async () => {
+      supabase.from.mockReturnValue(
+        crearQueryBuilder({
+          data: null,
+          error: {
+            code: '23514',
+            message:
+              'new row for relation "proveedores" violates check constraint "chk_proveedor_condicion_pago"',
+          },
+        }),
+      )
+
+      await expect(createProveedor(datosValidos)).rejects.toMatchObject({
+        status: 400,
+        message: 'La condición de pago habitual no es válida',
+      })
+    })
+
+    it('propaga cualquier otro error sin traducirlo', async () => {
+      const errorMock = { code: '08006', message: 'connection failure' }
+      supabase.from.mockReturnValue(
+        crearQueryBuilder({ data: null, error: errorMock }),
+      )
+
+      await expect(createProveedor(datosValidos)).rejects.toEqual(errorMock)
+    })
+  })
+
+  describe('updateProveedor', () => {
+    const filaActualizada = { ...filaCorralon, localidad: 'Jujuy' }
+
+    // CA: se puede modificar todo salvo el CUIT
+    it('actualiza los campos sin exigir ni mandar el CUIT', async () => {
+      const builderUpdate = crearQueryBuilder({ error: null })
+      const builderBorrado = crearQueryBuilder({ error: null })
+      const builderRefetch = crearQueryBuilder({
+        data: filaActualizada,
+        error: null,
+      })
+      supabase.from
+        .mockReturnValueOnce(builderUpdate)
+        .mockReturnValueOnce(builderBorrado)
+        .mockReturnValueOnce(builderRefetch)
+
+      const resultado = await updateProveedor(
+        'p1',
+        { razon_social: 'Corralón San Martín S.A.', condicion_fiscal: 'responsable_inscripto', localidad: 'Jujuy' },
+        null,
+      )
+
+      expect(builderUpdate.update).toHaveBeenCalledWith(
+        expect.objectContaining({ localidad: 'Jujuy' }),
+      )
+      expect(builderUpdate.update.mock.calls[0][0]).not.toHaveProperty('cuit')
+      expect(builderUpdate.eq).toHaveBeenCalledWith('id', 'p1')
+      expect(resultado.localidad).toBe('Jujuy')
+    })
+
+    it('rechaza con 400 cuando falta la razón social, sin llamar a Supabase', async () => {
+      await expect(
+        updateProveedor('p1', {
+          razon_social: '',
+          condicion_fiscal: 'responsable_inscripto',
+        }),
+      ).rejects.toMatchObject({
+        status: 400,
+        message: 'La Razón Social es obligatoria',
+      })
+      expect(supabase.from).not.toHaveBeenCalled()
+    })
+
+    it('no valida el CUIT aunque venga vacío o inválido en los datos', async () => {
+      const builderUpdate = crearQueryBuilder({ error: null })
+      const builderBorrado = crearQueryBuilder({ error: null })
+      const builderRefetch = crearQueryBuilder({
+        data: filaCorralon,
+        error: null,
+      })
+      supabase.from
+        .mockReturnValueOnce(builderUpdate)
+        .mockReturnValueOnce(builderBorrado)
+        .mockReturnValueOnce(builderRefetch)
+
+      await expect(
+        updateProveedor('p1', {
+          razon_social: 'Corralón San Martín S.A.',
+          condicion_fiscal: 'responsable_inscripto',
+          cuit: 'esto-no-es-un-cuit',
+        }),
+      ).resolves.toBeDefined()
+    })
+
+    // CA: se puede cambiar el rubro
+    it('borra el vínculo anterior y crea el nuevo cuando se pasa un rubro', async () => {
+      const builderUpdate = crearQueryBuilder({ error: null })
+      const builderBorrado = crearQueryBuilder({ error: null })
+      const builderInsert = crearQueryBuilder({ error: null })
+      const builderRefetch = crearQueryBuilder({
+        data: {
+          ...filaCorralon,
+          proveedor_rubro: [{ rubro: { id: 'r2', nombre: 'Hierros' } }],
+        },
+        error: null,
+      })
+      supabase.from
+        .mockReturnValueOnce(builderUpdate)
+        .mockReturnValueOnce(builderBorrado)
+        .mockReturnValueOnce(builderInsert)
+        .mockReturnValueOnce(builderRefetch)
+
+      const resultado = await updateProveedor(
+        'p1',
+        {
+          razon_social: 'Corralón San Martín S.A.',
+          condicion_fiscal: 'responsable_inscripto',
+        },
+        'r2',
+      )
+
+      expect(builderBorrado.delete).toHaveBeenCalled()
+      expect(builderBorrado.eq).toHaveBeenCalledWith('proveedor_id', 'p1')
+      expect(builderInsert.insert).toHaveBeenCalledWith({
+        proveedor_id: 'p1',
+        rubro_id: 'r2',
+      })
+      expect(resultado.rubro).toEqual({ id: 'r2', nombre: 'Hierros' })
+    })
+
+    it('solo borra el vínculo cuando el rubro queda sin especificar', async () => {
+      const builderUpdate = crearQueryBuilder({ error: null })
+      const builderBorrado = crearQueryBuilder({ error: null })
+      const builderRefetch = crearQueryBuilder({
+        data: filaCorralon,
+        error: null,
+      })
+      supabase.from
+        .mockReturnValueOnce(builderUpdate)
+        .mockReturnValueOnce(builderBorrado)
+        .mockReturnValueOnce(builderRefetch)
+
+      await updateProveedor(
+        'p1',
+        {
+          razon_social: 'Corralón San Martín S.A.',
+          condicion_fiscal: 'responsable_inscripto',
+        },
+        null,
+      )
+
+      expect(builderBorrado.delete).toHaveBeenCalled()
+      expect(supabase.from).toHaveBeenCalledTimes(3)
+    })
+
+    it('avisa si los datos se guardaron pero no se pudo actualizar el rubro', async () => {
+      const builderUpdate = crearQueryBuilder({ error: null })
+      const builderBorrado = crearQueryBuilder({
+        error: { message: 'timeout' },
+      })
+      supabase.from
+        .mockReturnValueOnce(builderUpdate)
+        .mockReturnValueOnce(builderBorrado)
+
+      await expect(
+        updateProveedor('p1', {
+          razon_social: 'Corralón San Martín S.A.',
+          condicion_fiscal: 'responsable_inscripto',
+        }),
+      ).rejects.toMatchObject({
+        status: 409,
+        message: expect.stringContaining('Se guardaron los datos del proveedor'),
+      })
+    })
+
+    it('traduce a 403 el UPDATE que la RLS deja sin filas', async () => {
+      supabase.from.mockReturnValue(
+        crearQueryBuilder({ error: { code: 'PGRST116' } }),
+      )
+
+      await expect(
+        updateProveedor('p1', {
+          razon_social: 'Corralón San Martín S.A.',
+          condicion_fiscal: 'responsable_inscripto',
+        }),
+      ).rejects.toMatchObject({
+        status: 403,
+        message:
+          'No se pudo guardar el proveedor: no existe o no tenés permiso para modificarlo',
+      })
+    })
+  })
+
+  describe('puedeModificarProveedores', () => {
+    it('consulta el permiso de modificación de proveedores', async () => {
+      supabase.rpc.mockResolvedValue({ data: true, error: null })
+
+      await expect(puedeModificarProveedores()).resolves.toBe(true)
+      expect(supabase.rpc).toHaveBeenCalledWith('usuario_tiene_permiso', {
+        p_nombre: 'proveedores.modificar',
+      })
+    })
+
+    it('devuelve false cuando la función no responde true', async () => {
+      supabase.rpc.mockResolvedValue({ data: null, error: null })
+
+      await expect(puedeModificarProveedores()).resolves.toBe(false)
+    })
+  })
+
+  describe('puedeAltaProveedores', () => {
+    it('consulta el permiso de alta de proveedores', async () => {
+      supabase.rpc.mockResolvedValue({ data: true, error: null })
+
+      await expect(puedeAltaProveedores()).resolves.toBe(true)
+      expect(supabase.rpc).toHaveBeenCalledWith('usuario_tiene_permiso', {
+        p_nombre: 'proveedores.alta',
+      })
+    })
+
+    it('devuelve false cuando la función no responde true', async () => {
+      supabase.rpc.mockResolvedValue({ data: null, error: null })
+
+      await expect(puedeAltaProveedores()).resolves.toBe(false)
+    })
+
+    it('lanza el error cuando la consulta del permiso falla', async () => {
+      const errorMock = { message: 'no se pudo verificar el permiso' }
+      supabase.rpc.mockResolvedValue({ data: null, error: errorMock })
+
+      await expect(puedeAltaProveedores()).rejects.toEqual(errorMock)
+    })
+  })
+
+  // --------------------------------------------------------------------
+  // US-PRV-06 · Administración del estado del proveedor
+  // --------------------------------------------------------------------
+
+  describe('setEstadoProveedor', () => {
+    // CA 1
+    it('desactiva sin borrar el registro', async () => {
+      const builder = crearQueryBuilder({
+        data: { ...filaCorralon, estado: 'inactivo' },
+        error: null,
+      })
+      supabase.from.mockReturnValue(builder)
+
+      const resultado = await setEstadoProveedor('p1', 'inactivo')
+
+      expect(supabase.from).toHaveBeenCalledWith('proveedores')
+      expect(builder.update).toHaveBeenCalledWith({ estado: 'inactivo' })
+      expect(builder.eq).toHaveBeenCalledWith('id', 'p1')
+      expect(builder.delete).not.toHaveBeenCalled()
+      expect(resultado.estado).toBe('inactivo')
+    })
+
+    // CA 2
+    it('reactiva un proveedor inactivo', async () => {
+      const builder = crearQueryBuilder({
+        data: { ...filaCorralon, estado: 'activo' },
+        error: null,
+      })
+      supabase.from.mockReturnValue(builder)
+
+      await setEstadoProveedor('p1', 'activo')
+
+      expect(builder.update).toHaveBeenCalledWith({ estado: 'activo' })
+    })
+
+    // CA 6: no hay un tercer estado ni una baja fisica
+    it('rechaza con 400 cualquier estado fuera de activo/inactivo', async () => {
+      await expect(setEstadoProveedor('p1', 'eliminado')).rejects.toMatchObject({
+        status: 400,
+        message: 'El estado debe ser "activo" o "inactivo"',
+      })
+      expect(supabase.from).not.toHaveBeenCalled()
+    })
+
+    it('traduce a 403 el UPDATE que la RLS deja sin filas', async () => {
+      supabase.from.mockReturnValue(
+        crearQueryBuilder({ data: null, error: { code: 'PGRST116' } }),
+      )
+
+      await expect(setEstadoProveedor('p1', 'inactivo')).rejects.toMatchObject({
+        status: 403,
+      })
+    })
+
+    it('propaga cualquier otro error', async () => {
+      const errorMock = { code: '08006', message: 'connection failure' }
+      supabase.from.mockReturnValue(
+        crearQueryBuilder({ data: null, error: errorMock }),
+      )
+
+      await expect(setEstadoProveedor('p1', 'inactivo')).rejects.toEqual(errorMock)
+    })
+  })
+
+  describe('getHistorialEstadoProveedor', () => {
+    // CA 4
+    it('devuelve los cambios del mas reciente al mas antiguo', async () => {
+      const historial = [
+        {
+          id: 'h1',
+          estado_anterior: 'activo',
+          estado_nuevo: 'inactivo',
+          cambiado_por: 'u1',
+          cambiado_en: '2026-09-03T12:00:00Z',
+        },
+      ]
+      const builder = crearQueryBuilder({ data: historial, error: null })
+      supabase.from.mockReturnValue(builder)
+
+      const resultado = await getHistorialEstadoProveedor('p1')
+
+      expect(supabase.from).toHaveBeenCalledWith('historial_estado_proveedor')
+      expect(builder.eq).toHaveBeenCalledWith('proveedor_id', 'p1')
+      expect(builder.order).toHaveBeenCalledWith('cambiado_en', {
+        ascending: false,
+      })
+      expect(resultado).toEqual(historial)
+    })
+
+    it('devuelve una lista vacia cuando no hay datos', async () => {
+      supabase.from.mockReturnValue(
+        crearQueryBuilder({ data: null, error: null }),
+      )
+
+      await expect(getHistorialEstadoProveedor('p1')).resolves.toEqual([])
+    })
+
+    it('lanza el error cuando la consulta falla', async () => {
+      const errorMock = { message: 'error al leer el historial' }
+      supabase.from.mockReturnValue(
+        crearQueryBuilder({ data: null, error: errorMock }),
+      )
+
+      await expect(getHistorialEstadoProveedor('p1')).rejects.toEqual(errorMock)
+    })
+  })
+
+  describe('getProveedoresSeleccionables', () => {
+    // CA 5
+    it('excluye a los inactivos', async () => {
+      const builder = crearQueryBuilder({ data: [filaCorralon], error: null })
+      supabase.from.mockReturnValue(builder)
+
+      await getProveedoresSeleccionables()
+
+      expect(builder.eq).toHaveBeenCalledWith('estado', 'activo')
+    })
+  })
+
+  describe('getProveedores con filtro de estado', () => {
+    it('filtra por el estado pedido', async () => {
+      const builder = crearQueryBuilder({ data: [], error: null })
+      supabase.from.mockReturnValue(builder)
+
+      await getProveedores({ estado: 'inactivo' })
+
+      expect(builder.eq).toHaveBeenCalledWith('estado', 'inactivo')
+    })
+
+    it('devuelve todos cuando no se filtra por estado ni por activos', async () => {
+      const builder = crearQueryBuilder({ data: [], error: null })
+      supabase.from.mockReturnValue(builder)
+
+      await getProveedores({ estado: '', soloActivos: false })
+
+      expect(builder.eq).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('puedeCambiarEstadoProveedores', () => {
+    it('alcanza con el permiso de estado', async () => {
+      supabase.rpc.mockResolvedValue({ data: true, error: null })
+
+      await expect(puedeCambiarEstadoProveedores()).resolves.toBe(true)
+      expect(supabase.rpc).toHaveBeenCalledWith('usuario_tiene_permiso', {
+        p_nombre: 'proveedores.estado',
+      })
+    })
+
+    it('cae al permiso de modificacion si no tiene el de estado', async () => {
+      supabase.rpc
+        .mockResolvedValueOnce({ data: false, error: null })
+        .mockResolvedValueOnce({ data: true, error: null })
+
+      await expect(puedeCambiarEstadoProveedores()).resolves.toBe(true)
+      expect(supabase.rpc).toHaveBeenLastCalledWith('usuario_tiene_permiso', {
+        p_nombre: 'proveedores.modificar',
+      })
+    })
+
+    it('devuelve false cuando no tiene ninguno de los dos', async () => {
+      supabase.rpc.mockResolvedValue({ data: false, error: null })
+
+      await expect(puedeCambiarEstadoProveedores()).resolves.toBe(false)
+    })
+
+    it('lanza el error cuando la consulta falla', async () => {
+      const errorMock = { message: 'no se pudo verificar el permiso' }
+      supabase.rpc.mockResolvedValue({ data: null, error: errorMock })
+
+      await expect(puedeCambiarEstadoProveedores()).rejects.toEqual(errorMock)
+    })
+  })
+})
