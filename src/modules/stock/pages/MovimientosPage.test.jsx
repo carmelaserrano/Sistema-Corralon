@@ -1,3 +1,4 @@
+import '@testing-library/jest-dom'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import MovimientosPage from './MovimientosPage'
@@ -22,7 +23,7 @@ const articulos = [
 describe('MovimientosPage multiartículo', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    getDepositos.mockResolvedValue([{ id: 'dep-1', nombre: 'Centro' }])
+    getDepositos.mockResolvedValue([{ id: 'dep-1', nombre: 'Centro' }, { id: 'dep-2', nombre: 'Norte' }])
     getArticulos.mockResolvedValue({ articulos })
     getStockByDeposito.mockResolvedValue([
       { producto: articulos[0], disponible: 25 },
@@ -31,53 +32,78 @@ describe('MovimientosPage multiartículo', () => {
     createMovimientoMultiarticulo.mockResolvedValue({ id: 'mov-1' })
   })
 
-  it('exige elegir primero el depósito', async () => {
+  it('habilita el carrito después de depósito y tipo, y deja los datos para el final', async () => {
     render(<MovimientosPage onVerHistorial={vi.fn()} />)
     const tipo = await screen.findByLabelText('Operación')
-    expect(tipo.disabled).toBe(true)
+    const articulo = screen.getByLabelText('Artículo')
+    expect(tipo).toBeDisabled(); expect(articulo).toBeDisabled()
+    expect(screen.getByLabelText('Comprobante')).toBeDisabled()
+
     fireEvent.change(screen.getByLabelText('Depósito de operación'), { target: { value: 'dep-1' } })
-    await waitFor(() => expect(tipo.disabled).toBe(false))
+    await waitFor(() => expect(getStockByDeposito).toHaveBeenCalledWith('dep-1'))
+    await waitFor(() => expect(screen.getByText(/Stock actual:/)).toBeInTheDocument())
+    expect(tipo).toBeEnabled()
     expect(getStockByDeposito).toHaveBeenCalledWith('dep-1')
+    fireEvent.change(tipo, { target: { value: 'egreso' } })
+    expect(articulo).toBeEnabled()
+
+    fireEvent.change(articulo, { target: { value: 'art-1' } })
+    fireEvent.change(screen.getByLabelText('Cantidad'), { target: { value: '10' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Agregar artículo' }))
+    expect(screen.getByLabelText('Comprobante')).toBeEnabled()
+    expect(screen.getByLabelText('Observaciones')).toBeEnabled()
+
+    const detalle = screen.getByRole('heading', { name: 'Detalle del movimiento' })
+    const datos = screen.getByRole('heading', { name: 'Datos del movimiento' })
+    expect(detalle.compareDocumentPosition(datos) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('agrega dos artículos y los confirma como un único movimiento', async () => {
     render(<MovimientosPage onVerHistorial={vi.fn()} />)
     fireEvent.change(await screen.findByLabelText('Depósito de operación'), { target: { value: 'dep-1' } })
+    await screen.findByText(/Stock actual:/)
     fireEvent.change(screen.getByLabelText('Operación'), { target: { value: 'egreso' } })
-    await waitFor(() => expect(screen.getByText(/Stock actual:/).textContent).toContain('-'))
 
-    for (const [id, cantidad] of [['art-1', '10'], ['art-2', '10']]) {
+    for (const [id, valor] of [['art-1', '10'], ['art-2', '10']]) {
       fireEvent.change(screen.getByLabelText('Artículo'), { target: { value: id } })
-      expect(screen.getByText(/Stock actual:/).textContent).toContain(
-        String(id === 'art-1' ? 25 : 40),
-      )
-      fireEvent.change(screen.getByLabelText('Cantidad'), { target: { value: cantidad } })
+      expect(screen.getByText(/Stock actual:/).textContent).toContain(String(id === 'art-1' ? 25 : 40))
+      fireEvent.change(screen.getByLabelText('Cantidad'), { target: { value: valor } })
       fireEvent.click(screen.getByRole('button', { name: 'Agregar artículo' }))
     }
-
+    expect(screen.getByText('CEM — Cemento Portland')).toBeInTheDocument()
+    expect(screen.getByText('ARE — Arena')).toBeInTheDocument()
+    expect(screen.getByText('2 artículos agregados')).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Comprobante'), { target: { value: 'REM-10' } })
     fireEvent.click(screen.getByRole('button', { name: /Confirmar movimiento/ }))
-
-    await waitFor(() => expect(createMovimientoMultiarticulo).toHaveBeenCalledWith(
-      expect.objectContaining({
-        deposito_id: 'dep-1', tipo: 'egreso',
-        items: [
-          expect.objectContaining({ producto_id: 'art-1', cantidad: 10 }),
-          expect.objectContaining({ producto_id: 'art-2', cantidad: 10 }),
-        ],
-      }),
-    ))
+    await waitFor(() => expect(createMovimientoMultiarticulo).toHaveBeenCalledWith(expect.objectContaining({
+      deposito_id: 'dep-1', tipo: 'egreso', comprobante: 'REM-10',
+      items: [expect.objectContaining({ producto_id: 'art-1', cantidad: 10 }), expect.objectContaining({ producto_id: 'art-2', cantidad: 10 })],
+    })))
   })
 
   it('impide confirmar con el carrito vacío', async () => {
     render(<MovimientosPage onVerHistorial={vi.fn()} />)
     fireEvent.change(await screen.findByLabelText('Depósito de operación'), { target: { value: 'dep-1' } })
     fireEvent.change(screen.getByLabelText('Operación'), { target: { value: 'ingreso' } })
-    fireEvent.change(screen.getByLabelText('Comprobante'), { target: { value: 'FC-1' } })
     fireEvent.click(screen.getByRole('button', { name: /Confirmar movimiento/ }))
-    expect((await screen.findByRole('alert')).textContent).toContain(
-      'Agregá al menos un artículo',
-    )
+    expect(await screen.findByRole('alert')).toHaveTextContent('Agregá al menos un artículo')
     expect(createMovimientoMultiarticulo).not.toHaveBeenCalled()
+  })
+
+  it('exige otro depósito para una transferencia', async () => {
+    render(<MovimientosPage onVerHistorial={vi.fn()} />)
+    fireEvent.change(await screen.findByLabelText('Depósito de operación'), { target: { value: 'dep-1' } })
+    await screen.findByText(/Stock actual:/)
+    fireEvent.change(screen.getByLabelText('Operación'), { target: { value: 'transferencia' } })
+    expect(screen.getByLabelText('Artículo')).toBeDisabled()
+    fireEvent.change(screen.getByLabelText('Depósito destino'), { target: { value: 'dep-2' } })
+    expect(screen.getByLabelText('Artículo')).toBeEnabled()
+  })
+
+  it('muestra el error inicial y abandona el estado cargando', async () => {
+    getDepositos.mockRejectedValueOnce(new Error('Sin conexión'))
+    render(<MovimientosPage onVerHistorial={vi.fn()} />)
+    expect(await screen.findByRole('alert')).toHaveTextContent('Sin conexión')
+    expect(screen.queryByText('Cargando movimientos...')).not.toBeInTheDocument()
   })
 })

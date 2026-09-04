@@ -206,6 +206,22 @@ td button:hover:not(:disabled), .page-canvas button[type="button"]:hover:not(:di
 .feedback-error { border: 1px solid rgb(214 69 61 / 25%); background: var(--color-danger-soft); color: var(--color-danger-strong); }
 .feedback-info { border: 1px solid rgb(47 111 179 / 22%); background: var(--color-info-soft); color: var(--color-info); }
 .feedback-success { border: 1px solid rgb(22 130 93 / 22%); background: var(--color-success-soft); color: var(--color-success); }
+
+/* Indicador de estado para listados (activo / inactivo). El punto de color
+   acompaña al texto en vez de reemplazarlo: el color solo no alcanza para
+   distinguir los estados si quien mira no percibe bien el contraste. */
+.estado-badge { display: inline-flex; align-items: center; gap: 7px; padding: 3px 10px 3px 8px; border-radius: 999px; border: 1px solid transparent; font-size: 11px; font-weight: 800; letter-spacing: 0.03em; text-transform: uppercase; white-space: nowrap; }
+.estado-badge::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: none; }
+.estado-badge-activo { border-color: rgb(22 130 93 / 26%); background: var(--color-success-soft); color: var(--color-success); }
+.estado-badge-inactivo { border-color: var(--border-strong); background: var(--surface-subtle); color: var(--text-muted); }
+.estado-badge-principal { border-color: rgb(47 111 179 / 24%); background: var(--color-info-soft); color: var(--color-info); }
+
+/* Solapas del detalle (Datos / Contactos / Historial). */
+.tabs { display: flex; flex-wrap: wrap; gap: var(--space-1); margin: 0 0 var(--space-5); padding: 4px; border-radius: var(--radius-md); background: var(--surface-subtle); }
+.page-canvas .tabs button[type="button"] { margin: 0; padding: 0 14px; min-height: var(--control-md); border: 1px solid transparent; border-radius: calc(var(--radius-md) - 3px); background: transparent; color: var(--text-secondary); font-size: 13px; font-weight: 700; }
+.page-canvas .tabs button[type="button"]:hover:not(:disabled) { background: var(--surface-panel); }
+.page-canvas .tabs button[type="button"][aria-selected="true"] { border-color: var(--border-default); background: var(--surface-panel); color: var(--text-primary); box-shadow: var(--shadow-1); }
+.contactos-panel > table:first-child { margin-top: 0; }
 .loading-state { width: fit-content; padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); background: var(--color-info-soft); color: var(--color-info); font-size: 13px; font-weight: 650; }
 .alert-row td { background: var(--color-danger-soft); font-weight: 700; }
 .alert-row:hover td { background: #ffe8e5; }

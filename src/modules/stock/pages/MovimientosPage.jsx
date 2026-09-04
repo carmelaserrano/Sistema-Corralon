@@ -6,6 +6,11 @@ import { getStockByDeposito } from '../api/stockApi'
 
 const inicial = { deposito_id: '', tipo: '', deposito_destino_id: '', comprobante: '', observaciones: '' }
 
+function mensajeDeError(error, respaldo) {
+  if (error?.status === 423) return 'Hay otro movimiento en proceso sobre el mismo artículo o depósito. Esperá unos segundos y volvé a intentar.'
+  return error?.message || respaldo
+}
+
 function MovimientosPage({ onVerHistorial }) {
   const [depositos, setDepositos] = useState([])
   const [articulos, setArticulos] = useState([])
@@ -23,48 +28,48 @@ function MovimientosPage({ onVerHistorial }) {
   useEffect(() => {
     Promise.all([getDepositos(), getArticulos({ estado: 'activo', pageSize: 200 })])
       .then(([deps, arts]) => { setDepositos(deps); setArticulos(arts.articulos) })
-      .catch((err) => setError(err.message || 'No se pudieron cargar los datos'))
+      .catch((err) => setError(mensajeDeError(err, 'No se pudieron cargar los datos')))
       .finally(() => setLoading(false))
   }, [])
 
   async function cargarStock(depositoId) {
-    if (!depositoId) return setStock(new Map())
+    if (!depositoId) { setStock(new Map()); return }
     try {
       setCargandoStock(true)
       const filas = await getStockByDeposito(depositoId)
       setStock(new Map(filas.map((fila) => [fila.producto.id, fila.disponible])))
     } catch (err) {
-      setError(err.message || 'No se pudo consultar el stock del depósito')
+      setError(mensajeDeError(err, 'No se pudo consultar el stock del depósito'))
     } finally { setCargandoStock(false) }
   }
 
   async function cambiarDeposito(event) {
-    const id = event.target.value
-    setForm({ ...inicial, deposito_id: id })
+    const depositoId = event.target.value
+    setForm({ ...inicial, deposito_id: depositoId })
     setItems([]); setProductoId(''); setCantidad(''); setError(''); setExito('')
-    await cargarStock(id)
+    await cargarStock(depositoId)
   }
 
   function cambiarCampo(event) {
     const { name, value } = event.target
     setForm((actual) => ({ ...actual, [name]: value,
       ...(name === 'tipo' && value !== TIPOS.TRANSFERENCIA ? { deposito_destino_id: '' } : {}) }))
-    if (name === 'tipo') setItems([])
+    if (name === 'tipo') { setItems([]); setProductoId(''); setCantidad('') }
     setError(''); setExito('')
   }
 
   const disponibles = useMemo(() => articulos.filter(
     (articulo) => !items.some((item) => item.producto_id === articulo.id),
   ), [articulos, items])
+  const tipoCompleto = Boolean(form.tipo) &&
+    (form.tipo !== TIPOS.TRANSFERENCIA || Boolean(form.deposito_destino_id))
 
   function agregarArticulo() {
     setError('')
     const articulo = articulos.find((item) => item.id === productoId)
     const numero = Number(cantidad)
     if (!articulo) return setError('Seleccioná un artículo')
-    if (!Number.isInteger(numero) || numero <= 0) {
-      return setError('La cantidad debe ser un número entero mayor a 0')
-    }
+    if (!Number.isInteger(numero) || numero <= 0) return setError('La cantidad debe ser un número entero mayor a 0')
     const disponible = stock.get(productoId) ?? 0
     if (form.tipo !== TIPOS.INGRESO && numero > disponible) {
       return setError(`Stock insuficiente: hay ${disponible} unidades disponibles`)
@@ -80,10 +85,10 @@ function MovimientosPage({ onVerHistorial }) {
     try {
       setEnviando(true); setError('')
       await createMovimientoMultiarticulo({ ...form, items })
-      setItems([]); setProductoId(''); setCantidad('')
+      setItems([]); setForm(inicial); setProductoId(''); setCantidad('')
       setExito('Movimiento confirmado. El stock se actualizó correctamente.')
       await cargarStock(form.deposito_id)
-    } catch (err) { setError(err.message || 'No se pudo confirmar el movimiento') }
+    } catch (err) { setError(mensajeDeError(err, 'No se pudo confirmar el movimiento')) }
     finally { setEnviando(false) }
   }
 
@@ -95,37 +100,24 @@ function MovimientosPage({ onVerHistorial }) {
     {error && <p role="alert">{error}</p>}{exito && <p role="status">{exito}</p>}
     <section className="movement-card"><form className="movements-form" onSubmit={confirmar}>
       <div className="movement-step"><span className="step-number">1</span><div className="step-content"><h2>Depósito</h2><p>Seleccioná dónde se realizará el movimiento.</p>
-      <label htmlFor="deposito_id">Depósito de operación</label>
-      <select id="deposito_id" value={form.deposito_id} onChange={cambiarDeposito} required>
-        <option value="">Seleccionar depósito...</option>
-        {depositos.map((d) => <option key={d.id} value={d.id}>{d.nombre}</option>)}
-      </select></div></div>
+        <label htmlFor="deposito_id">Depósito de operación</label>
+        <select id="deposito_id" value={form.deposito_id} onChange={cambiarDeposito} required><option value="">Seleccionar depósito...</option>
+          {depositos.map((d) => <option key={d.id} value={d.id}>{d.nombre}</option>)}</select></div></div>
       <div className={`movement-step ${!form.deposito_id ? 'is-disabled' : ''}`}><span className="step-number">2</span><div className="step-content"><h2>Tipo de movimiento</h2><p>Indicá cómo se modificará el stock del depósito.</p>
-      <label htmlFor="tipo">Operación</label>
-      <select id="tipo" name="tipo" value={form.tipo} onChange={cambiarCampo} disabled={!form.deposito_id} required>
-        <option value="">Seleccionar tipo...</option><option value={TIPOS.INGRESO}>Ingreso al depósito</option>
-        <option value={TIPOS.EGRESO}>Egreso del depósito</option>
-        <option value={TIPOS.TRANSFERENCIA}>Transferencia a otro depósito</option>
-      </select>
-      {form.tipo === TIPOS.TRANSFERENCIA && <><label htmlFor="deposito_destino_id">Depósito destino</label>
-        <select id="deposito_destino_id" name="deposito_destino_id" value={form.deposito_destino_id} onChange={cambiarCampo} required>
-          <option value="">Seleccionar destino...</option>{depositos.filter((d) => d.id !== form.deposito_id).map((d) => <option key={d.id} value={d.id}>{d.nombre}</option>)}
-        </select></>}</div></div>
-      <fieldset className="movement-step articles-step" disabled={!form.tipo || cargandoStock}><legend><span className="step-number">3</span><span><strong>Artículos</strong><small>Armá el detalle del movimiento.</small></span></legend>
-        {cargandoStock ? <p role="status">Consultando stock...</p> : <div className="article-entry">
-          <div className="article-field"><label htmlFor="articulo_id">Artículo</label><select id="articulo_id" value={productoId} onChange={(e) => setProductoId(e.target.value)}>
-            <option value="">Seleccionar artículo...</option>{disponibles.map((a) => <option key={a.id} value={a.id}>{a.sku} — {a.nombre}</option>)}</select></div>
-          <div className="quantity-field"><label htmlFor="cantidad">Cantidad</label><input id="cantidad" type="number" min="1" step="1" inputMode="numeric" value={cantidad} onChange={(e) => setCantidad(e.target.value)} /></div>
-          <p className="stock-indicator">Stock actual: <strong>{productoId ? (stock.get(productoId) ?? 0) : '-'}</strong></p>
-          <button type="button" onClick={agregarArticulo}>Agregar artículo</button></div>}
+        <label htmlFor="tipo">Operación</label>
+        <select id="tipo" name="tipo" value={form.tipo} onChange={cambiarCampo} disabled={!form.deposito_id} required><option value="">Seleccionar tipo...</option><option value={TIPOS.INGRESO}>Ingreso al depósito</option><option value={TIPOS.EGRESO}>Egreso del depósito</option><option value={TIPOS.TRANSFERENCIA}>Transferencia a otro depósito</option></select>
+        {form.tipo === TIPOS.TRANSFERENCIA && <><label htmlFor="deposito_destino_id">Depósito destino</label><select id="deposito_destino_id" name="deposito_destino_id" value={form.deposito_destino_id} onChange={cambiarCampo} required><option value="">Seleccionar destino...</option>{depositos.filter((d) => d.id !== form.deposito_id).map((d) => <option key={d.id} value={d.id}>{d.nombre}</option>)}</select></>}</div></div>
+      <fieldset className={`movement-step articles-step ${!tipoCompleto ? 'is-disabled' : ''}`} disabled={!tipoCompleto || cargandoStock}><legend><span className="step-number">3</span><span><strong>Artículos</strong><small>Armá el detalle del movimiento.</small></span></legend>
+        <div className="article-entry"><div className="article-field"><label htmlFor="articulo_id">Artículo</label><select id="articulo_id" value={productoId} onChange={(e) => setProductoId(e.target.value)} disabled={!tipoCompleto || cargandoStock}><option value="">Seleccionar artículo...</option>{disponibles.map((a) => <option key={a.id} value={a.id}>{a.sku} — {a.nombre}</option>)}</select></div>
+          <div className="quantity-field"><label htmlFor="cantidad">Cantidad</label><input id="cantidad" type="number" min="1" step="1" inputMode="numeric" value={cantidad} onChange={(e) => setCantidad(e.target.value)} disabled={!tipoCompleto || cargandoStock} /></div>
+          <p className="stock-indicator">{cargandoStock ? 'Consultando stock...' : <>Stock actual: <strong>{productoId ? (stock.get(productoId) ?? 0) : '-'}</strong></>}</p><button type="button" onClick={agregarArticulo} disabled={!tipoCompleto || cargandoStock}>Agregar artículo</button></div>
       </fieldset>
       <div className="cart-section"><div className="cart-heading"><div><span className="step-number">4</span><div><h2>Detalle del movimiento</h2><p>{items.length} artículo{items.length === 1 ? '' : 's'} agregado{items.length === 1 ? '' : 's'}</p></div></div></div>
-      {items.length === 0 ? <p className="empty-cart">Todavía no agregaste artículos al movimiento.</p> : <table><thead><tr><th>Artículo</th><th>Stock actual</th><th>Cantidad</th><th>Acción</th></tr></thead>
-        <tbody>{items.map((item) => <tr key={item.producto_id}><td>{item.sku} — {item.nombre}</td><td>{item.stock_actual}</td><td>{item.cantidad}</td>
-          <td><button type="button" className="danger-action" onClick={() => setItems((lista) => lista.filter((i) => i.producto_id !== item.producto_id))}>Quitar</button></td></tr>)}</tbody></table>}</div>
-      <div className="movement-meta"><div><label htmlFor="comprobante">Comprobante</label><input id="comprobante" name="comprobante" value={form.comprobante} onChange={cambiarCampo} required /></div>
-      <div><label htmlFor="observaciones">Observaciones</label><textarea id="observaciones" name="observaciones" value={form.observaciones} onChange={cambiarCampo} /></div></div>
-      <footer className="movement-actions"><p>Se aplicará el stock de todos los artículos en una única operación.</p><button type="submit" disabled={enviando || !form.tipo}>{enviando ? 'Confirmando...' : `Confirmar movimiento${items.length ? ` (${items.length})` : ''}`}</button></footer>
+        {items.length === 0 ? <p className="empty-cart">Todavía no agregaste artículos al movimiento.</p> : <table><thead><tr><th>Artículo</th><th>Stock actual</th><th>Cantidad</th><th>Acción</th></tr></thead><tbody>{items.map((item) => <tr key={item.producto_id}><td>{item.sku} — {item.nombre}</td><td>{item.stock_actual}</td><td>{item.cantidad}</td><td><button type="button" className="danger-action" onClick={() => setItems((lista) => lista.filter((fila) => fila.producto_id !== item.producto_id))}>Quitar</button></td></tr>)}</tbody></table>}</div>
+      <div className={`movement-step ${items.length === 0 ? 'is-disabled' : ''}`}><span className="step-number">5</span><div className="step-content"><h2>Datos del movimiento</h2><p>Cuando termines el carrito, completá los datos antes de confirmar.</p>
+        <label htmlFor="comprobante">Comprobante</label><input id="comprobante" name="comprobante" value={form.comprobante} onChange={cambiarCampo} disabled={items.length === 0} required />
+        <label htmlFor="observaciones">Observaciones</label><textarea id="observaciones" name="observaciones" value={form.observaciones} onChange={cambiarCampo} disabled={items.length === 0} /></div></div>
+      <footer className="movement-actions"><p>Se aplicará el stock de todos los artículos en una única operación.</p><button type="submit" disabled={enviando || !tipoCompleto}>{enviando ? 'Confirmando...' : `Confirmar movimiento${items.length ? ` (${items.length})` : ''}`}</button></footer>
     </form></section>
   </main>
 }
