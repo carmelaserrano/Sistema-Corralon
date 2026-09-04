@@ -11,7 +11,7 @@ import { getDepositos } from '../api/depositosApi'
 import { getArticulos } from '../api/articulosApi'
 
 const movimientoInicial = {
-  tipo: TIPOS.TRANSFERENCIA,
+  tipo: '',
   articulo_id: '',
   cantidad: '',
   deposito_origen_id: '',
@@ -99,19 +99,39 @@ function MovimientosPage({ onVerHistorial }) {
     }))
   }
 
-  // Al cambiar el tipo hay que limpiar el depósito que se oculta: si queda un
-  // valor colgado en el state, el trigger de la base rechaza el movimiento.
+  // Al cambiar el tipo se preserva el depósito ya seleccionado reasignándolo
+  // al campo correcto para el nuevo tipo, y se limpia el resto de depósitos.
   function manejarCambioTipo(event) {
     const tipo = event.target.value
 
-    setForm((actual) => ({
-      ...actual,
-      tipo,
-      deposito_origen_id:
-        tipo === TIPOS.INGRESO ? '' : actual.deposito_origen_id,
-      deposito_destino_id:
-        tipo === TIPOS.EGRESO ? '' : actual.deposito_destino_id,
-    }))
+    setForm((actual) => {
+      // El depósito "principal" es el primer campo que el usuario completó.
+      const depositoPrimario =
+        actual.tipo === TIPOS.INGRESO
+          ? actual.deposito_destino_id
+          : actual.tipo === TIPOS.AJUSTE
+            ? actual.deposito_id
+            : actual.deposito_origen_id // cubre tipo vacío, EGRESO y TRANSFERENCIA
+
+      const nuevo = {
+        ...actual,
+        tipo,
+        deposito_origen_id: '',
+        deposito_destino_id: '',
+        deposito_id: '',
+      }
+
+      if (tipo === TIPOS.INGRESO) {
+        nuevo.deposito_destino_id = depositoPrimario
+      } else if (tipo === TIPOS.AJUSTE) {
+        nuevo.deposito_id = depositoPrimario
+      } else {
+        // EGRESO, TRANSFERENCIA o vacío
+        nuevo.deposito_origen_id = depositoPrimario
+      }
+
+      return nuevo
+    })
   }
 
   async function registrarMovimiento(event) {
@@ -176,9 +196,30 @@ function MovimientosPage({ onVerHistorial }) {
     return <p>Cargando movimientos...</p>
   }
 
-  const muestraOrigen = form.tipo !== TIPOS.INGRESO
-  const muestraDestino = form.tipo !== TIPOS.EGRESO
   const esAjuste = form.tipo === TIPOS.AJUSTE
+  const esIngreso = form.tipo === TIPOS.INGRESO
+  const esTransferencia = form.tipo === TIPOS.TRANSFERENCIA
+
+  // depositoPrincipal: valor del primer campo de depósito que ve el usuario.
+  // Para tipo vacío o EGRESO/TRANSFERENCIA usa deposito_origen_id.
+  const depositoPrincipal = esAjuste
+    ? form.deposito_id
+    : esIngreso
+      ? form.deposito_destino_id
+      : form.deposito_origen_id
+
+  // Pasos de habilitación progresiva según los criterios de aceptación.
+  const pasoDeposito = depositoPrincipal !== ''
+  const pasoTipo = pasoDeposito && form.tipo !== ''
+  // Para Ajuste, categoría_ajuste cumple el rol de Comprobante.
+  // Arranca con valor 'otro' (válido), por lo que pasoComprobante se cumple
+  // en cuanto se selecciona el tipo.
+  const pasoComprobante =
+    pasoTipo &&
+    (esAjuste
+      ? form.categoria_ajuste !== ''
+      : form.comprobante.trim() !== '')
+  const pasoArticulo = pasoComprobante
 
   return (
     <main>
@@ -193,116 +234,50 @@ function MovimientosPage({ onVerHistorial }) {
         <h2>Nuevo movimiento</h2>
 
         <form onSubmit={registrarMovimiento}>
-          <div>
-            <label htmlFor="tipo">Tipo</label>
-            <select
-              id="tipo"
-              name="tipo"
-              value={form.tipo}
-              onChange={manejarCambioTipo}
-              required
-            >
-              <option value={TIPOS.INGRESO}>Ingreso</option>
-              <option value={TIPOS.EGRESO}>Egreso</option>
-              <option value={TIPOS.TRANSFERENCIA}>Transferencia</option>
-              {puedeAjustar && <option value={TIPOS.AJUSTE}>Ajuste de inventario</option>}
-            </select>
-          </div>
-
-          <div>
-            <label htmlFor="articulo_id">Artículo</label>
-            <select
-              id="articulo_id"
-              name="articulo_id"
-              value={form.articulo_id}
-              onChange={manejarCambio}
-              required
-            >
-              <option value="">Seleccionar...</option>
-
-              {articulos.map((articulo) => (
-                <option key={articulo.id} value={articulo.id}>
-                  {articulo.sku} — {articulo.nombre}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {!esAjuste && <div>
-            <label htmlFor="cantidad">Cantidad</label>
-            <input
-              id="cantidad"
-              name="cantidad"
-              type="number"
-              min="0"
-              step="any"
-              value={form.cantidad}
-              onChange={manejarCambio}
-              required
-            />
-          </div>}
-
-          {esAjuste && (
-            <>
-              <div>
-                <label htmlFor="deposito_id">Depósito</label>
-                <select
-                  id="deposito_id"
-                  name="deposito_id"
-                  value={form.deposito_id}
-                  onChange={manejarCambio}
-                  required
-                >
-                  <option value="">Seleccionar...</option>
-                  {depositos.map((deposito) => (
-                    <option key={deposito.id} value={deposito.id}>
-                      {deposito.nombre}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label htmlFor="cantidad">Cantidad (positiva suma, negativa resta)</label>
-                <input
-                  id="cantidad"
-                  name="cantidad"
-                  type="number"
-                  step="any"
-                  value={form.cantidad}
-                  onChange={manejarCambio}
-                  required
-                />
-              </div>
-              <div>
-                <label htmlFor="categoria_ajuste">Categoría del ajuste</label>
-                <select
-                  id="categoria_ajuste"
-                  name="categoria_ajuste"
-                  value={form.categoria_ajuste}
-                  onChange={manejarCambio}
-                  required
-                >
-                  {categoriasAjuste.map(([valor, etiqueta]) => (
-                    <option key={valor} value={valor}>{etiqueta}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label htmlFor="motivo_ajuste">Motivo</label>
-                <textarea
-                  id="motivo_ajuste"
-                  name="motivo_ajuste"
-                  value={form.motivo_ajuste}
-                  onChange={manejarCambio}
-                  required
-                />
-              </div>
-            </>
-          )}
-
-          {!esAjuste && muestraOrigen && (
+          {/* PASO 1: Depósito — siempre habilitado.
+              El campo y la etiqueta cambian según el tipo ya seleccionado para
+              que el id del select y el htmlFor del label siempre coincidan. */}
+          {esAjuste ? (
             <div>
-              <label htmlFor="deposito_origen_id">Depósito origen</label>
+              <label htmlFor="deposito_id">Depósito</label>
+              <select
+                id="deposito_id"
+                name="deposito_id"
+                value={form.deposito_id}
+                onChange={manejarCambio}
+                required
+              >
+                <option value="">Seleccionar...</option>
+                {depositos.map((deposito) => (
+                  <option key={deposito.id} value={deposito.id}>
+                    {deposito.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : esIngreso ? (
+            <div>
+              <label htmlFor="deposito_destino_id">Depósito</label>
+              <select
+                id="deposito_destino_id"
+                name="deposito_destino_id"
+                value={form.deposito_destino_id}
+                onChange={manejarCambio}
+                required
+              >
+                <option value="">Seleccionar...</option>
+                {depositos.map((deposito) => (
+                  <option key={deposito.id} value={deposito.id}>
+                    {deposito.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div>
+              <label htmlFor="deposito_origen_id">
+                {esTransferencia ? 'Depósito origen' : 'Depósito'}
+              </label>
               <select
                 id="deposito_origen_id"
                 name="deposito_origen_id"
@@ -311,7 +286,6 @@ function MovimientosPage({ onVerHistorial }) {
                 required
               >
                 <option value="">Seleccionar...</option>
-
                 {depositos.map((deposito) => (
                   <option key={deposito.id} value={deposito.id}>
                     {deposito.nombre}
@@ -321,7 +295,29 @@ function MovimientosPage({ onVerHistorial }) {
             </div>
           )}
 
-          {!esAjuste && muestraDestino && (
+          {/* PASO 2: Tipo de movimiento — se habilita al seleccionar depósito */}
+          <div>
+            <label htmlFor="tipo">Tipo</label>
+            <select
+              id="tipo"
+              name="tipo"
+              value={form.tipo}
+              onChange={manejarCambioTipo}
+              disabled={!pasoDeposito}
+              required
+            >
+              <option value="">Seleccionar...</option>
+              <option value={TIPOS.INGRESO}>Ingreso</option>
+              <option value={TIPOS.EGRESO}>Egreso</option>
+              <option value={TIPOS.TRANSFERENCIA}>Transferencia</option>
+              {puedeAjustar && (
+                <option value={TIPOS.AJUSTE}>Ajuste de inventario</option>
+              )}
+            </select>
+          </div>
+
+          {/* PASO 3a: Depósito destino — solo Transferencia, se habilita al elegir tipo */}
+          {esTransferencia && (
             <div>
               <label htmlFor="deposito_destino_id">Depósito destino</label>
               <select
@@ -329,10 +325,10 @@ function MovimientosPage({ onVerHistorial }) {
                 name="deposito_destino_id"
                 value={form.deposito_destino_id}
                 onChange={manejarCambio}
+                disabled={!pasoTipo}
                 required
               >
                 <option value="">Seleccionar...</option>
-
                 {depositos
                   .filter((deposito) => deposito.id !== form.deposito_origen_id)
                   .map((deposito) => (
@@ -344,26 +340,111 @@ function MovimientosPage({ onVerHistorial }) {
             </div>
           )}
 
-          {!esAjuste && <div>
-            <label htmlFor="comprobante">Comprobante</label>
-            <input
-              id="comprobante"
-              name="comprobante"
-              value={form.comprobante}
+          {/* PASO 3b: Comprobante — no Ajuste, se habilita al elegir tipo */}
+          {!esAjuste && (
+            <div>
+              <label htmlFor="comprobante">Comprobante</label>
+              <input
+                id="comprobante"
+                name="comprobante"
+                value={form.comprobante}
+                onChange={manejarCambio}
+                disabled={!pasoTipo}
+                required
+              />
+            </div>
+          )}
+
+          {/* PASO 3b (Ajuste): Categoría — cumple el rol de Comprobante como gate
+              para habilitar la grilla; arranca con 'otro' preseleccionado. */}
+          {esAjuste && (
+            <div>
+              <label htmlFor="categoria_ajuste">Categoría del ajuste</label>
+              <select
+                id="categoria_ajuste"
+                name="categoria_ajuste"
+                value={form.categoria_ajuste}
+                onChange={manejarCambio}
+                disabled={!pasoTipo}
+                required
+              >
+                {categoriasAjuste.map(([valor, etiqueta]) => (
+                  <option key={valor} value={valor}>
+                    {etiqueta}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* PASO 4: Observaciones — no Ajuste, opcional, se habilita al cargar comprobante */}
+          {!esAjuste && (
+            <div>
+              <label htmlFor="observaciones">Observaciones</label>
+              <textarea
+                id="observaciones"
+                name="observaciones"
+                value={form.observaciones}
+                onChange={manejarCambio}
+                disabled={!pasoComprobante}
+              />
+            </div>
+          )}
+
+          {/* PASO 4 (Ajuste): Motivo — obligatorio en submit, cumple el rol de Observaciones */}
+          {esAjuste && (
+            <div>
+              <label htmlFor="motivo_ajuste">Motivo</label>
+              <textarea
+                id="motivo_ajuste"
+                name="motivo_ajuste"
+                value={form.motivo_ajuste}
+                onChange={manejarCambio}
+                disabled={!pasoTipo}
+                required
+              />
+            </div>
+          )}
+
+          {/* PASO 5: Artículo — se habilita únicamente al completar los pasos previos */}
+          <div>
+            <label htmlFor="articulo_id">Artículo</label>
+            <select
+              id="articulo_id"
+              name="articulo_id"
+              value={form.articulo_id}
               onChange={manejarCambio}
+              disabled={!pasoArticulo}
+              required
+            >
+              <option value="">Seleccionar...</option>
+              {articulos.map((articulo) => (
+                <option key={articulo.id} value={articulo.id}>
+                  {articulo.sku} — {articulo.nombre}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* PASO 5: Cantidad — junto al artículo */}
+          <div>
+            <label htmlFor="cantidad">
+              {esAjuste
+                ? 'Cantidad (positiva suma, negativa resta)'
+                : 'Cantidad'}
+            </label>
+            <input
+              id="cantidad"
+              name="cantidad"
+              type="number"
+              min={esAjuste ? undefined : '0'}
+              step="any"
+              value={form.cantidad}
+              onChange={manejarCambio}
+              disabled={!pasoArticulo}
               required
             />
-          </div>}
-
-          {!esAjuste && <div>
-            <label htmlFor="observaciones">Observaciones</label>
-            <textarea
-              id="observaciones"
-              name="observaciones"
-              value={form.observaciones}
-              onChange={manejarCambio}
-            />
-          </div>}
+          </div>
 
           <button type="submit" disabled={enviando}>
             {enviando ? 'Registrando...' : 'Registrar movimiento'}
