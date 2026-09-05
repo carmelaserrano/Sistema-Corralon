@@ -1,152 +1,109 @@
 import '@testing-library/jest-dom'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import MovimientosPage from './MovimientosPage'
-import {
-  getMovimientos,
-  puedeAjustarInventario,
-} from '../api/movimientosApi'
+import { createMovimientoMultiarticulo } from '../api/movimientosApi'
 import { getDepositos } from '../api/depositosApi'
 import { getArticulos } from '../api/articulosApi'
+import { getStockByDeposito } from '../api/stockApi'
 
 vi.mock('../api/movimientosApi', () => ({
-  TIPOS: {
-    INGRESO: 'ingreso',
-    EGRESO: 'egreso',
-    TRANSFERENCIA: 'transferencia',
-    AJUSTE: 'ajuste',
-  },
-  cancelarMovimiento: vi.fn(),
-  confirmarMovimiento: vi.fn(),
-  createMovimiento: vi.fn(),
-  getMovimientos: vi.fn(),
-  puedeAjustarInventario: vi.fn(),
+  TIPOS: { INGRESO: 'ingreso', EGRESO: 'egreso', TRANSFERENCIA: 'transferencia' },
+  createMovimientoMultiarticulo: vi.fn(),
 }))
+vi.mock('../api/depositosApi', () => ({ getDepositos: vi.fn() }))
+vi.mock('../api/articulosApi', () => ({ getArticulos: vi.fn() }))
+vi.mock('../api/stockApi', () => ({ getStockByDeposito: vi.fn() }))
 
-vi.mock('../api/depositosApi', () => ({
-  getDepositos: vi.fn(),
-}))
+const articulos = [
+  { id: 'art-1', sku: 'CEM', nombre: 'Cemento Portland' },
+  { id: 'art-2', sku: 'ARE', nombre: 'Arena' },
+]
 
-vi.mock('../api/articulosApi', () => ({
-  getArticulos: vi.fn(),
-}))
-
-const ajustePendiente = {
-  id: 'ajuste-1',
-  fecha: '2026-08-27T20:00:00.000Z',
-  tipo: { codigo: 'ajuste', nombre: 'Ajuste' },
-  detalle: [
-    {
-      cantidad: 3,
-      producto: { sku: 'CEM-1', nombre: 'Cemento' },
-    },
-  ],
-  origen: { nombre: 'Depósito Central' },
-  destino: null,
-}
-
-describe('MovimientosPage', () => {
+describe('MovimientosPage multiartículo', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    getDepositos.mockResolvedValue([])
-    getArticulos.mockResolvedValue({ articulos: [] })
-    getMovimientos.mockResolvedValue({ movimientos: [ajustePendiente] })
-  })
-
-  it('oculta las acciones de un ajuste a usuarios sin permiso', async () => {
-    puedeAjustarInventario.mockResolvedValue(false)
-
-    render(<MovimientosPage onVerHistorial={vi.fn()} />)
-
-    await screen.findByText('Sin permiso para procesar el ajuste')
-    expect(screen.queryByRole('button', { name: 'Confirmar' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Cancelar' })).toBeNull()
-  })
-
-  it('habilita confirmar y cancelar ajustes a usuarios autorizados', async () => {
-    puedeAjustarInventario.mockResolvedValue(true)
-
-    render(<MovimientosPage onVerHistorial={vi.fn()} />)
-
-    expect(await screen.findByRole('button', { name: 'Confirmar' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Cancelar' })).toBeTruthy()
-  })
-})
-
-describe('formulario con habilitación progresiva', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    puedeAjustarInventario.mockResolvedValue(false)
-    getDepositos.mockResolvedValue([
-      { id: 'dep-1', nombre: 'Depósito Central' },
+    getDepositos.mockResolvedValue([{ id: 'dep-1', nombre: 'Centro' }, { id: 'dep-2', nombre: 'Norte' }])
+    getArticulos.mockResolvedValue({ articulos })
+    getStockByDeposito.mockResolvedValue([
+      { producto: articulos[0], disponible: 25 },
+      { producto: articulos[1], disponible: 40 },
     ])
-    getArticulos.mockResolvedValue({ articulos: [] })
-    getMovimientos.mockResolvedValue({ movimientos: [] })
+    createMovimientoMultiarticulo.mockResolvedValue({ id: 'mov-1' })
   })
 
-  it('deshabilita Tipo hasta que se selecciona el depósito', async () => {
+  it('habilita el carrito después de depósito y tipo, y deja los datos para el final', async () => {
     render(<MovimientosPage onVerHistorial={vi.fn()} />)
+    const tipo = await screen.findByLabelText('Operación')
+    const articulo = screen.getByLabelText('Artículo')
+    expect(tipo).toBeDisabled(); expect(articulo).toBeDisabled()
+    expect(screen.getByLabelText('Comprobante')).toBeDisabled()
 
-    const selectTipo = await screen.findByLabelText('Tipo')
-    expect(selectTipo).toBeDisabled()
+    fireEvent.change(screen.getByLabelText('Depósito de operación'), { target: { value: 'dep-1' } })
+    await waitFor(() => expect(getStockByDeposito).toHaveBeenCalledWith('dep-1'))
+    await waitFor(() => expect(screen.getByText(/Stock actual:/)).toBeInTheDocument())
+    expect(tipo).toBeEnabled()
+    expect(getStockByDeposito).toHaveBeenCalledWith('dep-1')
+    fireEvent.change(tipo, { target: { value: 'egreso' } })
+    expect(articulo).toBeEnabled()
+
+    fireEvent.change(articulo, { target: { value: 'art-1' } })
+    fireEvent.change(screen.getByLabelText('Cantidad'), { target: { value: '10' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Agregar artículo' }))
+    expect(screen.getByLabelText('Comprobante')).toBeEnabled()
+    expect(screen.getByLabelText('Observaciones')).toBeEnabled()
+
+    const detalle = screen.getByRole('heading', { name: 'Detalle del movimiento' })
+    const datos = screen.getByRole('heading', { name: 'Datos del movimiento' })
+    expect(detalle.compareDocumentPosition(datos) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it('habilita Tipo al seleccionar un depósito', async () => {
+  it('agrega dos artículos y los confirma como un único movimiento', async () => {
     render(<MovimientosPage onVerHistorial={vi.fn()} />)
+    fireEvent.change(await screen.findByLabelText('Depósito de operación'), { target: { value: 'dep-1' } })
+    await screen.findByText(/Stock actual:/)
+    fireEvent.change(screen.getByLabelText('Operación'), { target: { value: 'egreso' } })
 
-    const selectDeposito = await screen.findByLabelText('Depósito')
-    fireEvent.change(selectDeposito, { target: { value: 'dep-1' } })
-
-    expect(screen.getByLabelText('Tipo')).not.toBeDisabled()
+    for (const [id, valor] of [['art-1', '10'], ['art-2', '10']]) {
+      fireEvent.change(screen.getByLabelText('Artículo'), { target: { value: id } })
+      expect(screen.getByText(/Stock actual:/).textContent).toContain(String(id === 'art-1' ? 25 : 40))
+      fireEvent.change(screen.getByLabelText('Cantidad'), { target: { value: valor } })
+      fireEvent.click(screen.getByRole('button', { name: 'Agregar artículo' }))
+    }
+    expect(screen.getByText('CEM — Cemento Portland')).toBeInTheDocument()
+    expect(screen.getByText('ARE — Arena')).toBeInTheDocument()
+    expect(screen.getByText('2 artículos agregados')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Comprobante'), { target: { value: 'REM-10' } })
+    fireEvent.click(screen.getByRole('button', { name: /Confirmar movimiento/ }))
+    await waitFor(() => expect(createMovimientoMultiarticulo).toHaveBeenCalledWith(expect.objectContaining({
+      deposito_id: 'dep-1', tipo: 'egreso', comprobante: 'REM-10',
+      items: [expect.objectContaining({ producto_id: 'art-1', cantidad: 10 }), expect.objectContaining({ producto_id: 'art-2', cantidad: 10 })],
+    })))
   })
 
-  it('deshabilita el Artículo al cargar el formulario', async () => {
+  it('impide confirmar con el carrito vacío', async () => {
     render(<MovimientosPage onVerHistorial={vi.fn()} />)
-
-    const selectArticulo = await screen.findByLabelText('Artículo')
-    expect(selectArticulo).toBeDisabled()
+    fireEvent.change(await screen.findByLabelText('Depósito de operación'), { target: { value: 'dep-1' } })
+    fireEvent.change(screen.getByLabelText('Operación'), { target: { value: 'ingreso' } })
+    fireEvent.click(screen.getByRole('button', { name: /Confirmar movimiento/ }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Agregá al menos un artículo')
+    expect(createMovimientoMultiarticulo).not.toHaveBeenCalled()
   })
 
-  it('mantiene el Artículo deshabilitado si solo se eligió depósito y tipo', async () => {
+  it('exige otro depósito para una transferencia', async () => {
     render(<MovimientosPage onVerHistorial={vi.fn()} />)
-
-    const selectDeposito = await screen.findByLabelText('Depósito')
-    fireEvent.change(selectDeposito, { target: { value: 'dep-1' } })
-
-    const selectTipo = screen.getByLabelText('Tipo')
-    fireEvent.change(selectTipo, { target: { value: 'egreso' } })
-
+    fireEvent.change(await screen.findByLabelText('Depósito de operación'), { target: { value: 'dep-1' } })
+    await screen.findByText(/Stock actual:/)
+    fireEvent.change(screen.getByLabelText('Operación'), { target: { value: 'transferencia' } })
     expect(screen.getByLabelText('Artículo')).toBeDisabled()
+    fireEvent.change(screen.getByLabelText('Depósito destino'), { target: { value: 'dep-2' } })
+    expect(screen.getByLabelText('Artículo')).toBeEnabled()
   })
 
-  it('habilita el Artículo al completar depósito, tipo y comprobante', async () => {
+  it('muestra el error inicial y abandona el estado cargando', async () => {
+    getDepositos.mockRejectedValueOnce(new Error('Sin conexión'))
     render(<MovimientosPage onVerHistorial={vi.fn()} />)
-
-    const selectDeposito = await screen.findByLabelText('Depósito')
-    fireEvent.change(selectDeposito, { target: { value: 'dep-1' } })
-
-    const selectTipo = screen.getByLabelText('Tipo')
-    fireEvent.change(selectTipo, { target: { value: 'egreso' } })
-
-    const inputComprobante = screen.getByLabelText('Comprobante')
-    fireEvent.change(inputComprobante, { target: { value: 'REM-001' } })
-
-    expect(screen.getByLabelText('Artículo')).not.toBeDisabled()
-  })
-
-  it('preserva el depósito al cambiar de tipo', async () => {
-    render(<MovimientosPage onVerHistorial={vi.fn()} />)
-
-    // Seleccionar depósito con tipo vacío (usa deposito_origen_id internamente)
-    const selectDeposito = await screen.findByLabelText('Depósito')
-    fireEvent.change(selectDeposito, { target: { value: 'dep-1' } })
-
-    // Cambiar a Ingreso (el depósito se reasigna a deposito_destino_id)
-    const selectTipo = screen.getByLabelText('Tipo')
-    fireEvent.change(selectTipo, { target: { value: 'ingreso' } })
-
-    // El tipo debe habilitarse y el Comprobante también (tipo ya elegido)
-    expect(selectTipo).not.toBeDisabled()
-    expect(screen.getByLabelText('Comprobante')).not.toBeDisabled()
+    expect(await screen.findByRole('alert')).toHaveTextContent('Sin conexión')
+    expect(screen.queryByText('Cargando movimientos...')).not.toBeInTheDocument()
   })
 })

@@ -333,8 +333,7 @@ function HistorialMovimientosPage({ onVolver }) {
 
               <tbody>
                 {movimientos.map((movimiento) => {
-                  const renglon =
-                    movimiento.detalle?.[0]
+                  const renglones = movimiento.detalle ?? []
 
                   return (
                     <tr key={movimiento.id}>
@@ -350,13 +349,21 @@ function HistorialMovimientosPage({ onVolver }) {
                       </td>
 
                       <td>
-                        {renglon?.producto
-                          ? `${renglon.producto.sku} — ${renglon.producto.nombre}`
-                          : '-'}
+                        {renglones.length > 0 ? (
+                          <ul>{renglones.map((renglon) => (
+                            <li key={renglon.id}>
+                              {renglon.producto?.sku} — {renglon.producto?.nombre}
+                            </li>
+                          ))}</ul>
+                        ) : '-'}
                       </td>
 
                       <td>
-                        {renglon?.cantidad ?? '-'}
+                        {renglones.length > 0 ? (
+                          <ul>{renglones.map((renglon) => (
+                            <li key={renglon.id}>{renglon.cantidad}</li>
+                          ))}</ul>
+                        ) : '-'}
                       </td>
 
                       <td>
