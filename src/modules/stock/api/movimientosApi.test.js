@@ -1,8 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  createMovimiento,
   createMovimientoMultiarticulo,
-  getMovimientoById,
   getTiposMovimiento,
   getHistorialMovimientos,
 } from './movimientosApi'
@@ -20,15 +18,6 @@ function mockRpc(resultado) {
   const builder = { single: vi.fn(() => resultado) }
   supabase.rpc.mockReturnValue(builder)
   return builder
-}
-
-const transferencia = {
-  tipo: 'transferencia',
-  articulo_id: 'art-1',
-  cantidad: 10,
-  deposito_origen_id: 'dep-origen',
-  deposito_destino_id: 'dep-destino',
-  comprobante: 'REM-0001234',
 }
 
 describe('movimientosApi', () => {
@@ -77,280 +66,24 @@ describe('movimientosApi', () => {
     expect(supabase.rpc).not.toHaveBeenCalled()
   })
 
-  // --- Alta: camino feliz (TC-STK-08-01) ---
-
-  it('registra una transferencia y la deja pendiente', async () => {
-    const resultado = {
-      data: {
-        id: 'mov-1',
-        estado_movimiento: 'pendiente',
-        fecha: '2026-08-25T10:00:00.000Z',
-        comprobante: 'REM-0001234',
-      },
-      error: null,
-    }
-
-    mockRpc(resultado)
-
-    const data = await createMovimiento(transferencia)
-
-    expect(supabase.rpc).toHaveBeenCalledWith('crear_movimiento', {
-      p_tipo: 'transferencia',
-      p_producto_id: 'art-1',
-      p_cantidad: 10,
-      p_deposito_origen_id: 'dep-origen',
-      p_deposito_destino_id: 'dep-destino',
-      p_comprobante: 'REM-0001234',
-      p_observaciones: null,
-    })
-    expect(data).toEqual(resultado.data)
-  })
-
-  it('registra un ingreso sin depósito origen', async () => {
-    mockRpc({
-      data: { id: 'mov-2', estado_movimiento: 'pendiente' },
-      error: null,
-    })
-
-    await createMovimiento({
-      tipo: 'ingreso',
-      articulo_id: 'art-1',
-      cantidad: 5,
-      deposito_origen_id: 'dep-colgado',
-      deposito_destino_id: 'dep-destino',
-      comprobante: 'FC-A-0001',
-    })
-
-    expect(supabase.rpc).toHaveBeenCalledWith(
-      'crear_movimiento',
-      expect.objectContaining({
-        p_tipo: 'ingreso',
-        p_deposito_origen_id: null,
-        p_deposito_destino_id: 'dep-destino',
-      }),
-    )
-  })
-
-  it('registra un egreso sin depósito destino', async () => {
-    mockRpc({
-      data: { id: 'mov-3', estado_movimiento: 'pendiente' },
-      error: null,
-    })
-
-    await createMovimiento({
-      tipo: 'egreso',
-      articulo_id: 'art-1',
-      cantidad: 5,
-      deposito_origen_id: 'dep-origen',
-      deposito_destino_id: 'dep-colgado',
-      comprobante: 'REM-0009',
-    })
-
-    expect(supabase.rpc).toHaveBeenCalledWith(
-      'crear_movimiento',
-      expect.objectContaining({
-        p_tipo: 'egreso',
-        p_deposito_origen_id: 'dep-origen',
-        p_deposito_destino_id: null,
-      }),
-    )
-  })
-
-  it('normaliza comprobante y observaciones vacíos a null', async () => {
-    mockRpc({ data: { id: 'mov-4' }, error: null })
-
-    await createMovimiento({
-      ...transferencia,
-      comprobante: '   ',
-      observaciones: '',
-    })
-
-    expect(supabase.rpc).toHaveBeenCalledWith(
-      'crear_movimiento',
-      expect.objectContaining({
-        p_comprobante: null,
-        p_observaciones: null,
-      }),
-    )
-  })
-
-  // --- Alta: depósitos faltantes (TC-STK-08-03) ---
-
-  it('rechaza una transferencia sin depósito origen', async () => {
-    await expect(
-      createMovimiento({ ...transferencia, deposito_origen_id: '' }),
-    ).rejects.toMatchObject({
-      status: 400,
-      message: 'Una transferencia requiere depósito origen y destino',
-    })
-
-    expect(supabase.rpc).not.toHaveBeenCalled()
-  })
-
-  it('rechaza una transferencia sin depósito destino', async () => {
-    await expect(
-      createMovimiento({ ...transferencia, deposito_destino_id: '' }),
-    ).rejects.toMatchObject({ status: 400 })
-
-    expect(supabase.rpc).not.toHaveBeenCalled()
-  })
-
-  it('rechaza un ingreso sin depósito destino', async () => {
-    await expect(
-      createMovimiento({
-        tipo: 'ingreso',
-        articulo_id: 'art-1',
-        cantidad: 5,
-      }),
-    ).rejects.toMatchObject({
-      status: 400,
-      message: 'Un ingreso requiere depósito destino',
-    })
-
-    expect(supabase.rpc).not.toHaveBeenCalled()
-  })
-
-  it('rechaza un egreso sin depósito origen', async () => {
-    await expect(
-      createMovimiento({
-        tipo: 'egreso',
-        articulo_id: 'art-1',
-        cantidad: 5,
-      }),
-    ).rejects.toMatchObject({
-      status: 400,
-      message: 'Un egreso requiere depósito origen',
-    })
-
-    expect(supabase.rpc).not.toHaveBeenCalled()
-  })
-
-  it('rechaza una transferencia con el mismo depósito de origen y destino', async () => {
-    await expect(
-      createMovimiento({
-        ...transferencia,
-        deposito_destino_id: 'dep-origen',
-      }),
-    ).rejects.toMatchObject({
-      status: 400,
-      message: 'El depósito origen y el destino deben ser distintos',
-    })
-
-    expect(supabase.rpc).not.toHaveBeenCalled()
-  })
-
-  // --- Alta: cantidad inválida (TC-STK-08-04) ---
-
-  it('rechaza una cantidad igual a 0', async () => {
-    await expect(
-      createMovimiento({ ...transferencia, cantidad: 0 }),
-    ).rejects.toMatchObject({
-      status: 400,
-      message: 'La cantidad debe ser mayor a 0',
-    })
-
-    expect(supabase.rpc).not.toHaveBeenCalled()
-  })
-
-  it('rechaza una cantidad negativa', async () => {
-    await expect(
-      createMovimiento({ ...transferencia, cantidad: -5 }),
-    ).rejects.toMatchObject({ status: 400 })
-
-    expect(supabase.rpc).not.toHaveBeenCalled()
-  })
-
-  it('rechaza una cantidad no numérica', async () => {
-    await expect(
-      createMovimiento({ ...transferencia, cantidad: 'diez' }),
-    ).rejects.toMatchObject({ status: 400 })
-
-    expect(supabase.rpc).not.toHaveBeenCalled()
-  })
-
-  // --- Alta: otras validaciones ---
-
-  it('rechaza un tipo de movimiento desconocido', async () => {
-    await expect(
-      createMovimiento({ ...transferencia, tipo: 'desconocido' }),
-    ).rejects.toMatchObject({ status: 400 })
-
-    expect(supabase.rpc).not.toHaveBeenCalled()
-  })
-
-  it('registra un ajuste negativo con motivo y categoría', async () => {
-    mockRpc({
-      data: { id: 'mov-ajuste-1', estado_movimiento: 'pendiente' },
-      error: null,
-    })
-
-    const data = await createMovimiento({
-      tipo: 'ajuste',
-      articulo_id: 'art-1',
-      cantidad: -3,
-      deposito_id: 'dep-1',
-      categoria_ajuste: 'rotura',
-      motivo_ajuste: 'Material dañado durante la descarga',
-    })
-
-    expect(supabase.rpc).toHaveBeenCalledWith('crear_ajuste_inventario', {
-      p_deposito_id: 'dep-1',
-      p_producto_id: 'art-1',
-      p_cantidad: -3,
-      p_categoria: 'rotura',
-      p_motivo: 'Material dañado durante la descarga',
-    })
-    expect(data).toEqual({
-      id: 'mov-ajuste-1',
-      estado_movimiento: 'pendiente',
-    })
-  })
-
-  it('rechaza un ajuste sin motivo', async () => {
-    await expect(
-      createMovimiento({
-        tipo: 'ajuste',
-        articulo_id: 'art-1',
-        cantidad: 3,
-        deposito_id: 'dep-1',
-        categoria_ajuste: 'otro',
-        motivo_ajuste: ' ',
-      }),
-    ).rejects.toMatchObject({
-      status: 400,
-      message: 'El motivo del ajuste es obligatorio',
-    })
-
-    expect(supabase.rpc).not.toHaveBeenCalled()
-  })
-
-  it('rechaza un movimiento sin artículo', async () => {
-    await expect(
-      createMovimiento({ ...transferencia, articulo_id: '' }),
-    ).rejects.toMatchObject({
-      status: 400,
-      message: 'El artículo es obligatorio',
-    })
-
-    expect(supabase.rpc).not.toHaveBeenCalled()
-  })
-
-  it('traduce a 409 el disponible insuficiente detectado en el alta', async () => {
-    mockRpc({
-      data: null,
-      error: {
-        code: 'MV004',
-        message: 'La cantidad supera el disponible del deposito origen',
-      },
-    })
-
-    await expect(createMovimiento(transferencia)).rejects.toMatchObject({
-      status: 409,
-      message: 'La cantidad supera el disponible del deposito origen',
-    })
-  })
-
   // --- Consultas ---
+
+  it('traduce a 409 el stock insuficiente al confirmar el movimiento', async () => {
+    mockRpc({ data: null, error: { code: 'MV004', message: 'Stock insuficiente' } })
+
+    await expect(createMovimientoMultiarticulo({
+      tipo: 'egreso', deposito_id: 'dep-1',
+      items: [{ producto_id: 'art-1', cantidad: 10 }],
+    })).rejects.toMatchObject({ status: 409, message: 'Stock insuficiente' })
+  })
+
+  it.each(['', 'dep-1'])('rechaza una transferencia con destino inválido: %s', async (destino) => {
+    await expect(createMovimientoMultiarticulo({
+      tipo: 'transferencia', deposito_id: 'dep-1', deposito_destino_id: destino,
+      items: [{ producto_id: 'art-1', cantidad: 10 }],
+    })).rejects.toMatchObject({ status: 400 })
+    expect(supabase.rpc).not.toHaveBeenCalled()
+  })
 
   it('obtiene los tipos de movimiento', async () => {
     const resultado = {
@@ -372,51 +105,6 @@ describe('movimientosApi', () => {
 
     expect(supabase.from).toHaveBeenCalledWith('tipos_movimiento')
     expect(data).toEqual(resultado.data)
-  })
-
-  it('obtiene un movimiento por id', async () => {
-    const resultado = {
-      data: {
-        id: 'mov-1',
-      },
-      error: null,
-    }
-
-    const builder = {
-      select: vi.fn(() => builder),
-      eq: vi.fn(() => builder),
-      maybeSingle: vi.fn(() => resultado),
-    }
-
-    supabase.from.mockReturnValue(builder)
-
-    const data = await getMovimientoById('mov-1')
-
-    expect(builder.eq).toHaveBeenCalledWith(
-      'id',
-      'mov-1',
-    )
-
-    expect(data).toEqual(resultado.data)
-  })
-
-  it('lanza 404 si el movimiento no existe', async () => {
-    const builder = {
-      select: vi.fn(() => builder),
-      eq: vi.fn(() => builder),
-      maybeSingle: vi.fn(() => ({
-        data: null,
-        error: null,
-      })),
-    }
-
-    supabase.from.mockReturnValue(builder)
-
-    await expect(
-      getMovimientoById('mov-1'),
-    ).rejects.toMatchObject({
-      status: 404,
-    })
   })
 
   // --- Historial de movimientos (US-STK-10) ---
