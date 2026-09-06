@@ -15,6 +15,15 @@ function renderSidebar(overrides = {}) {
 }
 
 describe('Sidebar', () => {
+  it('CORR-03: mantiene el acceso a Movimientos sin un menú de pendientes', () => {
+    const { props } = renderSidebar()
+
+    expect(screen.queryByRole('button', { name: /pendientes?/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /pendientes?/i })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Movimientos' }))
+    expect(props.onNavigate).toHaveBeenCalledWith('movimientos')
+  })
+
   it('agrupa todas las opciones de navegación', () => {
     renderSidebar()
 

@@ -58,6 +58,19 @@ describe('MovimientosPage multiartículo', () => {
     expect(detalle.compareDocumentPosition(datos) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
+  it('CORR-03: muestra el formulario sin pendientes y permite ir al historial', async () => {
+    const onVerHistorial = vi.fn()
+    render(<MovimientosPage onVerHistorial={onVerHistorial} />)
+
+    expect(await screen.findByRole('heading', { name: 'Nuevo movimiento' })).toBeInTheDocument()
+    expect(screen.queryByText(/pendientes?/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^confirmar$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /cancelar/i })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ver historial' }))
+    expect(onVerHistorial).toHaveBeenCalledTimes(1)
+  })
+
   it('agrega dos artículos y los confirma como un único movimiento', async () => {
     render(<MovimientosPage onVerHistorial={vi.fn()} />)
     fireEvent.change(await screen.findByLabelText('Depósito de operación'), { target: { value: 'dep-1' } })
@@ -79,6 +92,9 @@ describe('MovimientosPage multiartículo', () => {
       deposito_id: 'dep-1', tipo: 'egreso', comprobante: 'REM-10',
       items: [expect.objectContaining({ producto_id: 'art-1', cantidad: 10 }), expect.objectContaining({ producto_id: 'art-2', cantidad: 10 })],
     })))
+    expect(await screen.findByRole('status')).toHaveTextContent('Movimiento confirmado. El stock se actualizó correctamente.')
+    expect(createMovimientoMultiarticulo).toHaveBeenCalledTimes(1)
+    expect(screen.queryByText(/pendientes?/i)).not.toBeInTheDocument()
   })
 
   it('impide confirmar con el carrito vacío', async () => {
