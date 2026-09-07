@@ -16,6 +16,7 @@ import RecepcionesPage from './modules/stock/pages/RecepcionesPage'
 import ReportesPage from './modules/stock/pages/ReportesPage'
 import ProveedoresPage from './modules/proveedores/pages/ProveedoresPage'
 import RubrosPage from './modules/proveedores/pages/RubrosPage'
+import OrdenesCompraPage from './modules/compras/pages/OrdenesCompraPage'
 import AppShell from './components/layout/AppShell'
 
 function App() {
@@ -62,6 +63,7 @@ function App() {
       {pagina === 'reportes' && <ReportesPage />}
       {pagina === 'proveedores' && <ProveedoresPage />}
       {pagina === 'rubros' && <RubrosPage />}
+      {pagina === 'ordenes-compra' && <OrdenesCompraPage />}
     </AppShell>
   )
 }
