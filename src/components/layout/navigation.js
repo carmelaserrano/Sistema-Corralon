@@ -11,6 +11,7 @@ import {
   Ruler,
   Settings2,
   Shapes,
+  ShoppingCart,
   Tags,
   Truck,
 } from 'lucide-react'
@@ -60,6 +61,13 @@ export const navigationGroups = [
     items: [
       { id: 'proveedores', label: 'Proveedores', icon: Truck },
       { id: 'rubros', label: 'Rubros', icon: FolderTree },
+    ],
+  },
+  {
+    label: 'Compras',
+    module: 'Compras',
+    items: [
+      { id: 'ordenes-compra', label: 'Órdenes de Compra', icon: ShoppingCart },
     ],
   },
 ]
