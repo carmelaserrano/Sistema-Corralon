@@ -164,8 +164,16 @@ async function manejarErrorProveedor(error, { cuit } = {}) {
 /**
  * Lista los proveedores ordenados por razón social, con el rubro asociado.
  *
+ * La búsqueda cruza Razón Social, CUIT y nombre de Rubro, sin distinguir
+ * mayúsculas ni acentos (CA de "buscar proveedores"). Eso no lo resuelve un
+ * filtro REST simple —unaccent() no es una operación disponible como filtro
+ * de PostgREST, y el Rubro vive en una tabla relacionada—, así que delega en
+ * la función buscar_proveedores (migración 0022), que hace el join y el
+ * filtrado del lado del servidor en una sola consulta.
+ *
  * @param {Object} [filtros]
- * @param {string} [filtros.search] Texto a buscar dentro de la razón social.
+ * @param {string} [filtros.search] Texto a buscar en razón social, CUIT o rubro.
+ * @param {string|null} [filtros.rubroId] Restringe el listado a ese rubro.
  * @param {boolean} [filtros.soloActivos=true] Excluir los inactivos.
  * @param {string} [filtros.estado] Filtrar por un estado puntual ('activo' o
  *   'inactivo'). Tiene prioridad sobre `soloActivos`: pasar `estado: ''`
@@ -174,25 +182,23 @@ async function manejarErrorProveedor(error, { cuit } = {}) {
  */
 export async function getProveedores({
   search = '',
+  rubroId = null,
   soloActivos = true,
   estado = '',
 } = {}) {
-  let consulta = supabase.from(TABLA).select(COLUMNAS)
+  const estadoFiltro = estado || (soloActivos ? 'activo' : 'todos')
 
-  if (estado) {
-    consulta = consulta.eq('estado', estado)
-  } else if (soloActivos) {
-    consulta = consulta.eq('estado', 'activo')
-  }
-
-  if (search.trim()) {
-    consulta = consulta.ilike('razon_social', `%${search.trim()}%`)
-  }
-
-  const { data, error } = await consulta.order('razon_social')
+  const { data, error } = await supabase.rpc('buscar_proveedores', {
+    p_search: search.trim() || null,
+    p_rubro_id: rubroId || null,
+    p_estado: estadoFiltro,
+  })
 
   if (error) throw error
-  return (data ?? []).map(normalizarProveedor)
+  return (data ?? []).map(({ rubro_id, rubro_nombre, ...proveedor }) => ({
+    ...proveedor,
+    rubro: rubro_id ? { id: rubro_id, nombre: rubro_nombre } : null,
+  }))
 }
 
 /**

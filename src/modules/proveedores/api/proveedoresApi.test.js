@@ -85,30 +85,27 @@ describe('proveedoresApi', () => {
   })
 
   describe('getProveedores', () => {
-    it('lista ordenado por razón social y aplana el rubro embebido', async () => {
-      const builder = crearQueryBuilder({
-        data: [
-          {
-            ...filaCorralon,
-            proveedor_rubro: [{ rubro: { id: 'r1', nombre: 'Cemento' } }],
-          },
-        ],
-        error: null,
-      })
-      supabase.from.mockReturnValue(builder)
+    const filaConRubro = {
+      ...filaCorralon,
+      rubro_id: 'r1',
+      rubro_nombre: 'Cemento',
+    }
+
+    it('busca vía RPC y aplana el rubro plano que devuelve la función', async () => {
+      supabase.rpc.mockResolvedValue({ data: [filaConRubro], error: null })
 
       const [proveedor] = await getProveedores()
 
-      expect(supabase.from).toHaveBeenCalledWith('proveedores')
-      expect(builder.order).toHaveBeenCalledWith('razon_social')
       expect(proveedor.rubro).toEqual({ id: 'r1', nombre: 'Cemento' })
-      expect(proveedor.proveedor_rubro).toBeUndefined()
+      expect(proveedor.rubro_id).toBeUndefined()
+      expect(proveedor.rubro_nombre).toBeUndefined()
     })
 
-    it('devuelve rubro null cuando no hay vínculo', async () => {
-      supabase.from.mockReturnValue(
-        crearQueryBuilder({ data: [filaCorralon], error: null }),
-      )
+    it('devuelve rubro null cuando la función no trae uno', async () => {
+      supabase.rpc.mockResolvedValue({
+        data: [{ ...filaCorralon, rubro_id: null, rubro_nombre: null }],
+        error: null,
+      })
 
       const [proveedor] = await getProveedores()
 
@@ -116,28 +113,79 @@ describe('proveedoresApi', () => {
     })
 
     it('filtra los inactivos por defecto', async () => {
-      const builder = crearQueryBuilder({ data: [], error: null })
-      supabase.from.mockReturnValue(builder)
+      supabase.rpc.mockResolvedValue({ data: [], error: null })
 
       await getProveedores()
 
-      expect(builder.eq).toHaveBeenCalledWith('estado', 'activo')
+      expect(supabase.rpc).toHaveBeenCalledWith('buscar_proveedores', {
+        p_search: null,
+        p_rubro_id: null,
+        p_estado: 'activo',
+      })
     })
 
-    it('aplica el buscador por razón social', async () => {
-      const builder = crearQueryBuilder({ data: [], error: null })
-      supabase.from.mockReturnValue(builder)
+    // CA: filtrar por Razón Social, CUIT o Rubro (la función lo resuelve;
+    // acá se verifica que el texto se manda tal cual, sin espacios extremos)
+    it('manda el texto de búsqueda sin espacios extremos', async () => {
+      supabase.rpc.mockResolvedValue({ data: [], error: null })
 
       await getProveedores({ search: '  corralón  ' })
 
-      expect(builder.ilike).toHaveBeenCalledWith('razon_social', '%corralón%')
+      expect(supabase.rpc).toHaveBeenCalledWith(
+        'buscar_proveedores',
+        expect.objectContaining({ p_search: 'corralón' }),
+      )
+    })
+
+    it('no manda texto de búsqueda cuando está vacío', async () => {
+      supabase.rpc.mockResolvedValue({ data: [], error: null })
+
+      await getProveedores({ search: '   ' })
+
+      expect(supabase.rpc).toHaveBeenCalledWith(
+        'buscar_proveedores',
+        expect.objectContaining({ p_search: null }),
+      )
+    })
+
+    // CA: filtro por Rubro
+    it('restringe por rubro cuando se pasa rubroId', async () => {
+      supabase.rpc.mockResolvedValue({ data: [], error: null })
+
+      await getProveedores({ rubroId: 'r1' })
+
+      expect(supabase.rpc).toHaveBeenCalledWith(
+        'buscar_proveedores',
+        expect.objectContaining({ p_rubro_id: 'r1' }),
+      )
+    })
+
+    // CA: filtro de estado, incluye "Todos" e "Inactivos"
+    it('filtra por el estado pedido', async () => {
+      supabase.rpc.mockResolvedValue({ data: [], error: null })
+
+      await getProveedores({ estado: 'inactivo' })
+
+      expect(supabase.rpc).toHaveBeenCalledWith(
+        'buscar_proveedores',
+        expect.objectContaining({ p_estado: 'inactivo' }),
+      )
+    })
+
+    it('pide todos cuando no se filtra por estado ni por activos', async () => {
+      supabase.rpc.mockResolvedValue({ data: [], error: null })
+
+      await getProveedores({ estado: '', soloActivos: false })
+
+      expect(supabase.rpc).toHaveBeenCalledWith(
+        'buscar_proveedores',
+        expect.objectContaining({ p_estado: 'todos' }),
+      )
     })
 
     it('lanza el error cuando Supabase falla', async () => {
       const errorMock = { message: 'no se pudo conectar con la base' }
-      supabase.from.mockReturnValue(
-        crearQueryBuilder({ data: null, error: errorMock }),
-      )
+      supabase.rpc.mockResolvedValue({ data: null, error: errorMock })
 
       await expect(getProveedores()).rejects.toEqual(errorMock)
     })
@@ -671,32 +719,14 @@ describe('proveedoresApi', () => {
   describe('getProveedoresSeleccionables', () => {
     // CA 5
     it('excluye a los inactivos', async () => {
-      const builder = crearQueryBuilder({ data: [filaCorralon], error: null })
-      supabase.from.mockReturnValue(builder)
+      supabase.rpc.mockResolvedValue({ data: [filaCorralon], error: null })
 
       await getProveedoresSeleccionables()
 
-      expect(builder.eq).toHaveBeenCalledWith('estado', 'activo')
-    })
-  })
-
-  describe('getProveedores con filtro de estado', () => {
-    it('filtra por el estado pedido', async () => {
-      const builder = crearQueryBuilder({ data: [], error: null })
-      supabase.from.mockReturnValue(builder)
-
-      await getProveedores({ estado: 'inactivo' })
-
-      expect(builder.eq).toHaveBeenCalledWith('estado', 'inactivo')
-    })
-
-    it('devuelve todos cuando no se filtra por estado ni por activos', async () => {
-      const builder = crearQueryBuilder({ data: [], error: null })
-      supabase.from.mockReturnValue(builder)
-
-      await getProveedores({ estado: '', soloActivos: false })
-
-      expect(builder.eq).not.toHaveBeenCalled()
+      expect(supabase.rpc).toHaveBeenCalledWith(
+        'buscar_proveedores',
+        expect.objectContaining({ p_estado: 'activo' }),
+      )
     })
   })
 
