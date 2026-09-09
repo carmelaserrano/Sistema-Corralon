@@ -330,6 +330,25 @@ export async function createFactura(datos) {
 }
 
 /**
+ * Facturas de un proveedor con saldo pendiente, para el selector de vínculo
+ * opcional del formulario de notas de crédito/débito (S2-16, CA 7).
+ */
+export async function getFacturasConSaldoDelProveedor(proveedorId) {
+  if (!proveedorId) return []
+
+  const { data, error } = await supabase
+    .from(TABLA)
+    .select('id, letra, sucursal, numero, importe_total, saldo_pendiente')
+    .eq('proveedor_id', proveedorId)
+    .gt('saldo_pendiente', 0)
+    .neq('estado', 'anulada')
+    .order('fecha_emision', { ascending: false })
+
+  if (error) throw error
+  return data ?? []
+}
+
+/**
  * Órdenes de Compra no canceladas de un proveedor, para el combo de vínculo
  * opcional del formulario de factura (CA 4). Reusa getOrdenesCompra de
  * compras/api/ordenesCompraApi.js: esa historia (S2-08) ya está cerrada y

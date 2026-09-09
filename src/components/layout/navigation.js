@@ -4,6 +4,7 @@ import {
   Building2,
   ClipboardCheck,
   FileBarChart,
+  FileStack,
   FolderTree,
   Layers3,
   PackageCheck,
@@ -69,6 +70,7 @@ export const navigationGroups = [
     module: 'Compras',
     items: [
       { id: 'ordenes-compra', label: 'Órdenes de Compra', icon: ShoppingCart },
+      { id: 'notas-proveedor', label: 'Notas de Crédito/Débito', icon: FileStack },
     ],
   },
   {
