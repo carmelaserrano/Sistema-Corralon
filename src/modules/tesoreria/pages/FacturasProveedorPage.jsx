@@ -246,7 +246,7 @@ export default function FacturasProveedorPage() {
 
         {error && <Feedback tone="error">{error}</Feedback>}
 
-        <form onSubmit={(e) => guardarFactura(e, false)}>
+        <form className="stacked-form" onSubmit={(e) => guardarFactura(e, false)}>
           <section>
             <h2>Comprobante</h2>
             <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: '1fr 1fr' }}>
