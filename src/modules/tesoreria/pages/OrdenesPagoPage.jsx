@@ -294,7 +294,7 @@ export default function OrdenesPagoPage() {
 
         {error && <Feedback tone="error">{error}</Feedback>}
 
-        <form onSubmit={confirmarOrden}>
+        <form className="stacked-form" onSubmit={confirmarOrden}>
           <section>
             <h2>Proveedor</h2>
             <div style={{ maxWidth: '480px' }}>
@@ -308,7 +308,7 @@ export default function OrdenesPagoPage() {
             </div>
           </section>
 
-          <fieldset disabled={sinProveedor} style={{ border: 'none', padding: 0, margin: 0 }}>
+          <fieldset disabled={sinProveedor}>
             <section style={{ marginTop: '2rem' }}>
               <h2>Facturas a pagar</h2>
 
