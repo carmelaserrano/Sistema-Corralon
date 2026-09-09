@@ -16,6 +16,7 @@ import {
   ShoppingCart,
   Tags,
   Truck,
+  Wallet,
 } from 'lucide-react'
 
 export const navigationGroups = [
@@ -78,6 +79,7 @@ export const navigationGroups = [
     module: 'Tesorería',
     items: [
       { id: 'facturas-proveedor', label: 'Facturas de Proveedor', icon: Receipt },
+      { id: 'ordenes-pago', label: 'Órdenes de Pago', icon: Wallet },
     ],
   },
 ]
