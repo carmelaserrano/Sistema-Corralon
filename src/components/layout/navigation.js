@@ -8,6 +8,7 @@ import {
   Layers3,
   PackageCheck,
   PackageOpen,
+  Receipt,
   Ruler,
   Settings2,
   Shapes,
@@ -68,6 +69,13 @@ export const navigationGroups = [
     module: 'Compras',
     items: [
       { id: 'ordenes-compra', label: 'Órdenes de Compra', icon: ShoppingCart },
+    ],
+  },
+  {
+    label: 'Tesorería',
+    module: 'Tesorería',
+    items: [
+      { id: 'facturas-proveedor', label: 'Facturas de Proveedor', icon: Receipt },
     ],
   },
 ]
