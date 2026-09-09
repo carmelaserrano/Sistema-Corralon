@@ -10,6 +10,7 @@ import {
   normalizarSucursal,
   normalizarNumero,
 } from '../../tesoreria/api/facturasProveedorApi'
+import { vincularNotaFactura } from '../../tesoreria/api/imputacionesApi'
 
 const TABLA = 'notas_proveedor'
 
@@ -47,12 +48,31 @@ const COLUMNAS = `
   importe,
   saldo_pendiente,
   estado,
-  factura_id,
   created_by,
   created_at,
   proveedor:proveedores(id, razon_social, cuit),
-  factura:facturas_proveedor(id, letra, sucursal, numero)
+  imputaciones:imputaciones!nota_id(
+    id,
+    importe_imputado,
+    anulado_at,
+    factura:facturas_proveedor(id, letra, sucursal, numero)
+  )
 `
+
+/**
+ * Deja solo las vinculaciones vigentes: PostgREST trae también las que se
+ * deshicieron (baja lógica, 0024) y filtrar el recurso embebido desde la
+ * query obliga a un inner join que escondería las notas sin vínculos.
+ *
+ * @param {Object} fila Nota cruda devuelta por Supabase.
+ * @returns {Object} Nota con `imputaciones` ya filtrada.
+ */
+function normalizarNota(fila) {
+  return {
+    ...fila,
+    imputaciones: (fila.imputaciones ?? []).filter((imp) => !imp.anulado_at),
+  }
+}
 
 function validarNota(datos) {
   if (!datos.proveedor_id) {
@@ -161,7 +181,7 @@ export async function getNotas({
   const total = count ?? 0
 
   return {
-    notas: data ?? [],
+    notas: (data ?? []).map(normalizarNota),
     total,
     page,
     pageSize,
@@ -170,11 +190,49 @@ export async function getNotas({
 }
 
 /**
+ * Detalle de una nota, para la pantalla desde la que se vincula a facturas
+ * (S2-17, CA 1).
+ */
+export async function getNotaById(id) {
+  const { data, error } = await supabase
+    .from(TABLA)
+    .select(COLUMNAS)
+    .eq('id', id)
+    .maybeSingle()
+
+  if (error) throw error
+  if (!data) throw errorDeApi('La nota no existe', 404)
+
+  return normalizarNota(data)
+}
+
+/**
+ * Notas de un proveedor con saldo disponible para imputar, para el selector
+ * del detalle de factura (S2-17, CA 2). Simétrico a
+ * getFacturasConSaldoDelProveedor en facturasProveedorApi.js.
+ */
+export async function getNotasDisponiblesDelProveedor(proveedorId) {
+  if (!proveedorId) return []
+
+  const { data, error } = await supabase
+    .from(TABLA)
+    .select('id, tipo, letra, sucursal, numero, importe, saldo_pendiente, estado')
+    .eq('proveedor_id', proveedorId)
+    .gt('saldo_pendiente', 0)
+    .neq('estado', 'anulada')
+    .order('fecha', { ascending: false })
+
+  if (error) throw error
+  return data ?? []
+}
+
+/**
  * Da de alta una nota de crédito o débito de proveedor.
  *
- * Si se pasa `datos.factura_id`, la base la vincula automáticamente y
- * recalcula el saldo de esa factura (CA 5); si no, la nota queda
- * "Disponible" con su saldo completo (CA 6).
+ * Si se pasa `datos.factura_id`, además la vincula a esa factura por el
+ * importe completo (S2-16 CA 5) creando la imputación correspondiente; si
+ * no, la nota queda "Disponible" con su saldo completo (S2-16 CA 6) para
+ * vincularla más adelante a mano.
  *
  * @param {Object} datos
  * @param {string} datos.proveedor_id
@@ -183,13 +241,13 @@ export async function getNotas({
  * @param {string} datos.sucursal Con o sin ceros a la izquierda.
  * @param {string} datos.numero Con o sin ceros a la izquierda.
  * @param {string} datos.fecha
- * @param {number|string} datos.importe Siempre positivo (CA técnica: el
+ * @param {number|string} datos.importe Siempre positivo (nota técnica: el
  *   signo lo define `tipo`, no el importe).
  * @param {string} [datos.factura_id] Vínculo opcional a una factura del
- *   mismo proveedor (CA 4/7).
+ *   mismo proveedor.
  * @returns {Promise<Object>} La nota creada.
  * @throws {Error} 400 si falta un campo obligatorio o el formato es
- *   inválido; 409 si ya existe (CA 8) o si la factura es de otro proveedor.
+ *   inválido; 409 si ya existe o si la factura es de otro proveedor.
  */
 export async function createNota(datos) {
   const { sucursal, numero } = validarNota(datos)
@@ -204,13 +262,31 @@ export async function createNota(datos) {
       numero,
       fecha: datos.fecha,
       importe: Number(datos.importe),
-      factura_id: datos.factura_id || null,
     })
     .select(COLUMNAS)
     .single()
 
   if (error) await manejarErrorNota(error)
-  return nota
+
+  if (!datos.factura_id) return normalizarNota(nota)
+
+  try {
+    await vincularNotaFactura({
+      notaId: nota.id,
+      facturaId: datos.factura_id,
+      importe: Number(datos.importe),
+    })
+  } catch (errorVinculo) {
+    // La nota ya se guardó y no hay transacción cruzada desde el cliente
+    // para revertirla (mismo criterio que createProveedor con el rubro, en
+    // proveedoresApi.js). Queda Disponible y se puede vincular a mano.
+    throw errorDeApi(
+      `La nota se registró, pero no se pudo vincular a la factura (${errorVinculo.message || 'error desconocido'}). Quedó Disponible para vincularla desde su detalle.`,
+      409,
+    )
+  }
+
+  return getNotaById(nota.id)
 }
 
 /**

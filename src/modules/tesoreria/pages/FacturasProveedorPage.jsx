@@ -16,6 +16,15 @@ import {
   puedeRegistrarFacturas,
 } from '../api/facturasProveedorApi'
 import { getProveedores } from '../../proveedores/api/proveedoresApi'
+import {
+  getNotasDisponiblesDelProveedor,
+  ETIQUETAS_TIPO as ETIQUETAS_TIPO_NOTA,
+} from '../../compras/api/notasProveedorApi'
+import {
+  calcularMaximoImputable,
+  desvincularNota,
+  vincularNotaFactura,
+} from '../api/imputacionesApi'
 import Button from '../../../components/ui/Button'
 import EmptyState from '../../../components/ui/EmptyState'
 import Feedback from '../../../components/ui/Feedback'
@@ -31,6 +40,11 @@ function formatearMoneda(valor) {
     style: 'currency',
     currency: 'ARS',
   }).format(valor || 0)
+}
+
+function formatearFechaHora(iso) {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleString('es-AR')
 }
 
 function EstadoBadge({ estado }) {
@@ -89,6 +103,12 @@ export default function FacturasProveedorPage() {
   // Detalle
   const [facturaActiva, setFacturaActiva] = useState(null)
   const [loadingDetalle, setLoadingDetalle] = useState(false)
+
+  // Notas vinculadas (S2-17)
+  const [notasVinculables, setNotasVinculables] = useState([])
+  const [vinculo, setVinculo] = useState({ nota_id: '', importe: '' })
+  const [vinculando, setVinculando] = useState(false)
+  const [desvinculandoId, setDesvinculandoId] = useState(null)
 
   useEffect(() => {
     cargarPermisos()
@@ -166,13 +186,72 @@ export default function FacturasProveedorPage() {
       setLoadingDetalle(true)
       setError('')
       setAviso('')
-      const data = await getFacturaById(id)
-      setFacturaActiva(data)
+      setVinculo({ nota_id: '', importe: '' })
+      await cargarDetalle(id)
     } catch (err) {
       setError(err.message || 'No se pudo cargar el detalle de la factura')
       setVista('listado')
     } finally {
       setLoadingDetalle(false)
+    }
+  }
+
+  async function cargarDetalle(id) {
+    const data = await getFacturaById(id)
+    setFacturaActiva(data)
+    setNotasVinculables(await getNotasDisponiblesDelProveedor(data.proveedor_id))
+  }
+
+  // ---- NOTAS VINCULADAS (S2-17, CA 2) ----
+  function cambiarVinculo(e) {
+    const { name, value } = e.target
+
+    if (name !== 'nota_id') {
+      setVinculo((v) => ({ ...v, [name]: value }))
+      return
+    }
+
+    const nota = notasVinculables.find((n) => n.id === value)
+    setVinculo({
+      nota_id: value,
+      importe: nota ? String(calcularMaximoImputable(nota, facturaActiva)) : '',
+    })
+  }
+
+  async function vincular(e) {
+    e.preventDefault()
+    try {
+      setVinculando(true)
+      setError('')
+      await vincularNotaFactura({
+        notaId: vinculo.nota_id,
+        facturaId: facturaActiva.id,
+        importe: vinculo.importe,
+      })
+      setAviso('Nota vinculada correctamente.')
+      setVinculo({ nota_id: '', importe: '' })
+      await cargarDetalle(facturaActiva.id)
+    } catch (err) {
+      setError(err.message || 'No se pudo vincular la nota')
+    } finally {
+      setVinculando(false)
+    }
+  }
+
+  async function desvincular(imputacion) {
+    const nota = imputacion.nota
+    if (!window.confirm(`¿Desvincular la nota ${nota?.letra} ${nota?.sucursal}-${nota?.numero}?`)) return
+
+    try {
+      setDesvinculandoId(imputacion.id)
+      setError('')
+      await desvincularNota(imputacion.id)
+      setAviso('Vinculación deshecha. Los saldos volvieron al estado anterior.')
+      await cargarDetalle(facturaActiva.id)
+    } catch (err) {
+      setError(err.message || 'No se pudo desvincular la nota')
+    } finally {
+      setDesvinculandoId(null)
     }
   }
 
@@ -398,6 +477,11 @@ export default function FacturasProveedorPage() {
     if (loadingDetalle) return <main><p role="status">Cargando detalle...</p></main>
     if (!facturaActiva) return <main><p>Factura no encontrada</p><Button onClick={volverListado}>Volver</Button></main>
 
+    // CA 7: una factura totalmente pagada no admite vincular ni desvincular.
+    const facturaPagada = facturaActiva.estado === 'pagada'
+    const notaElegida = notasVinculables.find((n) => n.id === vinculo.nota_id)
+    const maximoImputable = calcularMaximoImputable(notaElegida, facturaActiva)
+
     return (
       <main>
         <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
@@ -432,6 +516,101 @@ export default function FacturasProveedorPage() {
               </tr>
             </tbody>
           </table>
+        </section>
+
+        <section style={{ marginTop: '2rem' }}>
+          <h2>Notas de Crédito/Débito vinculadas</h2>
+
+          {!facturaActiva.imputaciones?.length ? (
+            <EmptyState
+              title="Sin notas vinculadas"
+              description="Todavía no se imputó ninguna nota de crédito o débito a esta factura."
+            />
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Tipo</th>
+                  <th>Nota</th>
+                  <th style={{ textAlign: 'right' }}>Importe imputado</th>
+                  <th>Vinculada el</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {facturaActiva.imputaciones.map((imp) => (
+                  <tr key={imp.id}>
+                    <td>{ETIQUETAS_TIPO_NOTA[imp.nota?.tipo] || '—'}</td>
+                    <td><strong>{imp.nota?.letra} {imp.nota?.sucursal}-{imp.nota?.numero}</strong></td>
+                    <td style={{ textAlign: 'right' }}>{formatearMoneda(imp.importe_imputado)}</td>
+                    <td>{formatearFechaHora(imp.created_at)}</td>
+                    <td style={{ textAlign: 'right' }}>
+                      {facturaPagada ? (
+                        <span>Factura pagada: no se puede desvincular</span>
+                      ) : (
+                        puedeRegistrar && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            loading={desvinculandoId === imp.id}
+                            onClick={() => desvincular(imp)}
+                          >
+                            Desvincular
+                          </Button>
+                        )
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {puedeRegistrar && !facturaPagada && facturaActiva.estado !== 'anulada' && (
+            <form onSubmit={vincular} style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', flexWrap: 'wrap', marginTop: '1rem' }}>
+              <div style={{ minWidth: '280px' }}>
+                <label htmlFor="nota_id">Vincular una nota disponible</label>
+                <select id="nota_id" name="nota_id" value={vinculo.nota_id} onChange={cambiarVinculo} required>
+                  <option value="">Seleccione una nota</option>
+                  {notasVinculables.map((n) => (
+                    <option key={n.id} value={n.id}>
+                      {ETIQUETAS_TIPO_NOTA[n.tipo]} {n.letra} {n.sucursal}-{n.numero} — disponible {formatearMoneda(n.saldo_pendiente)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="importe_imputado">Importe a imputar</label>
+                <input
+                  id="importe_imputado"
+                  name="importe"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  max={maximoImputable || undefined}
+                  value={vinculo.importe}
+                  onChange={cambiarVinculo}
+                  disabled={!vinculo.nota_id}
+                  required
+                />
+              </div>
+
+              <Button type="submit" loading={vinculando} disabled={!vinculo.nota_id}>
+                Vincular
+              </Button>
+            </form>
+          )}
+
+          {puedeRegistrar && !facturaPagada && notasVinculables.length === 0 && (
+            <p>Este proveedor no tiene notas con saldo disponible para vincular.</p>
+          )}
+
+          {facturaPagada && (
+            <Feedback tone="info">
+              La factura está totalmente pagada: no admite vincular ni desvincular notas.
+            </Feedback>
+          )}
         </section>
       </main>
     )
