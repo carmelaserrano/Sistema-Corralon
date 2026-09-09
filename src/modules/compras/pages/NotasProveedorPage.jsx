@@ -214,7 +214,7 @@ export default function NotasProveedorPage() {
 
         {error && <Feedback tone="error">{error}</Feedback>}
 
-        <form onSubmit={guardarNota}>
+        <form className="stacked-form" onSubmit={guardarNota}>
           <section>
             <h2>Comprobante</h2>
             <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: '1fr 1fr' }}>
