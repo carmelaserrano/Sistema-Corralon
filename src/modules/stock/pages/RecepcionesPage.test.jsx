@@ -15,14 +15,27 @@ import RecepcionesPage from './RecepcionesPage'
 import * as api from '../api/recepcionesApi'
 import { getDepositos } from '../api/depositosApi'
 
-vi.mock('../api/recepcionesApi', async (importOriginal) => ({
-  ...(await importOriginal()),
+vi.mock('../api/recepcionesApi', () => ({
   createRecepcion: vi.fn(),
   getRecepcionById: vi.fn(),
   getRecepciones: vi.fn(),
   getOrdenesRecepcion: vi.fn(),
   getDetalleOrdenRecepcion: vi.fn(),
   puedeRegistrarRecepciones: vi.fn(),
+  errorCantidadRecepcion: vi.fn((item) => {
+    const cantidad = Number(item?.cantidad)
+    const pendiente = Number(item?.pendiente)
+
+    if (!Number.isFinite(cantidad) || cantidad < 0) {
+      return 'La cantidad debe ser mayor o igual a 0'
+    }
+
+    if (cantidad > pendiente) {
+      return `Cantidad máxima admitida para Cemento: ${pendiente}`
+    }
+
+    return ''
+  }),
 }))
 
 vi.mock('../api/depositosApi', () => ({
