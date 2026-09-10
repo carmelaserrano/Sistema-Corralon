@@ -3,6 +3,7 @@
 import { PGlite } from '../.temp/recepcion-db/node_modules/@electric-sql/pglite/dist/index.js'
 import { readFileSync, readdirSync } from 'node:fs'
 import assert from 'node:assert/strict'
+import { verificarHistorialOC } from './verificar-historial-oc.mjs'
 const db = new PGlite()
 const q = async (sql, params = []) => (await db.query(sql, params)).rows
 const one = async (sql, params = []) => (await q(sql, params))[0]
@@ -79,6 +80,7 @@ try {
   assert.equal(Number((await one('select cantidad from stock_x_deposito where producto_id=$1 and deposito_id=$2',[p1,dep])).cantidad),10)
   assert.equal(Number((await one('select count(*) as n from detalle_movimiento where movimiento_id=$1',[total.movimiento_ingreso_id])).n),2)
   await reject(sql,args([item(d1,1)]),/Pendiente o Parcial/)
+  await verificarHistorialOC(db, q, one, prov, dep, oc)
   await q(`select set_config('request.jwt.claims','{}',false)`)
   await reject(sql,args([item(d1,1)]),/No tiene permiso/)
   console.log('OK: total, numeración única, ingreso por producto, OC recibida y acceso denegado')

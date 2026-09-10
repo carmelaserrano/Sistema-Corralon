@@ -1,11 +1,11 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import {
-  getOrdenesCompra,
+  getHistorialOC,
   createOrdenCompra,
   puedeCrearOrdenes,
   cancelarOrdenCompra,
   puedeCancelarOrdenes,
-  getOrdenCompraById,
+  getDetalleHistorialOC,
 } from '../api/ordenesCompraApi'
 import { getProveedores, CONDICIONES_PAGO } from '../../proveedores/api/proveedoresApi'
 import { getDepositos } from '../../stock/api/depositosApi'
@@ -59,6 +59,9 @@ export default function OrdenesCompraPage() {
   // Listado
   const [ordenes, setOrdenes] = useState([])
   const [estadoFiltro, setEstadoFiltro] = useState('')
+  const [filtros, setFiltros] = useState({ proveedorId: '', fechaDesde: '', fechaHasta: '', orden: 'created_at', ascendente: false })
+  const [resumen, setResumen] = useState({ total: 0, importeTotal: 0 })
+  const [proveedoresHistorial, setProveedoresHistorial] = useState([])
   const [pagina, setPagina] = useState(1)
   const [totalPaginas, setTotalPaginas] = useState(1)
   const solicitudListado = useRef(0)
@@ -104,10 +107,11 @@ export default function OrdenesCompraPage() {
     try {
       setLoadingListado(true)
       setError('')
-      const resp = await getOrdenesCompra({ estado: estadoFiltro, page: pagina })
+      const resp = await getHistorialOC({ ...filtros, estado: estadoFiltro, page: pagina })
       if (solicitud !== solicitudListado.current) return
       setOrdenes(resp.ordenes)
       setTotalPaginas(resp.totalPaginas)
+      setResumen({ total: resp.total, importeTotal: resp.importeTotal })
     } catch (err) {
       if (solicitud !== solicitudListado.current) return
       setOrdenes([])
@@ -115,7 +119,7 @@ export default function OrdenesCompraPage() {
     } finally {
       if (solicitud === solicitudListado.current) setLoadingListado(false)
     }
-  }, [estadoFiltro, pagina])
+  }, [estadoFiltro, pagina, filtros])
 
   useEffect(() => {
     cargarDatosListado()
@@ -124,16 +128,18 @@ export default function OrdenesCompraPage() {
 
   async function cargarMaestros() {
     try {
-      const [provs, deps, arts] = await Promise.all([
+      const [provs, deps, arts, todosProvs] = await Promise.all([
         getProveedores({ estado: 'activo', soloActivos: true }),
         getDepositos(),
-        getArticulos({ estado: 'activo', pageSize: 1000 })
+        getArticulos({ estado: 'activo', pageSize: 1000 }),
+        getProveedores({ soloActivos: false }),
       ])
       setProveedores(provs)
       setDepositos(deps)
       setArticulos(arts.articulos)
+      setProveedoresHistorial(todosProvs)
     } catch (err) {
-      console.error('Error cargando maestros', err)
+      setError(err.message || 'No se pudieron cargar los proveedores y artículos. Recargá la página.')
     }
   }
 
@@ -143,7 +149,7 @@ export default function OrdenesCompraPage() {
       setLoadingDetalle(true)
       setError('')
       setAviso('')
-      const data = await getOrdenCompraById(id)
+      const data = await getDetalleHistorialOC(id)
       setOrdenActiva(data)
     } catch (err) {
       setError(err.message || 'No se pudo cargar el detalle de la orden')
@@ -163,7 +169,7 @@ export default function OrdenesCompraPage() {
       setAviso(`Orden anulada correctamente.`)
       // Refrescar el detalle o listado
       if (vista === 'detalle') {
-        const data = await getOrdenCompraById(id)
+        const data = await getDetalleHistorialOC(id)
         setOrdenActiva(data)
       } else {
         await cargarDatosListado()
@@ -239,6 +245,17 @@ export default function OrdenesCompraPage() {
     setError('')
     setAviso('')
     cargarDatosListado()
+  }
+
+  function cambiarFiltro(campo, valor) {
+    setFiltros(f => ({ ...f, [campo]: valor }))
+    setPagina(1)
+  }
+
+  function limpiarFiltros() {
+    setEstadoFiltro('')
+    setFiltros(f => ({ ...f, proveedorId: '', fechaDesde: '', fechaHasta: '' }))
+    setPagina(1)
   }
 
   // --- RENDER ---
@@ -443,6 +460,30 @@ export default function OrdenesCompraPage() {
             <p>La orden no tiene detalle.</p>
           )}
         </section>
+        <section style={{ marginTop: '2rem' }}>
+          <h2>Recepciones asociadas</h2>
+          {ordenActiva.recepciones?.length ? <table>
+            <thead><tr><th>Número</th><th>Fecha</th><th>Depósito</th><th>Estado</th></tr></thead>
+            <tbody>{ordenActiva.recepciones.map(r => <tr key={r.id}>
+              <td>#{r.numero}</td><td>{formatearFechaCorta(r.fecha_recepcion)}</td><td>{r.deposito?.nombre}</td><td>{r.estado_recepcion === 'confirmada' ? 'Confirmada' : 'Pendiente'}</td>
+            </tr>)}</tbody>
+          </table> : <p>No hay recepciones asociadas.</p>}
+        </section>
+        <section style={{ marginTop: '2rem' }}>
+          <h2>Comprobantes asociados</h2>
+          {ordenActiva.facturas?.length ? ordenActiva.facturas.map(f => <div key={f.id} style={{ marginBottom: '1.5rem' }}>
+            <h3>Factura {f.letra} {f.sucursal}-{f.numero}</h3>
+            <p>Fecha: {formatearFechaCorta(f.fecha_emision)} · Total: {formatearMoneda(f.importe_total)} · Estado: {f.estado.replaceAll('_', ' ')}</p>
+            {f.imputaciones?.length ? <table>
+              <thead><tr><th>Tipo</th><th>Número</th><th>Fecha</th><th>Importe nota</th><th>Aplicado a esta factura</th><th>Estado</th></tr></thead>
+              <tbody>{f.imputaciones.map(i => <tr key={i.id}>
+                <td>{i.nota.tipo === 'CREDITO' ? 'Nota de Crédito' : 'Nota de Débito'}</td>
+                <td>{i.nota.letra} {i.nota.sucursal}-{i.nota.numero}</td><td>{formatearFechaCorta(i.nota.fecha)}</td>
+                <td>{formatearMoneda(i.nota.importe)}</td><td>{formatearMoneda(i.importe_imputado)}</td><td>{i.nota.estado.replaceAll('_', ' ')}</td>
+              </tr>)}</tbody>
+            </table> : <p>Sin notas de crédito o débito vinculadas.</p>}
+          </div>) : <p>No hay facturas asociadas.</p>}
+        </section>
       </main>
     )
   }
@@ -464,16 +505,32 @@ export default function OrdenesCompraPage() {
 
       <section>
         <h2>Historial de órdenes de compra</h2>
+        <div className="historial-oc-filtros">
+          <div><label htmlFor="proveedor-filtro">Proveedor</label>
+            <select id="proveedor-filtro" value={filtros.proveedorId} onChange={e => cambiarFiltro('proveedorId', e.target.value)}>
+              <option value="">Todos los proveedores</option>
+              {proveedoresHistorial.map(p => <option key={p.id} value={p.id}>{p.razon_social}</option>)}
+            </select>
+          </div>
+          <div><label htmlFor="fecha-desde">Creada desde</label><input id="fecha-desde" type="date" value={filtros.fechaDesde} max={filtros.fechaHasta || undefined} onChange={e => cambiarFiltro('fechaDesde', e.target.value)} /></div>
+          <div><label htmlFor="fecha-hasta">Creada hasta</label><input id="fecha-hasta" type="date" value={filtros.fechaHasta} min={filtros.fechaDesde || undefined} onChange={e => cambiarFiltro('fechaHasta', e.target.value)} /></div>
+        </div>
         <label htmlFor="estado-oc">Filtrar por estado</label>
         <select id="estado-oc" value={estadoFiltro} onChange={e => { setEstadoFiltro(e.target.value); setPagina(1) }}>
           <option value="">Todos los estados</option>
           {Object.entries(estadosOC).map(([valor, config]) => <option key={valor} value={valor}>{config.label}</option>)}
         </select>
+        <div className="historial-oc-filtros">
+          <div><label htmlFor="orden-oc">Ordenar por</label><select id="orden-oc" value={filtros.orden} onChange={e => cambiarFiltro('orden', e.target.value)}><option value="created_at">Fecha de creación</option><option value="total">Total</option></select></div>
+          <div><label htmlFor="direccion-oc">Dirección</label><select id="direccion-oc" value={String(filtros.ascendente)} onChange={e => cambiarFiltro('ascendente', e.target.value === 'true')}><option value="false">Descendente</option><option value="true">Ascendente</option></select></div>
+        </div>
+        <Button type="button" variant="ghost" onClick={limpiarFiltros}>Limpiar filtros</Button>
         <Button type="button" variant="ghost" disabled={loadingListado} onClick={cargarDatosListado}>Actualizar</Button>
         {loadingListado && <p role="status">Cargando órdenes...</p>}
+        {!loadingListado && !error && <p>{resumen.total} registros · Importe total del período filtrado: <strong>{formatearMoneda(resumen.importeTotal)}</strong> (excluye canceladas)</p>}
         
         {!loadingListado && !error && ordenes.length === 0 && (
-          <EmptyState title="No hay órdenes de compra" description={estadoFiltro ? 'No hay órdenes con el estado seleccionado.' : 'Aún no se ha registrado ninguna orden de compra en el sistema.'} />
+          <EmptyState title="No hay órdenes de compra" description={estadoFiltro || filtros.proveedorId || filtros.fechaDesde || filtros.fechaHasta ? 'No hay órdenes que coincidan con los filtros aplicados.' : 'Aún no se ha registrado ninguna orden de compra en el sistema.'} />
         )}
 
         {!loadingListado && !error && ordenes.length > 0 && (
@@ -481,25 +538,27 @@ export default function OrdenesCompraPage() {
             <thead>
               <tr>
                 <th>Nº Orden</th>
-                <th>Fecha Emisión</th>
+                <th>Fecha de creación</th>
                 <th>Proveedor</th>
                 <th>Depósito</th>
                 <th>Estado</th>
+                <th>Recepciones</th>
                 <th style={{ textAlign: 'right' }}>Total</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
               {ordenes.map(orden => (
-                <tr key={orden.id}>
+                <tr key={orden.id} onClick={() => verDetalle(orden.id)} style={{ cursor: 'pointer' }}>
                   <td><strong>#{orden.numero}</strong></td>
-                  <td>{formatearFechaCorta(orden.fecha_emision)}</td>
+                  <td>{orden.created_at ? new Date(orden.created_at).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }) : '—'}</td>
                   <td>{orden.proveedor?.razon_social}</td>
                   <td>{orden.deposito_destino?.nombre}</td>
                   <td><EstadoBadge estado={orden.estado} /></td>
+                  <td>{orden.cantidad_recepciones ?? 0}</td>
                   <td style={{ textAlign: 'right' }}>{formatearMoneda(orden.total)}</td>
                   <td style={{ textAlign: 'right' }}>
-                    <Button type="button" variant="ghost" onClick={() => verDetalle(orden.id)}>Ver detalle</Button>
+                    <Button type="button" variant="ghost" onClick={e => { e.stopPropagation(); verDetalle(orden.id) }}>Ver detalle</Button>
                   </td>
                 </tr>
               ))}
