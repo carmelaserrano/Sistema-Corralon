@@ -154,7 +154,7 @@ async function manejarErrorFactura(error) {
     throw errorDeApi('Revisá los datos: no cumplen una validación del sistema', 400)
   }
 
-  // FA002/FA003: fn_validar_factura_oc_proveedor / fn_validar_factura_recepcion_proveedor (0022).
+  // FA002/FA003: fn_validar_factura_oc_proveedor / fn_validar_factura_recepcion_proveedor (0023).
   if (error?.code === 'FA002' || error?.code === 'FA003') {
     throw errorDeApi(error.message, 409)
   }
@@ -334,21 +334,46 @@ export async function createFactura(datos) {
 
 /**
  * Facturas de un proveedor con saldo pendiente, para el selector de vínculo
- * opcional del formulario de notas de crédito/débito (S2-16, CA 7).
+ * de las notas de crédito/débito (S2-16, CA 7) y para armar la orden de pago
+ * (S2-15, CA 2).
+ *
+ * Cada factura viene con las notas que ya tiene imputadas (S2-15, CA 3): su
+ * efecto ya está reflejado en `saldo_pendiente`, así que se muestran al lado
+ * para explicar por qué el saldo es el que es.
  */
 export async function getFacturasConSaldoDelProveedor(proveedorId) {
   if (!proveedorId) return []
 
   const { data, error } = await supabase
     .from(TABLA)
-    .select('id, letra, sucursal, numero, importe_total, saldo_pendiente')
+    .select(`
+      id,
+      letra,
+      sucursal,
+      numero,
+      fecha_emision,
+      importe_total,
+      saldo_pendiente,
+      estado,
+      imputaciones:imputaciones!factura_id(
+        id,
+        importe_imputado,
+        anulado_at,
+        nota:notas_proveedor(id, tipo, letra, sucursal, numero)
+      )
+    `)
     .eq('proveedor_id', proveedorId)
     .gt('saldo_pendiente', 0)
     .neq('estado', 'anulada')
     .order('fecha_emision', { ascending: false })
 
   if (error) throw error
-  return data ?? []
+
+  // Las imputaciones de pago (sin nota) y las deshechas no aportan acá.
+  return (data ?? []).map(({ imputaciones, ...factura }) => ({
+    ...factura,
+    notas: (imputaciones ?? []).filter((imp) => !imp.anulado_at && imp.nota),
+  }))
 }
 
 /**

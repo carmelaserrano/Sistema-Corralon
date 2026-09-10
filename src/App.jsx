@@ -19,6 +19,7 @@ import RubrosPage from './modules/proveedores/pages/RubrosPage'
 import OrdenesCompraPage from './modules/compras/pages/OrdenesCompraPage'
 import NotasProveedorPage from './modules/compras/pages/NotasProveedorPage'
 import FacturasProveedorPage from './modules/tesoreria/pages/FacturasProveedorPage'
+import OrdenesPagoPage from './modules/tesoreria/pages/OrdenesPagoPage'
 import AppShell from './components/layout/AppShell'
 
 function App() {
@@ -68,6 +69,7 @@ function App() {
       {pagina === 'ordenes-compra' && <OrdenesCompraPage />}
       {pagina === 'notas-proveedor' && <NotasProveedorPage />}
       {pagina === 'facturas-proveedor' && <FacturasProveedorPage />}
+      {pagina === 'ordenes-pago' && <OrdenesPagoPage />}
     </AppShell>
   )
 }
