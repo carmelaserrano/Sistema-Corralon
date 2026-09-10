@@ -195,11 +195,11 @@ describe('notasProveedorApi', () => {
   describe('eliminarNota', () => {
     it('traduce NT001 (nota aplicada) a 409 con el mensaje del backend (CA 10)', async () => {
       supabase.rpc.mockResolvedValue({
-        error: { code: 'NT001', message: 'La nota ya está aplicada (factura A-0001-00001234) y no puede eliminarse' },
+        error: { code: 'NT001', message: 'La nota ya está aplicada y no puede eliminarse. Imputada en: A-0001-00001234' },
       })
 
       await expect(eliminarNota('n1')).rejects.toMatchObject({
-        message: 'La nota ya está aplicada (factura A-0001-00001234) y no puede eliminarse',
+        message: 'La nota ya está aplicada y no puede eliminarse. Imputada en: A-0001-00001234',
         status: 409,
       })
     })

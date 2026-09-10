@@ -37,6 +37,42 @@ alter table public.notas_proveedor rename column punto_venta to sucursal;
 
 alter table public.notas_proveedor add column letra text not null default 'A';
 alter table public.notas_proveedor alter column letra drop default;
+
+-- ----------------------------------------------------------------------------
+-- 2.b) Datos históricos, antes de imponer los CHECK nuevos
+-- ----------------------------------------------------------------------------
+-- La 0013 dejó la tabla con otro vocabulario: tipo 'nota_credito_a', estado
+-- 'pendiente' y un punto_venta sin formato fijo. Si los CHECK se agregan sin
+-- traducir eso primero, el ALTER falla al validar las filas existentes.
+
+-- La letra sale del sufijo del tipo viejo ('nota_credito_a' -> 'A'). Lo que
+-- no se puede deducir queda en 'A'.
+update public.notas_proveedor
+   set letra = case upper(right(tipo, 1))
+                 when 'A' then 'A'
+                 when 'B' then 'B'
+                 when 'C' then 'C'
+                 when 'M' then 'M'
+                 else 'A'
+               end
+ where tipo not in ('CREDITO', 'DEBITO');
+
+-- Todo lo que existía era nota de crédito: la 0013 no contemplaba débito.
+update public.notas_proveedor
+   set tipo = 'CREDITO'
+ where tipo not in ('CREDITO', 'DEBITO');
+
+-- Se descartan separadores y se completa con ceros. Un número de más de 8
+-- dígitos no se trunca a propósito: es preferible que la migración falle a
+-- que mutile un comprobante.
+update public.notas_proveedor
+   set sucursal = lpad(regexp_replace(coalesce(sucursal, ''), '\D', '', 'g'), 4, '0'),
+       numero   = lpad(regexp_replace(coalesce(numero, ''), '\D', '', 'g'), 8, '0');
+
+update public.notas_proveedor
+   set estado = 'disponible'
+ where estado = 'pendiente';
+
 alter table public.notas_proveedor add constraint chk_nota_letra
   check (letra in ('A', 'B', 'C', 'M'));
 
@@ -125,11 +161,60 @@ begin
     new.saldo_pendiente := 0;
     new.estado := 'aplicada';
   else
-    -- CA 6: sin factura, queda Disponible con su saldo completo.
+    -- CA 6: sin factura, queda Disponible con su saldo completo. El estado
+    -- se fuerza, no se respeta lo que venga en el INSERT: si no, una
+    -- escritura directa contra la tabla podría crear una nota sin factura
+    -- ya marcada como 'aplicada'.
     new.saldo_pendiente := new.importe;
-    new.estado := coalesce(nullif(new.estado, ''), 'disponible');
+    new.estado := 'disponible';
   end if;
   return new;
+end;
+$$;
+
+
+-- ----------------------------------------------------------------------------
+-- 9.b) fn_recalcular_saldo_nc (0013) apuntaba a la tabla vieja
+-- ----------------------------------------------------------------------------
+-- El cuerpo de una función plpgsql no se reescribe solo con un RENAME, así
+-- que esta función quedó referenciando notas_credito_proveedor y además
+-- dejaba estado = 'pendiente', que chk_nota_estado ya no acepta. Hoy solo la
+-- llama fn_aplicar_imputacion, que nadie dispara todavía, pero rota es una
+-- bomba de tiempo.
+
+create or replace function public.fn_recalcular_saldo_nc(p_nc uuid)
+returns void
+language plpgsql
+security invoker
+set search_path = public, pg_temp
+as $$
+declare
+  v_importe  numeric(14,2);
+  v_imputado numeric(14,2);
+begin
+  select importe into v_importe
+    from public.notas_proveedor where id = p_nc;
+
+  if v_importe is null then
+    return;
+  end if;
+
+  select coalesce(sum(importe_imputado), 0) into v_imputado
+    from public.imputaciones where nota_credito_id = p_nc;
+
+  if v_imputado > v_importe then
+    raise exception 'La suma imputada (%) supera el importe de la nota (%)', v_imputado, v_importe;
+  end if;
+
+  update public.notas_proveedor
+     set saldo_pendiente = importe - v_imputado,
+         estado = case
+                    when estado = 'anulada' then 'anulada'
+                    when importe - v_imputado <= 0 then 'aplicada'
+                    when v_imputado > 0 then 'parcialmente_aplicada'
+                    else 'disponible'
+                  end
+   where id = p_nc;
 end;
 $$;
 
@@ -292,7 +377,7 @@ set search_path = public, pg_temp
 as $$
 declare
   v_nota     public.notas_proveedor%rowtype;
-  v_factura  text;
+  v_facturas text;
 begin
   select * into v_nota from public.notas_proveedor where id = p_id for update;
 
@@ -302,12 +387,22 @@ begin
   end if;
 
   if v_nota.saldo_pendiente <> v_nota.importe then
-    select concat_ws('-', f.letra, f.sucursal, f.numero) into v_factura
-      from public.facturas_proveedor f
-     where f.id = v_nota.factura_id;
+    -- CA 10: hay que decir DÓNDE está imputada. El vínculo puede ser el
+    -- directo (factura_id) o una imputación, así que se miran los dos.
+    select string_agg(distinct comprobante, ', ') into v_facturas
+      from (
+        select concat_ws('-', f.letra, f.sucursal, f.numero) as comprobante
+          from public.facturas_proveedor f
+         where f.id = v_nota.factura_id
+        union
+        select concat_ws('-', f.letra, f.sucursal, f.numero)
+          from public.imputaciones i
+          join public.facturas_proveedor f on f.id = i.factura_id
+         where i.nota_credito_id = v_nota.id
+      ) origenes;
 
-    raise exception 'La nota ya está aplicada (factura %) y no puede eliminarse',
-      coalesce(v_factura, 'vinculada')
+    raise exception 'La nota ya está aplicada y no puede eliminarse. Imputada en: %',
+      coalesce(v_facturas, 'no se pudo identificar el comprobante')
       using errcode = 'NT001';
   end if;
 
