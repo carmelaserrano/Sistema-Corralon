@@ -1,6 +1,6 @@
--- Migración 0024: vinculación manual de notas a facturas — S2-17 (US-TES-05).
+-- Migración 0025: vinculación manual de notas a facturas — S2-17 (US-TES-05).
 --
--- Hasta la 0023 una nota se vinculaba a una factura por una columna directa
+-- Hasta la 0024 una nota se vinculaba a una factura por una columna directa
 -- (notas_proveedor.factura_id), en el momento del alta, por el importe
 -- completo y a una sola factura. Esta historia pide vincular después, de a
 -- importes parciales y poder deshacerlo, así que el vínculo pasa a vivir en
@@ -8,17 +8,17 @@
 -- con las dos mecánicas conviviendo, el saldo de la factura se contaría dos
 -- veces.
 --
--- IMPORTANTE — la 0023 ya está aplicada en la base real, así que acá se
+-- IMPORTANTE — la 0024 ya está aplicada en la base real, así que acá se
 -- migran los vínculos existentes a `imputaciones` antes de borrar la columna.
 --
 -- Además arregla un bug latente de la 0013: fn_recalcular_saldo_nc seguía
--- leyendo y escribiendo `notas_credito_proveedor` (renombrada en la 0023) y
+-- leyendo y escribiendo `notas_credito_proveedor` (renombrada en la 0024) y
 -- dejaba estado = 'pendiente', valor que chk_nota_estado ya no acepta. Los
 -- cuerpos plpgsql no se reescriben solos con un RENAME. Estaba dormido
 -- porque nadie escribía en `imputaciones`; esta historia es justo la que lo
 -- despierta.
 --
--- No se tocan la 0013, la 0022 ni la 0023 (regla del repo).
+-- No se tocan la 0013, la 0023 ni la 0024 (regla del repo).
 --
 -- Códigos SQLSTATE propios (los lee imputacionesApi.js):
 --   IM001 -> 400/409  el importe supera el máximo imputable
@@ -252,7 +252,7 @@ end;
 $$;
 
 -- ============================================================================
--- 3) Baja de la mecánica de la 0023 atada a factura_id
+-- 3) Baja de la mecánica de la 0024 atada a factura_id
 -- ============================================================================
 -- Se hace antes del backfill para que el recálculo de la nota no dispare de
 -- rebote el trigger que estamos por eliminar.
@@ -433,7 +433,7 @@ revoke all on function public.desvincular_nota_factura(uuid) from public;
 grant execute on function public.desvincular_nota_factura(uuid) to authenticated;
 
 -- ============================================================================
--- 9) eliminar_nota_proveedor (0023): las facturas ahora salen de imputaciones
+-- 9) eliminar_nota_proveedor (0024): las facturas ahora salen de imputaciones
 -- ============================================================================
 
 create or replace function public.eliminar_nota_proveedor(p_id uuid)
@@ -478,4 +478,4 @@ $$;
 
 commit;
 
--- Fin migración 0024
+-- Fin migración 0025

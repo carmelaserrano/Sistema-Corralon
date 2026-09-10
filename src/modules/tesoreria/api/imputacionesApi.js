@@ -3,7 +3,7 @@ import { errorDeApi } from '../../stock/api/errores'
 
 const TABLA = 'imputaciones'
 
-// Códigos que define la migración 0024. Mismo patrón que recepcionesApi.js
+// Códigos que define la migración 0025. Mismo patrón que recepcionesApi.js
 // con los RCxxx: la base ya redacta el mensaje para mostrarse tal cual.
 const STATUS_POR_CODIGO = {
   IM001: 400, // el importe supera el máximo imputable
@@ -92,7 +92,7 @@ export async function getImputacionesDeNota(notaId) {
  * Vincula una nota a una factura por un importe (CA 1/2/3/4/5).
  *
  * Toda la validación y el recálculo de ambos saldos ocurren dentro de
- * `vincular_nota_factura` (0024), en una sola transacción: acá solo se
+ * `vincular_nota_factura` (0025), en una sola transacción: acá solo se
  * traducen los códigos de error.
  *
  * @param {Object} datos

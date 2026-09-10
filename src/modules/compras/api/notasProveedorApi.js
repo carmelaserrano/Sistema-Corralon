@@ -61,7 +61,7 @@ const COLUMNAS = `
 
 /**
  * Deja solo las vinculaciones vigentes: PostgREST trae también las que se
- * deshicieron (baja lógica, 0024) y filtrar el recurso embebido desde la
+ * deshicieron (baja lógica, 0025) y filtrar el recurso embebido desde la
  * query obliga a un inner join que escondería las notas sin vínculos.
  *
  * @param {Object} fila Nota cruda devuelta por Supabase.
@@ -292,7 +292,7 @@ export async function createNota(datos) {
 /**
  * "Elimina" una nota no aplicada (CA 10). Si ya está vinculada a una
  * factura, el backend lo rechaza e informa cuál (`eliminar_nota_proveedor`,
- * 0024) — acá solo se traduce ese error, no se decide de nuevo en JS.
+ * 0025) — acá solo se traduce ese error, no se decide de nuevo en JS.
  *
  * @param {string} id
  * @throws {Error} 404 si no existe; 409 si ya está aplicada.
