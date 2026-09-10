@@ -1,4 +1,4 @@
--- Migración 0022: ajusta facturas_proveedor a la nomenclatura y las reglas
+-- Migración 0023: ajusta facturas_proveedor a la nomenclatura y las reglas
 -- de S2-13 (US-CMP-05) — "Registro de comprobante (factura) del proveedor".
 --
 -- facturas_proveedor, detalle_factura_proveedor y factura_recepcion ya
@@ -142,4 +142,4 @@ create trigger trg_factura_recepcion_valida
 
 commit;
 
--- Fin migración 0022
+-- Fin migración 0023
