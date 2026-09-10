@@ -4,16 +4,19 @@ import {
   Building2,
   ClipboardCheck,
   FileBarChart,
+  FileStack,
   FolderTree,
   Layers3,
   PackageCheck,
   PackageOpen,
+  Receipt,
   Ruler,
   Settings2,
   Shapes,
   ShoppingCart,
   Tags,
   Truck,
+  Wallet,
 } from 'lucide-react'
 
 export const navigationGroups = [
@@ -68,6 +71,15 @@ export const navigationGroups = [
     module: 'Compras',
     items: [
       { id: 'ordenes-compra', label: 'Órdenes de Compra', icon: ShoppingCart },
+      { id: 'notas-proveedor', label: 'Notas de Crédito/Débito', icon: FileStack },
+    ],
+  },
+  {
+    label: 'Tesorería',
+    module: 'Tesorería',
+    items: [
+      { id: 'facturas-proveedor', label: 'Facturas de Proveedor', icon: Receipt },
+      { id: 'ordenes-pago', label: 'Órdenes de Pago', icon: Wallet },
     ],
   },
 ]

@@ -102,6 +102,7 @@ export async function getOrdenCompraById(id) {
         id,
         producto_id,
         cantidad,
+        cantidad_recibida,
         precio_unitario,
         subtotal,
         producto:productos(id, nombre, sku)
@@ -116,6 +117,48 @@ export async function getOrdenCompraById(id) {
   }
 
   return data
+}
+
+/**
+ * Historial paginado de 20 OC. Fechas inclusivas de creación en Argentina.
+ * @param {{estado?: string, proveedorId?: string, fechaDesde?: string, fechaHasta?: string, orden?: string, ascendente?: boolean, page?: number}} filtros
+ * @returns {Promise<{ordenes: Array, total: number, importeTotal: number, totalPaginas: number}>} Totales de todo el filtro; importe sin canceladas.
+ */
+export async function getHistorialOC({ estado, proveedorId, fechaDesde, fechaHasta, orden = 'created_at', ascendente = false, page = 1 } = {}) {
+  if (fechaDesde && fechaHasta && fechaDesde > fechaHasta) throw errorDeApi('La fecha desde no puede ser posterior a la fecha hasta', 400)
+  const { data, error } = await supabase.rpc('consultar_historial_oc', {
+    p_estado: estado || null, p_proveedor: proveedorId || null,
+    p_desde: fechaDesde || null, p_hasta: fechaHasta || null,
+    p_orden: orden, p_ascendente: ascendente, p_pagina: page,
+  })
+  if (error) throw error
+  return data
+}
+
+/**
+ * Consulta una OC con recepciones, facturas y notas vinculadas por imputaciones vigentes.
+ * @param {string} id UUID de la orden.
+ * @returns {Promise<Object>} Cabecera/detalles, recepciones y facturas con sus notas.
+ */
+export async function getDetalleHistorialOC(id) {
+  const columnasFactura = `id, letra, sucursal, numero, fecha_emision, importe_total, estado,
+    imputaciones:imputaciones!factura_id(id, anulado_at, importe_imputado,
+      nota:notas_proveedor!nota_id(id, tipo, letra, sucursal, numero, fecha, importe, estado))`
+  const [orden, recepciones, facturas] = await Promise.all([
+    getOrdenCompraById(id),
+    supabase.from('recepciones').select(`id, numero, fecha_recepcion, estado_recepcion, deposito:depositos(nombre),
+      enlaces:factura_recepcion(factura:facturas_proveedor(${columnasFactura}))`).eq('orden_compra_id', id).order('numero'),
+    supabase.from('facturas_proveedor').select(columnasFactura).eq('orden_compra_id', id).order('fecha_emision'),
+  ])
+  if (recepciones.error) throw recepciones.error
+  if (facturas.error) throw facturas.error
+  const asociadas = new Map((facturas.data ?? []).map(f => [f.id, f]))
+  for (const r of recepciones.data ?? []) {
+    for (const e of r.enlaces ?? []) if (e.factura) asociadas.set(e.factura.id, e.factura)
+  }
+  return { ...orden, recepciones: recepciones.data ?? [], facturas: [...asociadas.values()].map(f => ({
+    ...f, imputaciones: (f.imputaciones ?? []).filter(i => !i.anulado_at && i.nota),
+  })) }
 }
 
 export async function createOrdenCompra(orden) {
