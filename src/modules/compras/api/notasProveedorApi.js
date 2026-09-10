@@ -107,7 +107,7 @@ async function manejarErrorNota(error) {
     throw errorDeApi('Revisá los datos: no cumplen una validación del sistema', 400)
   }
 
-  // NT002/NT003: fn_validar_nota_factura_proveedor (0023).
+  // NT002/NT003: fn_validar_nota_factura_proveedor (0024).
   if (error?.code === 'NT002' || error?.code === 'NT003') {
     throw errorDeApi(error.message, 409)
   }
@@ -216,7 +216,7 @@ export async function createNota(datos) {
 /**
  * "Elimina" una nota no aplicada (CA 10). Si ya está vinculada a una
  * factura, el backend lo rechaza e informa cuál (`eliminar_nota_proveedor`,
- * 0023) — acá solo se traduce ese error, no se decide de nuevo en JS.
+ * 0024) — acá solo se traduce ese error, no se decide de nuevo en JS.
  *
  * @param {string} id
  * @throws {Error} 404 si no existe; 409 si ya está aplicada.

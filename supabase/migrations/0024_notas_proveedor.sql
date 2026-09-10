@@ -1,4 +1,4 @@
--- Migración 0023: generaliza notas_credito_proveedor a notas de Crédito y de
+-- Migración 0024: generaliza notas_credito_proveedor a notas de Crédito y de
 -- Débito de proveedor — S2-16 (US-TES-04) — "Registro de notas de crédito y
 -- débito de proveedor".
 --
@@ -9,10 +9,10 @@
 -- función compartida que recalcula el saldo de una factura (0013) y la vista
 -- de cuenta corriente (0013).
 --
--- Depende del esquema que agregó la 0022 (facturas_proveedor.letra/sucursal,
+-- Depende del esquema que agregó la 0023 (facturas_proveedor.letra/sucursal,
 -- S2-13): esta rama está apilada sobre feature/S2-13-factura-proveedor.
 --
--- No se tocan la 0013 ni la 0022 (regla del repo: una migración ya mergeada
+-- No se tocan la 0013 ni la 0023 (regla del repo: una migración ya mergeada
 -- no se toca).
 
 begin;
@@ -29,7 +29,7 @@ alter table public.notas_proveedor rename column punto_venta to sucursal;
 -- ahí porque la reescribimos entera.
 
 -- ============================================================================
--- 2) Letra (CA 3) — mismo criterio que facturas_proveedor (0022)
+-- 2) Letra (CA 3) — mismo criterio que facturas_proveedor (0023)
 -- ============================================================================
 -- La tabla nunca se usó desde la app (sin UI hasta esta historia): agregar
 -- NOT NULL con un default transitorio es seguro. Igual conviene confirmar
@@ -86,7 +86,7 @@ alter table public.notas_proveedor add constraint chk_nota_tipo
   check (tipo in ('CREDITO', 'DEBITO'));
 
 -- ============================================================================
--- 4) Formato de Sucursal (4 dígitos) y Número (8 dígitos) — igual que 0022
+-- 4) Formato de Sucursal (4 dígitos) y Número (8 dígitos) — igual que 0023
 -- ============================================================================
 
 alter table public.notas_proveedor add constraint chk_nota_sucursal_formato
@@ -465,4 +465,4 @@ select proveedor_id, fecha, tipo_movimiento, comprobante_id, comprobante, debe, 
 
 commit;
 
--- Fin migración 0023
+-- Fin migración 0024
