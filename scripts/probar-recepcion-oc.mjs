@@ -37,6 +37,8 @@ try {
   const args = (items, order = oc) => [order,dep,JSON.stringify(items),null]
   const item = (id, cantidad) => ({ orden_compra_detalle_id:id, cantidad })
   await db.exec('set role authenticated')
+  assert.equal((await one('select estado from ordenes_compra where id=$1',[oc])).estado,'pendiente')
+  assert.equal(Number((await one('select cantidad_recibida from detalle_orden_compra where id=$1',[d1])).cantidad_recibida),0)
   for (const cantidad of [-1, 1.5, 'NaN']) await reject(sql,args([item(d1,cantidad)]),/entero/)
   await reject(sql,args([item(d1,0)]),/Debe recibir al menos un producto/)
   await reject(sql,args([item(d1,11)]),/máxima.*10/)
