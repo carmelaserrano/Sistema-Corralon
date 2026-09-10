@@ -6,7 +6,7 @@ const TABLA_IMPUTACIONES = 'imputaciones'
 
 export const PERMISO_REGISTRAR = 'tesoreria.pago.registrar'
 
-// Códigos que define la migración 0025. Mismo patrón que recepcionesApi.js
+// Códigos que define la migración 0026. Mismo patrón que recepcionesApi.js
 // con los RCxxx: la base ya redacta el mensaje para mostrarse tal cual, que
 // es lo que hace falta para los CA 8 y 10 (informan máximo y diferencia).
 const STATUS_POR_CODIGO = {
@@ -143,7 +143,7 @@ export async function getOrdenesPago({
 /**
  * Detalle de una orden con sus dos clases de imputación (CA 13): las de
  * efectivo (`pago_id`) y las notas que se aplicaron dentro de esta orden
- * (`pago_origen_id`, la columna de trazabilidad que agrega la 0025).
+ * (`pago_origen_id`, la columna de trazabilidad que agrega la 0026).
  */
 export async function getOrdenPagoById(id) {
   const { data: orden, error } = await supabase
@@ -175,7 +175,7 @@ export async function getOrdenPagoById(id) {
 
 /**
  * Confirma una orden de pago: cabecera, notas imputadas y efectivo, todo en
- * una sola transacción dentro de `crear_orden_pago` (0025).
+ * una sola transacción dentro de `crear_orden_pago` (0026).
  *
  * @param {Object} datos
  * @param {string} datos.proveedor_id

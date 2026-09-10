@@ -1,8 +1,8 @@
--- Migración 0025: orden de pago a proveedores — S2-15 (US-TES-03).
+-- Migración 0026: orden de pago a proveedores — S2-15 (US-TES-03).
 --
 -- Cierra el circuito de Tesorería: facturas (S2-13), notas (S2-16) y
 -- vinculación manual (S2-17) ya existen; faltaba pagar. `pagos_proveedor` e
--- `imputaciones` vienen de la 0013 y la 0024 dejó `imputaciones` con nota_id,
+-- `imputaciones` vienen de la 0013 y la 0025 dejó `imputaciones` con nota_id,
 -- auditoría y baja lógica, así que acá se agrega sobre todo el flujo de
 -- armado y confirmación de la orden.
 --
@@ -46,7 +46,7 @@ create trigger trg_pagos_updated_at
 -- contra el CHECK viejo, que solo admite 'registrado'/'anulado'.
 --
 -- 'anulado' se deja en masculino a propósito: es como lo escriben
--- fn_recalcular_saldo_factura y fn_anulacion_restituye_saldo (0013/0024), y
+-- fn_recalcular_saldo_factura y fn_anulacion_restituye_saldo (0013/0025), y
 -- cambiarlo obligaría a redefinir ambas sin ninguna necesidad.
 
 alter table public.pagos_proveedor drop constraint if exists chk_pago_estado;
@@ -357,4 +357,4 @@ grant execute on function public.crear_orden_pago(
 
 commit;
 
--- Fin migración 0025
+-- Fin migración 0026

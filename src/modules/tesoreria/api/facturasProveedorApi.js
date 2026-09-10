@@ -154,7 +154,7 @@ async function manejarErrorFactura(error) {
     throw errorDeApi('Revisá los datos: no cumplen una validación del sistema', 400)
   }
 
-  // FA002/FA003: fn_validar_factura_oc_proveedor / fn_validar_factura_recepcion_proveedor (0022).
+  // FA002/FA003: fn_validar_factura_oc_proveedor / fn_validar_factura_recepcion_proveedor (0023).
   if (error?.code === 'FA002' || error?.code === 'FA003') {
     throw errorDeApi(error.message, 409)
   }
