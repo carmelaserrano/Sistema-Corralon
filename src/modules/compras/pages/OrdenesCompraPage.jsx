@@ -2,7 +2,9 @@ import { useEffect, useState, useMemo } from 'react'
 import {
   getOrdenesCompra,
   createOrdenCompra,
+  updateOrdenCompra,
   puedeCrearOrdenes,
+  puedeModificarOrdenes,
   cancelarOrdenCompra,
   puedeCancelarOrdenes,
   getOrdenCompraById,
@@ -37,7 +39,7 @@ function EstadoBadge({ estado }) {
     pendiente: 'estado-badge-inactivo', // Amarillo/Gris
     parcialmente_recibida: 'estado-badge-advertencia', // Quizas naranja si existiera, fallback a warning
     recibida: 'estado-badge-activo', // Verde
-    cancelada: 'estado-badge-inactivo', // Gris
+    cancelada: 'estado-badge-error', // Rojo
   }
   const cls = mapClasses[estado] || 'estado-badge-inactivo'
   return <span className={`estado-badge ${cls}`}>{estado.replace('_', ' ')}</span>
@@ -61,6 +63,7 @@ export default function OrdenesCompraPage() {
   const [error, setError] = useState('')
   const [aviso, setAviso] = useState('')
   const [puedeCrear, setPuedeCrear] = useState(false)
+  const [puedeModificar, setPuedeModificar] = useState(false)
   const [puedeCancelar, setPuedeCancelar] = useState(false)
 
   // Datos maestros
@@ -79,6 +82,8 @@ export default function OrdenesCompraPage() {
   // Detalle
   const [ordenActiva, setOrdenActiva] = useState(null)
   const [loadingDetalle, setLoadingDetalle] = useState(false)
+  const [mostrarModalAnular, setMostrarModalAnular] = useState(false)
+  const [motivoAnulacion, setMotivoAnulacion] = useState('')
 
   useEffect(() => {
     cargarPermisos()
@@ -89,6 +94,7 @@ export default function OrdenesCompraPage() {
   async function cargarPermisos() {
     try {
       setPuedeCrear(await puedeCrearOrdenes())
+      setPuedeModificar(await puedeModificarOrdenes())
       setPuedeCancelar(await puedeCancelarOrdenes())
     } catch {
       // Ignorar, asume falso por seguridad
@@ -138,14 +144,22 @@ export default function OrdenesCompraPage() {
     }
   }
 
-  async function anularOrden(id) {
-    const motivo = prompt('Motivo de la anulación:')
-    if (!motivo) return
+  function abrirModalAnular() {
+    setMotivoAnulacion('')
+    setMostrarModalAnular(true)
+  }
+
+  async function confirmarAnulacion(id) {
+    if (!motivoAnulacion || motivoAnulacion.trim() === '') {
+      setError('El motivo de anulación es obligatorio')
+      return
+    }
     
     try {
       setError('')
-      await cancelarOrdenCompra(id, motivo)
+      await cancelarOrdenCompra(id, motivoAnulacion)
       setAviso(`Orden anulada correctamente.`)
+      setMostrarModalAnular(false)
       // Refrescar el detalle o listado
       if (vista === 'detalle') {
         const data = await getOrdenCompraById(id)
@@ -155,6 +169,34 @@ export default function OrdenesCompraPage() {
       }
     } catch (err) {
       setError(err.message || 'No se pudo anular la orden')
+    }
+  }
+
+  async function editarOrden(id) {
+    try {
+      setError('')
+      setAviso('')
+      const data = await getOrdenCompraById(id)
+      setForm({
+        id: data.id,
+        proveedor_id: data.proveedor?.id || '',
+        deposito_destino_id: data.deposito_destino?.id || '',
+        condicion_pago: data.condicion_pago || '',
+        fecha_emision: data.fecha_emision,
+        fecha_entrega_estimada: data.fecha_entrega_estimada || '',
+        observaciones: data.observaciones || '',
+      })
+      setItems(data.detalles.map(d => ({
+        producto_id: d.producto.id,
+        nombre: d.producto.nombre,
+        sku: d.producto.sku,
+        cantidad: d.cantidad,
+        precio_unitario: d.precio_unitario,
+        subtotal: d.subtotal
+      })))
+      setVista('nueva')
+    } catch (err) {
+      setError(err.message || 'Error al cargar la orden para edición')
     }
   }
 
@@ -205,8 +247,14 @@ export default function OrdenesCompraPage() {
     try {
       setGuardando(true)
       setError('')
-      const cabecera = await createOrdenCompra({ ...form, items })
-      setAviso(`Orden #${cabecera.numero} creada correctamente.`)
+      let cabecera;
+      if (form.id) {
+        cabecera = await updateOrdenCompra(form.id, { ...form, items })
+        setAviso(`Orden #${cabecera.numero} actualizada correctamente.`)
+      } else {
+        cabecera = await createOrdenCompra({ ...form, items })
+        setAviso(`Orden #${cabecera.numero} creada correctamente.`)
+      }
       setVista('listado')
       setForm(cabeceraInicial)
       setItems([])
@@ -230,16 +278,16 @@ export default function OrdenesCompraPage() {
     return (
       <main>
         <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-          <h1>Nueva Orden de Compra</h1>
+          <h1>{form.id ? 'Modificar Orden de Compra' : 'Nueva Orden de Compra'}</h1>
           <Button type="button" variant="ghost" onClick={volverListado}>Volver</Button>
         </header>
 
         {error && <Feedback tone="error">{error}</Feedback>}
 
         <form onSubmit={guardarOrden}>
-          <section>
+          <section style={{ gridColumn: '1 / -1' }}>
             <h2>Datos de la Orden</h2>
-            <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: '1fr 1fr' }}>
+            <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
               <div>
                 <label htmlFor="proveedor_id">Proveedor *</label>
                 <select id="proveedor_id" name="proveedor_id" value={form.proveedor_id} onChange={cambiarCampo} required>
@@ -281,11 +329,11 @@ export default function OrdenesCompraPage() {
             </div>
           </section>
 
-          <section style={{ marginTop: '2rem' }}>
+          <section style={{ gridColumn: '1 / -1', marginTop: '2rem' }}>
             <h2>Detalle de Artículos</h2>
             
-            <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', marginBottom: '1rem' }}>
-              <div style={{ flex: 1 }}>
+            <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', marginBottom: '1rem', flexWrap: 'wrap' }}>
+              <div style={{ flex: '1 1 300px', maxWidth: '600px' }}>
                 <label htmlFor="productoId">Artículo</label>
                 <select id="productoId" value={productoId} onChange={e => setProductoId(e.target.value)}>
                   <option value="">Seleccione un artículo</option>
@@ -307,42 +355,40 @@ export default function OrdenesCompraPage() {
               <table>
                 <thead>
                   <tr>
-                    <th>SKU</th>
-                    <th>Artículo</th>
-                    <th style={{ textAlign: 'right' }}>Cant.</th>
-                    <th style={{ textAlign: 'right' }}>Precio Unit.</th>
-                    <th style={{ textAlign: 'right' }}>Subtotal</th>
+                    <th style={{ width: '15%' }}>SKU</th>
+                    <th style={{ width: '35%' }}>Artículo</th>
+                    <th style={{ width: '15%', textAlign: 'right' }}>Cant.</th>
+                    <th style={{ width: '15%', textAlign: 'right' }}>Precio Unit.</th>
+                    <th style={{ width: '15%', textAlign: 'right' }}>Subtotal</th>
                     <th style={{ width: '50px' }}></th>
                   </tr>
                 </thead>
                 <tbody>
                   {items.map((item, idx) => (
                     <tr key={item.producto_id}>
-                      <td>{item.sku}</td>
-                      <td>{item.nombre}</td>
-                      <td style={{ textAlign: 'right' }}>{item.cantidad}</td>
-                      <td style={{ textAlign: 'right' }}>{formatearMoneda(item.precio_unitario)}</td>
-                      <td style={{ textAlign: 'right' }}>{formatearMoneda(item.subtotal)}</td>
-                      <td>
+                      <td style={{ width: '15%' }}>{item.sku}</td>
+                      <td style={{ width: '35%' }}>{item.nombre}</td>
+                      <td style={{ width: '15%', textAlign: 'right' }}>{item.cantidad}</td>
+                      <td style={{ width: '15%', textAlign: 'right' }}>{formatearMoneda(item.precio_unitario)}</td>
+                      <td style={{ width: '15%', textAlign: 'right' }}>{formatearMoneda(item.subtotal)}</td>
+                      <td style={{ width: '50px' }}>
                         <Button type="button" variant="ghost" onClick={() => eliminarItem(idx)}>X</Button>
                       </td>
                     </tr>
                   ))}
-                </tbody>
-                <tfoot>
-                  <tr>
-                    <th colSpan="4" style={{ textAlign: 'right' }}>Total:</th>
-                    <th style={{ textAlign: 'right' }}>{formatearMoneda(totalOrden)}</th>
-                    <th></th>
+                  <tr style={{ background: 'var(--surface-subtle)' }}>
+                    <td colSpan="4" style={{ textAlign: 'right', fontWeight: 'bold' }}>TOTAL:</td>
+                    <td style={{ textAlign: 'right', fontWeight: 'bold', color: 'var(--text-primary)' }}>{formatearMoneda(totalOrden)}</td>
+                    <td></td>
                   </tr>
-                </tfoot>
+                </tbody>
               </table>
             ) : (
               <p>No hay artículos agregados a la orden.</p>
             )}
           </section>
 
-          <div style={{ marginTop: '2rem' }}>
+          <div style={{ gridColumn: '1 / -1', marginTop: '2rem' }}>
             <Button type="submit" loading={guardando}>Confirmar Orden de Compra</Button>
           </div>
         </form>
@@ -359,8 +405,11 @@ export default function OrdenesCompraPage() {
         <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
           <h1>Orden de Compra #{ordenActiva.numero}</h1>
           <div style={{ display: 'flex', gap: '1rem' }}>
-            {puedeCancelar && ordenActiva.estado !== 'cancelada' && (
-              <Button type="button" variant="ghost" onClick={() => anularOrden(ordenActiva.id)}>Anular</Button>
+            {puedeModificar && ordenActiva.estado === 'pendiente' && (
+              <Button type="button" variant="ghost" onClick={() => editarOrden(ordenActiva.id)}>Editar</Button>
+            )}
+            {puedeCancelar && ordenActiva.estado === 'pendiente' && (
+              <Button type="button" variant="ghost" onClick={abrirModalAnular}>Anular</Button>
             )}
             <Button type="button" onClick={volverListado}>Volver</Button>
           </div>
@@ -394,35 +443,55 @@ export default function OrdenesCompraPage() {
             <table>
               <thead>
                 <tr>
-                  <th>SKU</th>
-                  <th>Artículo</th>
-                  <th style={{ textAlign: 'right' }}>Cant. Pedida</th>
-                  <th style={{ textAlign: 'right' }}>Precio Unit.</th>
-                  <th style={{ textAlign: 'right' }}>Subtotal</th>
+                  <th style={{ width: '15%' }}>SKU</th>
+                  <th style={{ width: '40%' }}>Artículo</th>
+                  <th style={{ width: '15%', textAlign: 'right' }}>Cant. Pedida</th>
+                  <th style={{ width: '15%', textAlign: 'right' }}>Precio Unit.</th>
+                  <th style={{ width: '15%', textAlign: 'right' }}>Subtotal</th>
                 </tr>
               </thead>
               <tbody>
                 {ordenActiva.detalles.map(d => (
                   <tr key={d.id}>
-                    <td>{d.producto?.sku}</td>
-                    <td>{d.producto?.nombre}</td>
-                    <td style={{ textAlign: 'right' }}>{d.cantidad}</td>
-                    <td style={{ textAlign: 'right' }}>{formatearMoneda(d.precio_unitario)}</td>
-                    <td style={{ textAlign: 'right' }}>{formatearMoneda(d.subtotal)}</td>
+                    <td style={{ width: '15%' }}>{d.producto?.sku}</td>
+                    <td style={{ width: '40%' }}>{d.producto?.nombre}</td>
+                    <td style={{ width: '15%', textAlign: 'right' }}>{d.cantidad}</td>
+                    <td style={{ width: '15%', textAlign: 'right' }}>{formatearMoneda(d.precio_unitario)}</td>
+                    <td style={{ width: '15%', textAlign: 'right' }}>{formatearMoneda(d.subtotal)}</td>
                   </tr>
                 ))}
-              </tbody>
-              <tfoot>
-                <tr>
-                  <th colSpan="4" style={{ textAlign: 'right' }}>Total:</th>
-                  <th style={{ textAlign: 'right' }}>{formatearMoneda(ordenActiva.total)}</th>
+                <tr style={{ background: 'var(--surface-subtle)' }}>
+                  <td colSpan="4" style={{ textAlign: 'right', fontWeight: 'bold' }}>TOTAL:</td>
+                  <td style={{ textAlign: 'right', fontWeight: 'bold', color: 'var(--text-primary)' }}>{formatearMoneda(ordenActiva.total)}</td>
                 </tr>
-              </tfoot>
+              </tbody>
             </table>
           ) : (
             <p>La orden no tiene detalle.</p>
           )}
         </section>
+
+        {mostrarModalAnular && (
+          <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+            <div style={{ background: 'var(--color-bg, white)', padding: '2rem', borderRadius: '8px', minWidth: '400px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+              <h2 style={{ marginTop: 0 }}>Anular Orden #{ordenActiva.numero}</h2>
+              <div style={{ margin: '1.5rem 0' }}>
+                <label htmlFor="motivoAnulacion" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>Motivo de la anulación:</label>
+                <textarea 
+                  id="motivoAnulacion" 
+                  value={motivoAnulacion} 
+                  onChange={e => setMotivoAnulacion(e.target.value)}
+                  style={{ width: '100%', minHeight: '100px', padding: '0.5rem', borderRadius: '4px', border: '1px solid #ccc' }}
+                  placeholder="Ingrese el motivo por el cual se anula esta orden..."
+                />
+              </div>
+              <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+                <Button type="button" variant="ghost" onClick={() => setMostrarModalAnular(false)}>Cancelar</Button>
+                <Button type="button" onClick={() => confirmarAnulacion(ordenActiva.id)}>Confirmar Anulación</Button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     )
   }

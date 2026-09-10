@@ -215,6 +215,8 @@ td button:hover:not(:disabled), .page-canvas button[type="button"]:hover:not(:di
 .estado-badge-activo { border-color: rgb(22 130 93 / 26%); background: var(--color-success-soft); color: var(--color-success); }
 .estado-badge-inactivo { border-color: var(--border-strong); background: var(--surface-subtle); color: var(--text-muted); }
 .estado-badge-principal { border-color: rgb(47 111 179 / 24%); background: var(--color-info-soft); color: var(--color-info); }
+.estado-badge-error { border-color: rgb(214 69 61 / 25%); background: var(--color-danger-soft); color: var(--color-danger-strong); }
+.estado-badge-advertencia { border-color: rgb(230 167 0 / 25%); background: var(--color-amber-50); color: var(--color-amber-600); }
 
 /* Solapas del detalle (Datos / Contactos / Historial). */
 .tabs { display: flex; flex-wrap: wrap; gap: var(--space-1); margin: 0 0 var(--space-5); padding: 4px; border-radius: var(--radius-md); background: var(--surface-subtle); }
