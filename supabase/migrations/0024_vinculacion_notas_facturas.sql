@@ -242,8 +242,11 @@ security invoker
 set search_path = public, pg_temp
 as $$
 begin
+  -- El estado se fuerza, no se respeta lo que venga en el INSERT: si no,
+  -- una escritura directa contra la tabla podria crear una nota ya marcada
+  -- como 'aplicada' sin tener ninguna imputacion detras.
   new.saldo_pendiente := new.importe;
-  new.estado := coalesce(nullif(new.estado, ''), 'disponible');
+  new.estado := 'disponible';
   return new;
 end;
 $$;
@@ -458,8 +461,8 @@ begin
      where i.nota_id = p_id
        and i.anulado_at is null;
 
-    raise exception 'La nota ya está aplicada (facturas: %) y no puede eliminarse',
-      coalesce(v_facturas, 'vinculada')
+    raise exception 'La nota ya está aplicada y no puede eliminarse. Imputada en: %',
+      coalesce(v_facturas, 'no se pudo identificar el comprobante')
       using errcode = 'NT001';
   end if;
 
