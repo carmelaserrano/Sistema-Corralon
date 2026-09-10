@@ -94,6 +94,7 @@ export async function getOrdenCompraById(id) {
         id,
         producto_id,
         cantidad,
+        cantidad_recibida,
         precio_unitario,
         subtotal,
         producto:productos(id, nombre, sku)

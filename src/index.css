@@ -148,6 +148,23 @@ input:disabled, select:disabled, textarea:disabled { background: var(--surface-s
 input[type="checkbox"], input[type="radio"] { width: 18px; min-height: 18px; accent-color: var(--color-brand); }
 label.checkbox-field { display: flex; align-items: center; gap: var(--space-2); font-size: 13px; font-weight: 600; cursor: pointer; }
 
+.recepciones-page fieldset { grid-column: 1 / -1; min-width: 0; margin: 0; padding: 0; border: 0; }
+.recepciones-page fieldset > label { margin: var(--space-4) 0 var(--space-2); }
+.recepciones-page td { white-space: normal; overflow-wrap: anywhere; }
+.recepciones-page td input { min-width: 80px; }
+.recepcion-cantidad-error { color: var(--color-danger, #b42318); font-size: 12px; }
+.recepcion-detalle-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-4); }
+.recepcion-datos { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: var(--space-4); }
+.recepcion-datos dt { color: var(--text-secondary); font-size: 12px; font-weight: 750; }
+.recepcion-datos dd { margin: var(--space-2) 0 0; overflow-wrap: anywhere; }
+.recepciones-page .recepcion-fila-completa td { background: #f1f8f3; }
+.recepciones-page .recepcion-fila-completa:hover td { background: #e8f3ec; }
+.recepciones-page .recepcion-fila-parcial td { background: #fff9e9; }
+.recepciones-page .recepcion-fila-parcial:hover td { background: #fcf2d8; }
+.recepciones-page .recepcion-etiqueta { display: inline-block; margin-top: 4px; padding: 3px 7px; border: 1px solid; border-radius: var(--radius-md); font-size: 11px; line-height: 1.4; }
+.recepcion-fila-completa .recepcion-etiqueta { color: #306b49; border-color: #c7dfce; background: #e7f2ea; }
+.recepcion-fila-parcial .recepcion-etiqueta { color: #806321; border-color: #e8d8a8; background: #faf0d4; }
+
 .page-canvas table { display: block; width: 100%; margin: var(--space-4) 0 var(--space-5); overflow-x: auto; border: 1px solid var(--border-default); border-radius: var(--radius-lg); border-collapse: separate; border-spacing: 0; background: var(--surface-panel); box-shadow: var(--shadow-1); white-space: nowrap; }
 .page-canvas thead, .page-canvas tbody { display: table; width: 100%; min-width: 760px; table-layout: fixed; }
 
@@ -211,6 +228,7 @@ td button:hover:not(:disabled), .page-canvas button[type="button"]:hover:not(:di
 .feedback-error { border: 1px solid rgb(214 69 61 / 25%); background: var(--color-danger-soft); color: var(--color-danger-strong); }
 .feedback-info { border: 1px solid rgb(47 111 179 / 22%); background: var(--color-info-soft); color: var(--color-info); }
 .feedback-success { border: 1px solid rgb(22 130 93 / 22%); background: var(--color-success-soft); color: var(--color-success); }
+.feedback-warning { border: 1px solid #e6bf58; background: #fff8df; color: #76520a; }
 
 /* Indicador de estado para listados (activo / inactivo). El punto de color
    acompaña al texto en vez de reemplazarlo: el color solo no alcanza para

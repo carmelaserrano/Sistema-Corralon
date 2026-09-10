@@ -397,6 +397,8 @@ export default function OrdenesCompraPage() {
                   <th>SKU</th>
                   <th>Artículo</th>
                   <th style={{ textAlign: 'right' }}>Cant. Pedida</th>
+                  <th style={{ textAlign: 'right' }}>Recibida</th>
+                  <th style={{ textAlign: 'right' }}>Pendiente</th>
                   <th style={{ textAlign: 'right' }}>Precio Unit.</th>
                   <th style={{ textAlign: 'right' }}>Subtotal</th>
                 </tr>
@@ -407,6 +409,8 @@ export default function OrdenesCompraPage() {
                     <td>{d.producto?.sku}</td>
                     <td>{d.producto?.nombre}</td>
                     <td style={{ textAlign: 'right' }}>{d.cantidad}</td>
+                    <td style={{ textAlign: 'right' }}>{d.cantidad_recibida ?? 0}</td>
+                    <td style={{ textAlign: 'right' }}>{Number(d.cantidad) - Number(d.cantidad_recibida ?? 0)}</td>
                     <td style={{ textAlign: 'right' }}>{formatearMoneda(d.precio_unitario)}</td>
                     <td style={{ textAlign: 'right' }}>{formatearMoneda(d.subtotal)}</td>
                   </tr>
@@ -414,7 +418,7 @@ export default function OrdenesCompraPage() {
               </tbody>
               <tfoot>
                 <tr>
-                  <th colSpan="4" style={{ textAlign: 'right' }}>Total:</th>
+                  <th colSpan="6" style={{ textAlign: 'right' }}>Total:</th>
                   <th style={{ textAlign: 'right' }}>{formatearMoneda(ordenActiva.total)}</th>
                 </tr>
               </tfoot>
