@@ -6,6 +6,7 @@ import {
   CODIGO_SIN_FILAS,
 } from '../../stock/api/errores'
 import { getOrdenesCompra } from '../../compras/api/ordenesCompraApi'
+import { getImputacionesDeFactura } from './imputacionesApi'
 
 const TABLA = 'facturas_proveedor'
 const TABLA_FACTURA_RECEPCION = 'factura_recepcion'
@@ -220,7 +221,8 @@ export async function getFacturas({
 }
 
 /**
- * Detalle de una factura, con las recepciones vinculadas (CA 9).
+ * Detalle de una factura, con las recepciones vinculadas (CA 9) y las notas
+ * de crédito/débito imputadas (S2-17, CA 2).
  */
 export async function getFacturaById(id) {
   const { data: factura, error } = await supabase
@@ -242,6 +244,7 @@ export async function getFacturaById(id) {
   return {
     ...factura,
     recepciones: (vinculos ?? []).map((v) => v.recepcion).filter(Boolean),
+    imputaciones: await getImputacionesDeFactura(id),
   }
 }
 

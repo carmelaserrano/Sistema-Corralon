@@ -9,9 +9,14 @@ import {
   puedeRegistrarNotas,
 } from './notasProveedorApi'
 import { supabase } from '../../../lib/supabaseClient'
+import { vincularNotaFactura } from '../../tesoreria/api/imputacionesApi'
 
 vi.mock('../../../lib/supabaseClient', () => ({
   supabase: { from: vi.fn(), rpc: vi.fn() },
+}))
+
+vi.mock('../../tesoreria/api/imputacionesApi', () => ({
+  vincularNotaFactura: vi.fn(),
 }))
 
 // Mismo helper "thenable" que facturasProveedorApi.test.js.
@@ -143,26 +148,43 @@ describe('notasProveedorApi', () => {
       )
     })
 
-    it('incluye factura_id cuando se vincula a una factura (CA 4/5)', async () => {
+    it('crea la imputación cuando se elige una factura, por el importe completo', async () => {
       const builder = crearQueryBuilder({ data: { id: 'n1' }, error: null })
       supabase.from.mockReturnValue(builder)
 
       await createNota({ ...datosValidos, factura_id: 'fact-1' })
 
+      // El vínculo vive en `imputaciones` desde S2-17, no en una columna.
       expect(builder.insert).toHaveBeenCalledWith(
-        expect.objectContaining({ factura_id: 'fact-1' }),
+        expect.not.objectContaining({ factura_id: expect.anything() }),
       )
+      expect(vincularNotaFactura).toHaveBeenCalledWith({
+        notaId: 'n1',
+        facturaId: 'fact-1',
+        importe: 500,
+      })
     })
 
-    it('manda factura_id null cuando no se vincula (CA 6)', async () => {
+    it('no crea ninguna imputación si no se elige factura: la nota queda Disponible', async () => {
       const builder = crearQueryBuilder({ data: { id: 'n1' }, error: null })
       supabase.from.mockReturnValue(builder)
 
       await createNota(datosValidos)
 
-      expect(builder.insert).toHaveBeenCalledWith(
-        expect.objectContaining({ factura_id: null }),
-      )
+      expect(vincularNotaFactura).not.toHaveBeenCalled()
+    })
+
+    it('avisa que la nota quedó Disponible si falla la vinculación', async () => {
+      const builder = crearQueryBuilder({ data: { id: 'n1' }, error: null })
+      supabase.from.mockReturnValue(builder)
+      vincularNotaFactura.mockRejectedValueOnce(new Error('La factura ya está totalmente pagada'))
+
+      await expect(
+        createNota({ ...datosValidos, factura_id: 'fact-1' }),
+      ).rejects.toMatchObject({
+        status: 409,
+        message: expect.stringContaining('Quedó Disponible'),
+      })
     })
 
     it('traduce el duplicado (23505) al mensaje de la historia (CA 8)', async () => {
