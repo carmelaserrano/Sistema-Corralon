@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import {
   getOrdenesCompra,
   createOrdenCompra,
@@ -32,15 +32,16 @@ function formatearMoneda(valor) {
   }).format(valor)
 }
 
+const estadosOC = {
+  pendiente: { label: 'Pendiente', clase: 'estado-badge-principal' },
+  parcialmente_recibida: { label: 'Parcial', clase: 'estado-oc-parcial' },
+  recibida: { label: 'Recibida', clase: 'estado-badge-activo' },
+  cancelada: { label: 'Cancelada', clase: 'estado-badge-inactivo' },
+}
+
 function EstadoBadge({ estado }) {
-  const mapClasses = {
-    pendiente: 'estado-badge-inactivo', // Amarillo/Gris
-    parcialmente_recibida: 'estado-badge-advertencia', // Quizas naranja si existiera, fallback a warning
-    recibida: 'estado-badge-activo', // Verde
-    cancelada: 'estado-badge-inactivo', // Gris
-  }
-  const cls = mapClasses[estado] || 'estado-badge-inactivo'
-  return <span className={`estado-badge ${cls}`}>{estado.replace('_', ' ')}</span>
+  const config = estadosOC[estado]
+  return <span className={`estado-badge ${config?.clase || 'estado-badge-inactivo'}`}>{config?.label || estado || '—'}</span>
 }
 
 const cabeceraInicial = {
@@ -57,6 +58,10 @@ export default function OrdenesCompraPage() {
   
   // Listado
   const [ordenes, setOrdenes] = useState([])
+  const [estadoFiltro, setEstadoFiltro] = useState('')
+  const [pagina, setPagina] = useState(1)
+  const [totalPaginas, setTotalPaginas] = useState(1)
+  const solicitudListado = useRef(0)
   const [loadingListado, setLoadingListado] = useState(true)
   const [error, setError] = useState('')
   const [aviso, setAviso] = useState('')
@@ -82,7 +87,6 @@ export default function OrdenesCompraPage() {
 
   useEffect(() => {
     cargarPermisos()
-    cargarDatosListado()
     cargarMaestros()
   }, [])
 
@@ -95,17 +99,28 @@ export default function OrdenesCompraPage() {
     }
   }
 
-  async function cargarDatosListado() {
+  const cargarDatosListado = useCallback(async () => {
+    const solicitud = ++solicitudListado.current
     try {
       setLoadingListado(true)
-      const resp = await getOrdenesCompra()
+      setError('')
+      const resp = await getOrdenesCompra({ estado: estadoFiltro, page: pagina })
+      if (solicitud !== solicitudListado.current) return
       setOrdenes(resp.ordenes)
+      setTotalPaginas(resp.totalPaginas)
     } catch (err) {
+      if (solicitud !== solicitudListado.current) return
+      setOrdenes([])
       setError(err.message || 'Error al cargar las órdenes de compra')
     } finally {
-      setLoadingListado(false)
+      if (solicitud === solicitudListado.current) setLoadingListado(false)
     }
-  }
+  }, [estadoFiltro, pagina])
+
+  useEffect(() => {
+    cargarDatosListado()
+    return () => { solicitudListado.current += 1 }
+  }, [cargarDatosListado])
 
   async function cargarMaestros() {
     try {
@@ -223,6 +238,7 @@ export default function OrdenesCompraPage() {
     setOrdenActiva(null)
     setError('')
     setAviso('')
+    cargarDatosListado()
   }
 
   // --- RENDER ---
@@ -437,8 +453,8 @@ export default function OrdenesCompraPage() {
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
         <h1>Órdenes de Compra</h1>
         {puedeCrear && (
-          <Button type="button" onClick={() => { setVista('nueva'); setError(''); setAviso('') }}>
-            Nueva Orden
+          <Button type="button" style={{ padding: '12px 20px', fontSize: '1rem' }} onClick={() => { setVista('nueva'); setError(''); setAviso('') }}>
+            Nueva Orden de Compra
           </Button>
         )}
       </header>
@@ -447,13 +463,20 @@ export default function OrdenesCompraPage() {
       {aviso && <Feedback tone="success">{aviso}</Feedback>}
 
       <section>
+        <h2>Historial de órdenes de compra</h2>
+        <label htmlFor="estado-oc">Filtrar por estado</label>
+        <select id="estado-oc" value={estadoFiltro} onChange={e => { setEstadoFiltro(e.target.value); setPagina(1) }}>
+          <option value="">Todos los estados</option>
+          {Object.entries(estadosOC).map(([valor, config]) => <option key={valor} value={valor}>{config.label}</option>)}
+        </select>
+        <Button type="button" variant="ghost" disabled={loadingListado} onClick={cargarDatosListado}>Actualizar</Button>
         {loadingListado && <p role="status">Cargando órdenes...</p>}
         
-        {!loadingListado && ordenes.length === 0 && (
-          <EmptyState title="No hay órdenes de compra" description="Aún no se ha registrado ninguna orden de compra en el sistema." />
+        {!loadingListado && !error && ordenes.length === 0 && (
+          <EmptyState title="No hay órdenes de compra" description={estadoFiltro ? 'No hay órdenes con el estado seleccionado.' : 'Aún no se ha registrado ninguna orden de compra en el sistema.'} />
         )}
 
-        {!loadingListado && ordenes.length > 0 && (
+        {!loadingListado && !error && ordenes.length > 0 && (
           <table>
             <thead>
               <tr>
@@ -482,6 +505,13 @@ export default function OrdenesCompraPage() {
               ))}
             </tbody>
           </table>
+        )}
+        {!loadingListado && !error && totalPaginas > 1 && (
+          <nav aria-label="Paginación de órdenes" style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+            <Button type="button" disabled={pagina === 1} onClick={() => setPagina(p => p - 1)}>Anterior</Button>
+            <span>Página {pagina} de {totalPaginas}</span>
+            <Button type="button" disabled={pagina >= totalPaginas} onClick={() => setPagina(p => p + 1)}>Siguiente</Button>
+          </nav>
         )}
       </section>
     </main>
