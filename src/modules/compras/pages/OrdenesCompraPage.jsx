@@ -8,6 +8,7 @@ import {
   cancelarOrdenCompra,
   puedeCancelarOrdenes,
   getOrdenCompraById,
+  getHistorialModificaciones,
 } from '../api/ordenesCompraApi'
 import { getProveedores, CONDICIONES_PAGO } from '../../proveedores/api/proveedoresApi'
 import { getDepositos } from '../../stock/api/depositosApi'
@@ -84,6 +85,8 @@ export default function OrdenesCompraPage() {
   const [loadingDetalle, setLoadingDetalle] = useState(false)
   const [mostrarModalAnular, setMostrarModalAnular] = useState(false)
   const [motivoAnulacion, setMotivoAnulacion] = useState('')
+  const [historial, setHistorial] = useState([])
+  const [loadingHistorial, setLoadingHistorial] = useState(false)
 
   useEffect(() => {
     cargarPermisos()
@@ -134,7 +137,21 @@ export default function OrdenesCompraPage() {
       setLoadingDetalle(true)
       setError('')
       setAviso('')
-      const data = await getOrdenCompraById(id)
+      setHistorial([])
+      const [data] = await Promise.all([
+        getOrdenCompraById(id),
+        (async () => {
+          setLoadingHistorial(true)
+          try {
+            const h = await getHistorialModificaciones(id)
+            setHistorial(h)
+          } catch {
+            // No bloqueamos la vista si falla el historial
+          } finally {
+            setLoadingHistorial(false)
+          }
+        })()
+      ])
       setOrdenActiva(data)
     } catch (err) {
       setError(err.message || 'No se pudo cargar el detalle de la orden')
@@ -470,6 +487,47 @@ export default function OrdenesCompraPage() {
             <p>La orden no tiene detalle.</p>
           )}
         </section>
+
+        {/* Historial de modificaciones */}
+        <section style={{ marginTop: '2rem' }}>
+          <h2>Historial de modificaciones</h2>
+          {loadingHistorial ? (
+            <p>Cargando historial...</p>
+          ) : historial.length === 0 ? (
+            <p style={{ color: 'var(--text-secondary, #666)', fontStyle: 'italic' }}>Sin modificaciones registradas.</p>
+          ) : (
+            <table style={{ tableLayout: 'fixed', width: '100%' }}>
+              <colgroup>
+                <col style={{ width: '16%' }} />
+                <col style={{ width: '24%' }} />
+                <col style={{ width: '24%' }} />
+                <col style={{ width: '22%' }} />
+                <col style={{ width: '14%' }} />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>Campo</th>
+                  <th>Valor anterior</th>
+                  <th>Valor nuevo</th>
+                  <th>Usuario</th>
+                  <th>Fecha</th>
+                </tr>
+              </thead>
+              <tbody>
+                {historial.map(h => (
+                  <tr key={h.id}>
+                    <td style={{ fontWeight: 'bold', fontSize: '0.82rem', wordBreak: 'break-word', overflowWrap: 'break-word' }}>{h.campo.replace(/_/g, ' ')}</td>
+                    <td style={{ color: 'var(--color-error, #c00)', fontSize: '0.82rem', textDecoration: h.valor_anterior ? 'line-through' : 'none', wordBreak: 'break-word', overflowWrap: 'break-word' }}>{h.valor_anterior || '—'}</td>
+                    <td style={{ color: 'var(--color-success, #060)', fontSize: '0.82rem', wordBreak: 'break-word', overflowWrap: 'break-word' }}>{h.valor_nuevo || '—'}</td>
+                    <td style={{ fontSize: '0.82rem', color: 'var(--text-secondary, #666)', wordBreak: 'break-all' }}>{h.modificado_por_email || '—'}</td>
+                    <td style={{ fontSize: '0.82rem', whiteSpace: 'nowrap' }}>{formatearFecha(h.modificado_en)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
+
 
         {mostrarModalAnular && (
           <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
