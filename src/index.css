@@ -135,6 +135,11 @@ button:disabled { cursor: not-allowed; opacity: 0.48; }
 .page-canvas section form, .page-canvas form form { margin: var(--space-4) 0 0; padding: 0; border: 0; border-radius: 0; box-shadow: none; }
 .page-canvas form { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(230px, 100%), 1fr)); align-items: end; gap: var(--space-4); }
 .page-canvas form > h2, .page-canvas form > h3, .page-canvas form > p, .page-canvas form > table { grid-column: 1 / -1; }
+/* Formularios largos que se organizan en <section>: el form es solo un
+   contenedor transparente y cada sección es la tarjeta. Sin esto, las
+   secciones caen como celdas del grid de arriba y quedan una al lado de otra. */
+.page-canvas .stacked-form { display: block; margin: 0; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; }
+.page-canvas .stacked-form > fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
 label { display: grid; gap: var(--space-2); color: var(--text-secondary); font-size: 12px; font-weight: 750; }
 input, select, textarea { width: 100%; min-height: var(--control-md); padding: 9px 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-md); background: var(--surface-panel); color: var(--text-primary); font-size: 14px; font-weight: 450; transition: border-color 150ms ease, box-shadow 150ms ease; }
 textarea { min-height: 92px; resize: vertical; }
