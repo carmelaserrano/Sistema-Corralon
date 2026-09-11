@@ -25,6 +25,7 @@ import AppShell from './components/layout/AppShell'
 function App() {
   const { session, loading, signOut } = useAuth()
   const [pagina, setPagina] = useState('stock')
+  const [filtroArticuloId, setFiltroArticuloId] = useState(null)
 
   if (loading) {
     return (
@@ -36,11 +37,21 @@ function App() {
   }
   if (!session) return <LoginPage />
 
+  // Al navegar desde el menú, limpiamos el filtro si es que vamos a historial (opcional)
+  // pero lo más seguro es resetearlo en el onNavigate, o simplemente 
+  // limpiar el filtroArticuloId si la nueva página no es historial
+  const handleNavigate = (nuevaPagina) => {
+    if (nuevaPagina !== 'historial-movimientos') {
+      setFiltroArticuloId(null)
+    }
+    setPagina(nuevaPagina)
+  }
+
   return (
     <AppShell
       activePage={pagina}
       email={session.user.email}
-      onNavigate={setPagina}
+      onNavigate={handleNavigate}
       onSignOut={signOut}
     >
       {pagina === 'stock' && <StockPage />}
@@ -48,7 +59,14 @@ function App() {
       {pagina === 'categorias' && <CategoriasPage />}
       {pagina === 'marcas' && <MarcasPage />}
       {pagina === 'unidades' && <UnidadesMedidaPage />}
-      {pagina === 'articulos' && <ArticulosPage />}
+      {pagina === 'articulos' && (
+        <ArticulosPage 
+          onVerHistorial={(id) => {
+            setFiltroArticuloId(id)
+            setPagina('historial-movimientos')
+          }}
+        />
+      )}
       {pagina === 'movimientos' && (
         <MovimientosPage
           onVerHistorial={() => setPagina('historial-movimientos')}
@@ -56,7 +74,11 @@ function App() {
       )}
       {pagina === 'historial-movimientos' && (
         <HistorialMovimientosPage
-          onVolver={() => setPagina('movimientos')}
+          articuloIdProp={filtroArticuloId}
+          onVolver={() => {
+            setFiltroArticuloId(null)
+            setPagina(filtroArticuloId ? 'articulos' : 'movimientos')
+          }}
         />
       )}
       {pagina === 'configuracion-stock' && <ConfiguracionStockPage />}

@@ -15,14 +15,20 @@ const filtrosIniciales = {
   depositoDestinoId: '',
 }
 
-function HistorialMovimientosPage({ onVolver }) {
+function HistorialMovimientosPage({ onVolver, articuloIdProp }) {
   const [movimientos, setMovimientos] = useState([])
   const [depositos, setDepositos] = useState([])
   const [articulos, setArticulos] = useState([])
   const [tipos, setTipos] = useState([])
-  const [filtros, setFiltros] = useState(filtrosIniciales)
+
+  const filtrosPorDefecto = {
+    ...filtrosIniciales,
+    articuloId: articuloIdProp || ''
+  }
+
+  const [filtros, setFiltros] = useState(filtrosPorDefecto)
   const [filtrosAplicados, setFiltrosAplicados] =
-    useState(filtrosIniciales)
+    useState(filtrosPorDefecto)
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
   const [totalPaginas, setTotalPaginas] = useState(1)
@@ -46,7 +52,7 @@ function HistorialMovimientosPage({ onVolver }) {
     } catch (err) {
       setError(
         err.message ||
-          'No se pudo cargar el historial de movimientos',
+        'No se pudo cargar el historial de movimientos',
       )
     } finally {
       setLoading(false)
@@ -74,6 +80,7 @@ function HistorialMovimientosPage({ onVolver }) {
         setTipos(tiposData)
 
         const resultado = await getHistorialMovimientos({
+          ...filtrosPorDefecto,
           page: 1,
           pageSize: 10,
         })
@@ -84,7 +91,7 @@ function HistorialMovimientosPage({ onVolver }) {
       } catch (err) {
         setError(
           err.message ||
-            'No se pudo cargar el historial de movimientos',
+          'No se pudo cargar el historial de movimientos',
         )
       } finally {
         setLoading(false)
@@ -137,7 +144,7 @@ function HistorialMovimientosPage({ onVolver }) {
   }
 
   return (
-    <main>
+    <main className="historial-movimientos-page">
       <button
         type="button"
         onClick={onVolver}

@@ -41,6 +41,14 @@ export async function puedeCrearOrdenes() {
   return data === true
 }
 
+export async function puedeModificarOrdenes() {
+  const { data, error } = await supabase.rpc('usuario_tiene_permiso', {
+    p_nombre: PERMISO_MODIFICAR,
+  })
+  if (error) throw error
+  return data === true
+}
+
 export async function puedeCancelarOrdenes() {
   const { data, error } = await supabase.rpc('usuario_tiene_permiso', {
     p_nombre: PERMISO_CANCELAR,
@@ -197,6 +205,144 @@ export async function createOrdenCompra(orden) {
   return cabecera
 }
 
+export async function updateOrdenCompra(id, orden) {
+  // Validación básica
+  if (!orden.proveedor_id) throw errorDeApi('El proveedor es obligatorio', 400)
+  if (!orden.deposito_destino_id) throw errorDeApi('El depósito destino es obligatorio', 400)
+  if (!orden.items || orden.items.length === 0) throw errorDeApi('La orden debe tener al menos un artículo', 400)
+
+  // 1. Capturamos el detalle ACTUAL antes de modificar (para el diff de ítems)
+  const { data: detalleAnterior } = await supabase
+    .from(TABLA_DETALLE)
+    .select('producto_id, cantidad, precio_unitario, producto:productos(nombre, sku)')
+    .eq('orden_compra_id', id)
+
+  const itemsAnteriores = (detalleAnterior ?? []).map(d => ({
+    producto_id: d.producto_id,
+    nombre: d.producto?.nombre ?? d.producto_id,
+    cantidad: Number(d.cantidad),
+    precio_unitario: Number(d.precio_unitario),
+  }))
+
+  // 2. Actualizamos la cabecera
+  const { data: cabecera, error: errorCabecera } = await supabase
+    .from(TABLA)
+    .update({
+      proveedor_id: orden.proveedor_id,
+      deposito_destino_id: orden.deposito_destino_id,
+      condicion_pago: orden.condicion_pago?.trim() || null,
+      fecha_emision: orden.fecha_emision,
+      fecha_entrega_estimada: orden.fecha_entrega_estimada || null,
+      observaciones: orden.observaciones?.trim() || null,
+    })
+    .eq('id', id)
+    .select('id, numero')
+    .single()
+
+  if (errorCabecera) {
+    throw errorDeApi(errorCabecera.message || 'Error al actualizar la cabecera de la orden')
+  }
+
+  // 3. Eliminamos el detalle actual
+  const { error: errorDelete } = await supabase
+    .from(TABLA_DETALLE)
+    .delete()
+    .eq('orden_compra_id', id)
+
+  if (errorDelete) {
+    throw errorDeApi(errorDelete.message || 'Error al actualizar el detalle de la orden (delete)')
+  }
+
+  // 4. Insertamos el nuevo detalle
+  const items = orden.items.map((item) => ({
+    orden_compra_id: id,
+    producto_id: item.producto_id,
+    cantidad: Number(item.cantidad),
+    precio_unitario: Number(item.precio_unitario),
+  }))
+
+  const { error: errorDetalle } = await supabase
+    .from(TABLA_DETALLE)
+    .insert(items)
+
+  if (errorDetalle) {
+    throw errorDeApi(errorDetalle.message || 'Error al crear el detalle de la orden. La cabecera fue actualizada.')
+  }
+
+  // 5. Calculamos diff de ítems y registramos en historial
+  try {
+    const userResp = await supabase.auth.getUser()
+    const uid = userResp.data.user?.id
+    const email = userResp.data.user?.email
+
+    const mapaAnterior = new Map(itemsAnteriores.map(i => [i.producto_id, i]))
+    const mapaNew = new Map(orden.items.map(i => [
+      i.producto_id,
+      { nombre: i.nombre ?? i.producto_id, cantidad: Number(i.cantidad), precio_unitario: Number(i.precio_unitario) },
+    ]))
+
+    const registros = []
+
+    // Artículos eliminados o con cambios en cantidad/precio
+    for (const [pid, ant] of mapaAnterior) {
+      const nvo = mapaNew.get(pid)
+      if (!nvo) {
+        registros.push({
+          orden_id: id,
+          campo: 'artículo eliminado',
+          valor_anterior: `${ant.nombre} — cant: ${ant.cantidad}, precio: ${ant.precio_unitario}`,
+          valor_nuevo: null,
+          modificado_por: uid,
+          modificado_por_email: email,
+        })
+      } else {
+        if (ant.cantidad !== nvo.cantidad) {
+          registros.push({
+            orden_id: id,
+            campo: `cantidad (${ant.nombre})`,
+            valor_anterior: String(ant.cantidad),
+            valor_nuevo: String(nvo.cantidad),
+            modificado_por: uid,
+            modificado_por_email: email,
+          })
+        }
+        if (ant.precio_unitario !== nvo.precio_unitario) {
+          registros.push({
+            orden_id: id,
+            campo: `precio unitario (${ant.nombre})`,
+            valor_anterior: String(ant.precio_unitario),
+            valor_nuevo: String(nvo.precio_unitario),
+            modificado_por: uid,
+            modificado_por_email: email,
+          })
+        }
+      }
+    }
+
+    // Artículos nuevos
+    for (const [pid, nvo] of mapaNew) {
+      if (!mapaAnterior.has(pid)) {
+        registros.push({
+          orden_id: id,
+          campo: 'artículo agregado',
+          valor_anterior: null,
+          valor_nuevo: `${nvo.nombre} — cant: ${nvo.cantidad}, precio: ${nvo.precio_unitario}`,
+          modificado_por: uid,
+          modificado_por_email: email,
+        })
+      }
+    }
+
+    if (registros.length > 0) {
+      await supabase.from('historial_modificaciones_oc').insert(registros)
+    }
+  } catch {
+    // No bloqueamos el guardado si falla el registro del historial de ítems
+  }
+
+  return cabecera
+}
+
 export async function cancelarOrdenCompra(id, motivo) {
   if (!motivo || motivo.trim() === '') {
     throw errorDeApi('El motivo de cancelación es obligatorio', 400)
@@ -222,4 +368,22 @@ export async function cancelarOrdenCompra(id, motivo) {
   }
 
   return data
+}
+
+/**
+ * Devuelve el historial de modificaciones de cabecera de una OC,
+ * del más reciente al más antiguo (CA 4).
+ *
+ * @param {string} id ID de la orden de compra.
+ * @returns {Promise<Array<Object>>} Registros de cambio.
+ */
+export async function getHistorialModificaciones(id) {
+  const { data, error } = await supabase
+    .from('historial_modificaciones_oc')
+    .select('id, campo, valor_anterior, valor_nuevo, modificado_por, modificado_por_email, modificado_en')
+    .eq('orden_id', id)
+    .order('modificado_en', { ascending: false })
+
+  if (error) throw error
+  return data ?? []
 }

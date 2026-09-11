@@ -196,6 +196,26 @@ export async function getProveedores({
 }
 
 /**
+ * Busca un proveedor por su ID.
+ *
+ * @param {string} id ID del proveedor
+ * @returns {Promise<Object>} Proveedor
+ */
+export async function getProveedorById(id) {
+  const { data, error } = await supabase
+    .from(TABLA)
+    .select(COLUMNAS)
+    .eq('id', id)
+    .single()
+
+  if (error) {
+    if (error.code === 'PGRST116') throw errorDeApi('Proveedor no encontrado', 404)
+    throw error
+  }
+  return normalizarProveedor(data)
+}
+
+/**
  * Proveedores que pueden elegirse en un comprobante (Orden de Compra,
  * recepción, factura). Excluye los inactivos: ése es el CA 5 de US-PRV-06.
  *

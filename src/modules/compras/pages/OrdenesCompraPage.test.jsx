@@ -10,6 +10,16 @@ vi.mock('../api/ordenesCompraApi', () => ({
   puedeCrearOrdenes: vi.fn(), puedeCancelarOrdenes: vi.fn(),
   createOrdenCompra: vi.fn(), cancelarOrdenCompra: vi.fn(),
 }))
+vi.mock('../../../lib/supabaseClient', () => ({
+  supabase: {
+    from: vi.fn(() => ({
+      select: vi.fn().mockResolvedValue({ data: [], error: null }),
+      insert: vi.fn().mockResolvedValue({ data: [], error: null }),
+      update: vi.fn().mockResolvedValue({ data: [], error: null }),
+      delete: vi.fn().mockResolvedValue({ data: [], error: null }),
+    })),
+  },
+}))
 vi.mock('../../proveedores/api/proveedoresApi', () => ({ getProveedores: vi.fn().mockResolvedValue([]), CONDICIONES_PAGO: [] }))
 vi.mock('../../stock/api/depositosApi', () => ({ getDepositos: vi.fn().mockResolvedValue([]) }))
 vi.mock('../../stock/api/articulosApi', () => ({ getArticulos: vi.fn().mockResolvedValue({ articulos: [] }) }))
@@ -39,10 +49,14 @@ it('combina proveedor, fechas, estado y orden; limpiar elimina los filtros', asy
 
 it('muestra el total global y abre recepciones, facturas y notas desde la fila', async () => {
   const nota = { letra: 'A', sucursal: '0001', numero: '00000002', fecha: '2026-09-10', importe: 20, estado: 'aplicada' }
-  api.getDetalleHistorialOC.mockResolvedValue({ ...orden, detalles: [], recepciones: [{ id: 'r1', numero: 45, estado_recepcion: 'confirmada' }], facturas: [{ id: 'f1', letra: 'A', sucursal: '0001', numero: '00000001', estado: 'pendiente', importe_total: 100, imputaciones: [
-    { id: 'i1', importe_imputado: 10, nota: { ...nota, tipo: 'CREDITO' } },
-    { id: 'i2', importe_imputado: 20, nota: { ...nota, tipo: 'DEBITO' } },
-  ] }] })
+  api.getDetalleHistorialOC.mockResolvedValue({
+    ...orden, detalles: [], recepciones: [{ id: 'r1', numero: 45, estado_recepcion: 'confirmada' }], facturas: [{
+      id: 'f1', letra: 'A', sucursal: '0001', numero: '00000001', estado: 'pendiente', importe_total: 100, imputaciones: [
+        { id: 'i1', importe_imputado: 10, nota: { ...nota, tipo: 'CREDITO' } },
+        { id: 'i2', importe_imputado: 20, nota: { ...nota, tipo: 'DEBITO' } },
+      ]
+    }]
+  })
   render(<OrdenesCompraPage />)
   expect(await screen.findByText(/21 registros/)).toHaveTextContent('excluye canceladas')
   expect(screen.getByText(/21 registros/)).toHaveTextContent('900,00')
