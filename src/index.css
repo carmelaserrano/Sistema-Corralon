@@ -920,6 +920,87 @@ td button,
   font-size: 12px;
 }
 
+.page-canvas .icon-button {
+  display: inline-grid;
+  width: var(--control-sm);
+  min-width: var(--control-sm);
+  padding: 0;
+  place-items: center;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: var(--space-5);
+  background: rgb(18 18 16 / 48%);
+}
+
+.modal-panel {
+  width: min(920px, 100%);
+  max-height: min(760px, calc(100vh - 40px));
+  overflow: auto;
+  padding: var(--space-6);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--surface-panel);
+  box-shadow: var(--shadow-2);
+}
+
+.modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.modal-header h2 {
+  margin: 0;
+}
+
+.modal-header p {
+  margin: var(--space-1) 0 0;
+  color: var(--text-secondary);
+}
+
+.modal-header .eyebrow {
+  margin: 0 0 var(--space-1);
+  color: var(--color-brand-hover);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+}
+
+.historial-articulo-table {
+  overflow-x: auto;
+}
+
+.historial-articulo-modal table {
+  display: table;
+  table-layout: auto;
+}
+
+.historial-articulo-modal thead {
+  display: table-header-group;
+}
+
+.historial-articulo-modal tbody {
+  display: table-row-group;
+}
+
+.historial-articulo-modal tr {
+  display: table-row;
+}
+
+.historial-articulo-modal th,
+.historial-articulo-modal td {
+  display: table-cell;
+}
+
 td button:hover:not(:disabled),
 .page-canvas button[type="button"]:hover:not(:disabled) {
   border-color: var(--border-strong);
