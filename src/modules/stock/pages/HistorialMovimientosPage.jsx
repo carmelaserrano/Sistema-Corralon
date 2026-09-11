@@ -15,20 +15,15 @@ const filtrosIniciales = {
   depositoDestinoId: '',
 }
 
-function HistorialMovimientosPage({ onVolver, articuloIdProp }) {
+function HistorialMovimientosPage({ onVolver }) {
   const [movimientos, setMovimientos] = useState([])
   const [depositos, setDepositos] = useState([])
   const [articulos, setArticulos] = useState([])
   const [tipos, setTipos] = useState([])
 
-  const filtrosPorDefecto = {
-    ...filtrosIniciales,
-    articuloId: articuloIdProp || ''
-  }
-
-  const [filtros, setFiltros] = useState(filtrosPorDefecto)
+  const [filtros, setFiltros] = useState(filtrosIniciales)
   const [filtrosAplicados, setFiltrosAplicados] =
-    useState(filtrosPorDefecto)
+    useState(filtrosIniciales)
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
   const [totalPaginas, setTotalPaginas] = useState(1)
@@ -80,7 +75,7 @@ function HistorialMovimientosPage({ onVolver, articuloIdProp }) {
         setTipos(tiposData)
 
         const resultado = await getHistorialMovimientos({
-          ...filtrosPorDefecto,
+          ...filtrosIniciales,
           page: 1,
           pageSize: 10,
         })

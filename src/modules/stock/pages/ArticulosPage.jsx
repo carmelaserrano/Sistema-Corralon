@@ -40,7 +40,7 @@ function opcionesPara(lista, idSeleccionado) {
   return lista.filter((item) => item.activo || item.id === idSeleccionado)
 }
 
-function ArticulosPage({ onVerHistorial }) {
+function ArticulosPage() {
   const [articulos, setArticulos] = useState([])
   const [total, setTotal] = useState(0)
   const [pagina, setPagina] = useState(1)
@@ -376,14 +376,6 @@ function ArticulosPage({ onVerHistorial }) {
                         ? 'Desactivar'
                         : 'Activar'}
                     </button>
-                    {onVerHistorial && (
-                      <button
-                        type="button"
-                        onClick={() => onVerHistorial(articulo.id)}
-                      >
-                        Movimientos
-                      </button>
-                    )}
                   </td>
                 </tr>
               ))}
