@@ -11,9 +11,17 @@ import {
   getHistorialModificaciones,
   getDetalleHistorialOC,
 } from '../api/ordenesCompraApi'
-import { getProveedores, CONDICIONES_PAGO } from '../../proveedores/api/proveedoresApi'
+import { 
+  getProveedores, 
+  CONDICIONES_PAGO, 
+  CONDICIONES_FISCALES,
+  puedeModificarProveedores,
+  getProveedorById,
+  updateProveedor
+} from '../../proveedores/api/proveedoresApi'
 import { getDepositos } from '../../stock/api/depositosApi'
 import { getArticulos } from '../../stock/api/articulosApi'
+import ContactosProveedor from '../../proveedores/components/ContactosProveedor'
 import Button from '../../../components/ui/Button'
 import EmptyState from '../../../components/ui/EmptyState'
 import Feedback from '../../../components/ui/Feedback'
@@ -79,6 +87,7 @@ export default function OrdenesCompraPage() {
   const [puedeCrear, setPuedeCrear] = useState(false)
   const [puedeModificar, setPuedeModificar] = useState(false)
   const [puedeCancelar, setPuedeCancelar] = useState(false)
+  const [puedeModificarProv, setPuedeModificarProv] = useState(false)
 
   // Datos maestros
   const [proveedores, setProveedores] = useState([])
@@ -101,6 +110,13 @@ export default function OrdenesCompraPage() {
   const [historial, setHistorial] = useState([])
   const [loadingHistorial, setLoadingHistorial] = useState(false)
 
+  // Proveedor Modal
+  const [mostrarModalProveedor, setMostrarModalProveedor] = useState(false)
+  const [proveedorDetalle, setProveedorDetalle] = useState(null)
+  const [solapaProveedor, setSolapaProveedor] = useState('datos')
+  const [formProveedor, setFormProveedor] = useState({})
+  const [guardandoProveedor, setGuardandoProveedor] = useState(false)
+
   useEffect(() => {
     cargarPermisos()
     cargarMaestros()
@@ -111,6 +127,7 @@ export default function OrdenesCompraPage() {
       setPuedeCrear(await puedeCrearOrdenes())
       setPuedeModificar(await puedeModificarOrdenes())
       setPuedeCancelar(await puedeCancelarOrdenes())
+      setPuedeModificarProv(await puedeModificarProveedores())
     } catch {
       // Ignorar, asume falso por seguridad
     }
@@ -240,6 +257,59 @@ export default function OrdenesCompraPage() {
       setVista('nueva')
     } catch (err) {
       setError(err.message || 'Error al cargar la orden para edición')
+    }
+  }
+
+  // ---- MODAL PROVEEDOR ----
+  async function abrirModalProveedor(proveedorId) {
+    try {
+      setLoadingDetalle(true)
+      const prov = await getProveedorById(proveedorId)
+      setProveedorDetalle(prov)
+      setFormProveedor({
+        razon_social: prov.razon_social || '',
+        nombre_fantasia: prov.nombre_fantasia || '',
+        condicion_fiscal: prov.condicion_fiscal || '',
+        condicion_pago_habitual: prov.condicion_pago_habitual || '',
+        domicilio: prov.domicilio || '',
+        localidad: prov.localidad || '',
+        provincia: prov.provincia || '',
+        telefono: prov.telefono || '',
+        email: prov.email || '',
+        observaciones: prov.observaciones || ''
+      })
+      setSolapaProveedor('datos')
+      setMostrarModalProveedor(true)
+    } catch(err) {
+      setError(err.message || 'No se pudo cargar el proveedor')
+    } finally {
+      setLoadingDetalle(false)
+    }
+  }
+
+  async function guardarProveedor(e) {
+    e.preventDefault()
+    try {
+      setGuardandoProveedor(true)
+      const provActualizado = await updateProveedor(proveedorDetalle.id, formProveedor, proveedorDetalle.rubro?.id)
+      setProveedorDetalle(provActualizado)
+      setAviso(`Proveedor actualizado correctamente.`)
+      
+      if (ordenActiva && ordenActiva.proveedor.id === provActualizado.id) {
+        setOrdenActiva({
+          ...ordenActiva,
+          proveedor: {
+            ...ordenActiva.proveedor,
+            razon_social: provActualizado.razon_social,
+            cuit: provActualizado.cuit
+          }
+        })
+      }
+      setMostrarModalProveedor(false)
+    } catch(err) {
+      setError(err.message || 'Error al guardar el proveedor')
+    } finally {
+      setGuardandoProveedor(false)
     }
   }
 
@@ -477,7 +547,13 @@ export default function OrdenesCompraPage() {
           <h2>Datos Generales</h2>
           <table>
             <tbody>
-              <tr><th>Proveedor</th><td>{ordenActiva.proveedor?.razon_social} (CUIT {ordenActiva.proveedor?.cuit})</td></tr>
+              <tr>
+                <th>Proveedor</th>
+                <td style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>{ordenActiva.proveedor?.razon_social} (CUIT {ordenActiva.proveedor?.cuit})</span>
+                  <Button type="button" variant="ghost" onClick={() => abrirModalProveedor(ordenActiva.proveedor?.id)}>Administrar Proveedor</Button>
+                </td>
+              </tr>
               <tr><th>Depósito Destino</th><td>{ordenActiva.deposito_destino?.nombre}</td></tr>
               <tr><th>Fecha de Emisión</th><td>{formatearFechaCorta(ordenActiva.fecha_emision)}</td></tr>
               <tr><th>Entrega Estimada</th><td>{formatearFechaCorta(ordenActiva.fecha_entrega_estimada)}</td></tr>
@@ -639,6 +715,93 @@ export default function OrdenesCompraPage() {
             </div>
           )) : <p>No hay facturas asociadas.</p>}
         </section>
+
+        {mostrarModalProveedor && proveedorDetalle && (
+          <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'flex-start', overflowY: 'auto', zIndex: 1000, padding: '2rem 1rem' }}>
+            <div style={{ background: 'var(--color-bg, white)', padding: '2rem', borderRadius: '8px', width: '100%', maxWidth: '800px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                <h2 style={{ margin: 0 }}>Administrar Proveedor: {proveedorDetalle.razon_social}</h2>
+                <Button type="button" variant="ghost" onClick={() => setMostrarModalProveedor(false)}>Cerrar</Button>
+              </div>
+
+              <div className="tabs" role="tablist" style={{ marginBottom: '1.5rem' }}>
+                <button type="button" role="tab" aria-selected={solapaProveedor === 'datos'} onClick={() => setSolapaProveedor('datos')}>Datos Básicos</button>
+                <button type="button" role="tab" aria-selected={solapaProveedor === 'contactos'} onClick={() => setSolapaProveedor('contactos')}>Contactos</button>
+              </div>
+
+              {solapaProveedor === 'datos' && (
+                <form onSubmit={guardarProveedor}>
+                  <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', marginBottom: '1.5rem' }}>
+                    <div>
+                      <label htmlFor="prov_razon_social">Razón Social</label>
+                      <input id="prov_razon_social" value={formProveedor.razon_social} onChange={e => setFormProveedor(f => ({...f, razon_social: e.target.value}))} disabled={!puedeModificarProv} required />
+                    </div>
+                    <div>
+                      <label htmlFor="prov_nombre_fantasia">Nombre de Fantasía</label>
+                      <input id="prov_nombre_fantasia" value={formProveedor.nombre_fantasia} onChange={e => setFormProveedor(f => ({...f, nombre_fantasia: e.target.value}))} disabled={!puedeModificarProv} />
+                    </div>
+                    <div>
+                      <label>CUIT</label>
+                      <input value={proveedorDetalle.cuit} disabled />
+                    </div>
+                    <div>
+                      <label htmlFor="prov_condicion_fiscal">Condición Fiscal</label>
+                      <select id="prov_condicion_fiscal" value={formProveedor.condicion_fiscal} onChange={e => setFormProveedor(f => ({...f, condicion_fiscal: e.target.value}))} disabled={!puedeModificarProv}>
+                        <option value="">Seleccione</option>
+                        {CONDICIONES_FISCALES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label htmlFor="prov_condicion_pago">Condición de Pago</label>
+                      <select id="prov_condicion_pago" value={formProveedor.condicion_pago_habitual} onChange={e => setFormProveedor(f => ({...f, condicion_pago_habitual: e.target.value}))} disabled={!puedeModificarProv}>
+                        <option value="">A convenir</option>
+                        {CONDICIONES_PAGO.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label htmlFor="prov_email">Email</label>
+                      <input id="prov_email" type="email" value={formProveedor.email} onChange={e => setFormProveedor(f => ({...f, email: e.target.value}))} disabled={!puedeModificarProv} />
+                    </div>
+                    <div>
+                      <label htmlFor="prov_telefono">Teléfono</label>
+                      <input id="prov_telefono" value={formProveedor.telefono} onChange={e => setFormProveedor(f => ({...f, telefono: e.target.value}))} disabled={!puedeModificarProv} />
+                    </div>
+                    <div>
+                      <label htmlFor="prov_domicilio">Domicilio</label>
+                      <input id="prov_domicilio" value={formProveedor.domicilio} onChange={e => setFormProveedor(f => ({...f, domicilio: e.target.value}))} disabled={!puedeModificarProv} />
+                    </div>
+                    <div>
+                      <label htmlFor="prov_localidad">Localidad</label>
+                      <input id="prov_localidad" value={formProveedor.localidad} onChange={e => setFormProveedor(f => ({...f, localidad: e.target.value}))} disabled={!puedeModificarProv} />
+                    </div>
+                    <div>
+                      <label htmlFor="prov_provincia">Provincia</label>
+                      <input id="prov_provincia" value={formProveedor.provincia} onChange={e => setFormProveedor(f => ({...f, provincia: e.target.value}))} disabled={!puedeModificarProv} />
+                    </div>
+                    <div style={{ gridColumn: '1 / -1' }}>
+                      <label htmlFor="prov_observaciones">Observaciones</label>
+                      <textarea id="prov_observaciones" value={formProveedor.observaciones} onChange={e => setFormProveedor(f => ({...f, observaciones: e.target.value}))} disabled={!puedeModificarProv} />
+                    </div>
+                  </div>
+                  {puedeModificarProv && (
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+                      <Button type="button" variant="ghost" onClick={() => setMostrarModalProveedor(false)}>Cancelar</Button>
+                      <Button type="submit" loading={guardandoProveedor}>Guardar cambios</Button>
+                    </div>
+                  )}
+                </form>
+              )}
+
+              {solapaProveedor === 'contactos' && (
+                <ContactosProveedor
+                  proveedorId={proveedorDetalle.id}
+                  puedeGestionar={puedeModificarProv}
+                  mostrarAvisoPermiso={false}
+                />
+              )}
+            </div>
+          </div>
+        )}
       </main>
     )
   }
