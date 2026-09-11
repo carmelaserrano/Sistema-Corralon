@@ -596,6 +596,123 @@ describe('ProveedoresPage', () => {
   })
 
   // --------------------------------------------------------------------
+  // Buscar proveedores (Encargado de Compras)
+  // --------------------------------------------------------------------
+
+  describe('buscar proveedores', () => {
+    // CA 1
+    it('carga solo los proveedores Activos por defecto', async () => {
+      render(<ProveedoresPage />)
+      await screen.findByText('Corralón San Martín S.A.')
+
+      expect(getProveedores).toHaveBeenCalledWith(
+        expect.objectContaining({ search: '', estado: 'activo' }),
+      )
+    })
+
+    // CA 2: la búsqueda en sí (cruzar Razón Social/CUIT/Rubro, sin acentos)
+    // la resuelve el RPC del lado del servidor (cubierto en proveedoresApi);
+    // acá sólo se verifica que el texto tipeado se manda tal cual.
+    it('manda el texto del buscador unificado', async () => {
+      render(<ProveedoresPage />)
+      await screen.findByText('Corralón San Martín S.A.')
+
+      fireEvent.change(
+        screen.getByLabelText('Buscar por razón social, CUIT o rubro'),
+        { target: { value: '20123456786' } },
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'Buscar' }))
+
+      await waitFor(() =>
+        expect(getProveedores).toHaveBeenLastCalledWith(
+          expect.objectContaining({ search: '20123456786' }),
+        ),
+      )
+    })
+
+    // CA 3
+    it('restringe el listado al rubro elegido', async () => {
+      render(<ProveedoresPage />)
+      await screen.findByText('Corralón San Martín S.A.')
+
+      fireEvent.change(screen.getByLabelText('Filtrar por rubro'), {
+        target: { value: 'r1' },
+      })
+
+      await waitFor(() =>
+        expect(getProveedores).toHaveBeenLastCalledWith(
+          expect.objectContaining({ rubroId: 'r1' }),
+        ),
+      )
+    })
+
+    // CA 5
+    it('muestra "No se encontraron proveedores" con la opción de limpiar filtros', async () => {
+      render(<ProveedoresPage />)
+      await screen.findByText('Corralón San Martín S.A.')
+
+      getProveedores.mockResolvedValue([])
+      fireEvent.change(
+        screen.getByLabelText('Buscar por razón social, CUIT o rubro'),
+        { target: { value: 'inexistente' } },
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'Buscar' }))
+
+      expect(
+        await screen.findByText('No se encontraron proveedores'),
+      ).toBeInTheDocument()
+      expect(
+        screen.getAllByRole('button', { name: 'Limpiar filtros' }).length,
+      ).toBeGreaterThan(0)
+    })
+
+    it('limpia todos los filtros y vuelve a traer los activos', async () => {
+      render(<ProveedoresPage />)
+      await screen.findByText('Corralón San Martín S.A.')
+
+      fireEvent.change(screen.getByLabelText('Filtrar por rubro'), {
+        target: { value: 'r1' },
+      })
+      fireEvent.change(screen.getByLabelText('Estado'), {
+        target: { value: '' },
+      })
+      await waitFor(() => expect(getProveedores).toHaveBeenCalledTimes(3))
+
+      fireEvent.click(screen.getAllByRole('button', { name: 'Limpiar filtros' })[0])
+
+      await waitFor(() =>
+        expect(getProveedores).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            search: '',
+            estado: 'activo',
+            rubroId: null,
+          }),
+        ),
+      )
+      expect(screen.getByLabelText('Filtrar por rubro')).toHaveValue('')
+      expect(screen.getByLabelText('Estado')).toHaveValue('activo')
+    })
+
+    // CA 6
+    it('muestra un indicador de carga mientras se resuelve la búsqueda', async () => {
+      let resolver
+      getProveedores.mockReturnValue(
+        new Promise((resolve) => {
+          resolver = resolve
+        }),
+      )
+      render(<ProveedoresPage />)
+
+      expect(
+        await screen.findByText('Cargando proveedores…'),
+      ).toBeInTheDocument()
+
+      resolver([corralon])
+      await screen.findByText('Corralón San Martín S.A.')
+    })
+  })
+
+  // --------------------------------------------------------------------
   // US-PRV-05 · Solapas del detalle
   // --------------------------------------------------------------------
 
