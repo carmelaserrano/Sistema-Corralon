@@ -143,3 +143,10 @@ vite.config.ts.timestamp-*
 .vite/
 supabase/.branches/
 supabase/snippets/
+
+# Local E2E evidence and authentication state
+qa/playwright/
+playwright-report/
+test-results/
+playwright/.auth/
+e2e/.auth/
