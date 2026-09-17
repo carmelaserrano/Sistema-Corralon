@@ -89,30 +89,32 @@ describe('proveedoresApi', () => {
       ...filaCorralon,
       rubro_id: 'r1',
       rubro_nombre: 'Cemento',
+      total_count: 1,
     }
 
     it('busca vía RPC y aplana el rubro plano que devuelve la función', async () => {
       supabase.rpc.mockResolvedValue({ data: [filaConRubro], error: null })
 
-      const [proveedor] = await getProveedores()
+      const { proveedores: [proveedor] } = await getProveedores()
 
       expect(proveedor.rubro).toEqual({ id: 'r1', nombre: 'Cemento' })
       expect(proveedor.rubro_id).toBeUndefined()
       expect(proveedor.rubro_nombre).toBeUndefined()
+      expect(proveedor.total_count).toBeUndefined()
     })
 
     it('devuelve rubro null cuando la función no trae uno', async () => {
       supabase.rpc.mockResolvedValue({
-        data: [{ ...filaCorralon, rubro_id: null, rubro_nombre: null }],
+        data: [{ ...filaCorralon, rubro_id: null, rubro_nombre: null, total_count: 1 }],
         error: null,
       })
 
-      const [proveedor] = await getProveedores()
+      const { proveedores: [proveedor] } = await getProveedores()
 
       expect(proveedor.rubro).toBeNull()
     })
 
-    it('filtra los inactivos por defecto', async () => {
+    it('filtra los inactivos por defecto y pide la primera página de 20', async () => {
       supabase.rpc.mockResolvedValue({ data: [], error: null })
 
       await getProveedores()
@@ -121,7 +123,45 @@ describe('proveedoresApi', () => {
         p_search: null,
         p_rubro_id: null,
         p_estado: 'activo',
+        p_limit: 20,
+        p_offset: 0,
       })
+    })
+
+    // CA: más de 20 registros se muestran paginados de a 20.
+    it('pagina: calcula el offset a partir de page y pageSize', async () => {
+      supabase.rpc.mockResolvedValue({ data: [], error: null })
+
+      await getProveedores({ page: 3, pageSize: 20 })
+
+      expect(supabase.rpc).toHaveBeenCalledWith(
+        'buscar_proveedores',
+        expect.objectContaining({ p_limit: 20, p_offset: 40 }),
+      )
+    })
+
+    it('devuelve el total y el total de páginas que trae la función', async () => {
+      supabase.rpc.mockResolvedValue({
+        data: [{ ...filaConRubro, total_count: 45 }],
+        error: null,
+      })
+
+      const resultado = await getProveedores({ page: 2, pageSize: 20 })
+
+      expect(resultado.total).toBe(45)
+      expect(resultado.page).toBe(2)
+      expect(resultado.pageSize).toBe(20)
+      expect(resultado.totalPaginas).toBe(3)
+    })
+
+    it('devuelve total 0 y una sola página cuando no hay resultados', async () => {
+      supabase.rpc.mockResolvedValue({ data: [], error: null })
+
+      const resultado = await getProveedores()
+
+      expect(resultado.proveedores).toEqual([])
+      expect(resultado.total).toBe(0)
+      expect(resultado.totalPaginas).toBe(1)
     })
 
     // CA: filtrar por Razón Social, CUIT o Rubro (la función lo resuelve;
@@ -727,6 +767,24 @@ describe('proveedoresApi', () => {
         'buscar_proveedores',
         expect.objectContaining({ p_estado: 'activo' }),
       )
+    })
+
+    // Es para selectores (p.ej. Orden de Compra): no puede faltar un
+    // proveedor activo por estar en "otra página".
+    it('pide una página grande y devuelve el array plano, sin envoltorio', async () => {
+      supabase.rpc.mockResolvedValue({
+        data: [{ ...filaCorralon, rubro_id: null, rubro_nombre: null, total_count: 1 }],
+        error: null,
+      })
+
+      const proveedores = await getProveedoresSeleccionables()
+
+      expect(supabase.rpc).toHaveBeenCalledWith(
+        'buscar_proveedores',
+        expect.objectContaining({ p_limit: 10000, p_offset: 0 }),
+      )
+      expect(Array.isArray(proveedores)).toBe(true)
+      expect(proveedores[0].id).toBe('p1')
     })
   })
 

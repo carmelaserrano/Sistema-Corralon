@@ -7,7 +7,10 @@ import {
   puedeCancelarOrdenes,
   getOrdenCompraById,
 } from '../api/ordenesCompraApi'
-import { getProveedores, CONDICIONES_PAGO } from '../../proveedores/api/proveedoresApi'
+import {
+  getProveedoresSeleccionables,
+  CONDICIONES_PAGO,
+} from '../../proveedores/api/proveedoresApi'
 import { getDepositos } from '../../stock/api/depositosApi'
 import { getArticulos } from '../../stock/api/articulosApi'
 import Button from '../../../components/ui/Button'
@@ -110,7 +113,7 @@ export default function OrdenesCompraPage() {
   async function cargarMaestros() {
     try {
       const [provs, deps, arts] = await Promise.all([
-        getProveedores({ estado: 'activo', soloActivos: true }),
+        getProveedoresSeleccionables(),
         getDepositos(),
         getArticulos({ estado: 'activo', pageSize: 1000 })
       ])

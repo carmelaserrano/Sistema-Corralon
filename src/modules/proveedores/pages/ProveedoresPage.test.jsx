@@ -76,6 +76,20 @@ const corralon = {
   rubro: { id: 'r1', nombre: 'Cemento' },
 }
 
+// getProveedores() ahora devuelve el resultado paginado (migración 0023),
+// no el array plano: este helper arma el envoltorio para no repetirlo en
+// cada mock de la lista.
+function paginaDe(proveedores, extra = {}) {
+  return {
+    proveedores,
+    total: proveedores.length,
+    page: 1,
+    pageSize: 20,
+    totalPaginas: 1,
+    ...extra,
+  }
+}
+
 async function completarCamposObligatorios(razonSocial = 'Ferretería del Sur') {
   fireEvent.change(screen.getByLabelText('Razón Social'), {
     target: { value: razonSocial },
@@ -94,7 +108,7 @@ describe('ProveedoresPage', () => {
     puedeAltaProveedores.mockResolvedValue(true)
     puedeModificarProveedores.mockResolvedValue(true)
     puedeCambiarEstadoProveedores.mockResolvedValue(true)
-    getProveedores.mockResolvedValue([corralon])
+    getProveedores.mockResolvedValue(paginaDe([corralon]))
     getHistorialEstadoProveedor.mockResolvedValue([])
     getRubros.mockResolvedValue([{ id: 'r1', nombre: 'Cemento' }])
   })
@@ -151,9 +165,9 @@ describe('ProveedoresPage', () => {
   })
 
   it('muestra un guion cuando el proveedor no tiene condición de pago', async () => {
-    getProveedores.mockResolvedValue([
-      { ...corralon, condicion_pago_habitual: null },
-    ])
+    getProveedores.mockResolvedValue(
+      paginaDe([{ ...corralon, condicion_pago_habitual: null }]),
+    )
     render(<ProveedoresPage />)
 
     const fila = (await screen.findByText('Corralón San Martín S.A.')).closest(
@@ -257,7 +271,7 @@ describe('ProveedoresPage', () => {
   })
 
   it('muestra el estado vacío cuando no hay proveedores', async () => {
-    getProveedores.mockResolvedValue([])
+    getProveedores.mockResolvedValue(paginaDe([]))
     render(<ProveedoresPage />)
 
     expect(
@@ -459,7 +473,7 @@ describe('ProveedoresPage', () => {
     // CA 2
     it('activa un proveedor inactivo', async () => {
       vi.spyOn(window, 'confirm').mockReturnValue(true)
-      getProveedores.mockResolvedValue([inactivo])
+      getProveedores.mockResolvedValue(paginaDe([inactivo]))
       setEstadoProveedor.mockResolvedValue({ ...inactivo, estado: 'activo' })
       render(<ProveedoresPage />)
       await screen.findByText('Hierros SRL')
@@ -482,7 +496,7 @@ describe('ProveedoresPage', () => {
 
     // CA 3
     it('muestra el estado con un indicador visual diferenciado', async () => {
-      getProveedores.mockResolvedValue([corralon, inactivo])
+      getProveedores.mockResolvedValue(paginaDe([corralon, inactivo]))
       const { container } = render(<ProveedoresPage />)
       await screen.findByText('Corralón San Martín S.A.')
 
@@ -651,7 +665,7 @@ describe('ProveedoresPage', () => {
       render(<ProveedoresPage />)
       await screen.findByText('Corralón San Martín S.A.')
 
-      getProveedores.mockResolvedValue([])
+      getProveedores.mockResolvedValue(paginaDe([]))
       fireEvent.change(
         screen.getByLabelText('Buscar por razón social, CUIT o rubro'),
         { target: { value: 'inexistente' } },
@@ -707,8 +721,64 @@ describe('ProveedoresPage', () => {
         await screen.findByText('Cargando proveedores…'),
       ).toBeInTheDocument()
 
-      resolver([corralon])
+      resolver(paginaDe([corralon]))
       await screen.findByText('Corralón San Martín S.A.')
+    })
+
+    // CA 7: más de 20 registros se muestran paginados de a 20.
+    it('pagina el listado cuando hay más de 20 proveedores', async () => {
+      getProveedores.mockResolvedValue(
+        paginaDe([corralon], { total: 45, totalPaginas: 3 }),
+      )
+      render(<ProveedoresPage />)
+      await screen.findByText('Corralón San Martín S.A.')
+
+      expect(screen.getByText(/página 1 de 3/)).toBeInTheDocument()
+      const siguiente = screen.getByRole('button', { name: 'Siguiente' })
+      expect(screen.getByRole('button', { name: 'Anterior' })).toBeDisabled()
+      expect(siguiente).not.toBeDisabled()
+
+      fireEvent.click(siguiente)
+
+      await waitFor(() =>
+        expect(getProveedores).toHaveBeenLastCalledWith(
+          expect.objectContaining({ page: 2 }),
+        ),
+      )
+    })
+
+    it('no muestra controles de paginación cuando entra todo en una página', async () => {
+      render(<ProveedoresPage />)
+      await screen.findByText('Corralón San Martín S.A.')
+
+      expect(
+        screen.queryByRole('button', { name: 'Siguiente' }),
+      ).not.toBeInTheDocument()
+    })
+
+    it('vuelve a la página 1 al cambiar de filtro', async () => {
+      getProveedores.mockResolvedValue(
+        paginaDe([corralon], { total: 45, totalPaginas: 3 }),
+      )
+      render(<ProveedoresPage />)
+      await screen.findByText('Corralón San Martín S.A.')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
+      await waitFor(() =>
+        expect(getProveedores).toHaveBeenLastCalledWith(
+          expect.objectContaining({ page: 2 }),
+        ),
+      )
+
+      fireEvent.change(screen.getByLabelText('Filtrar por rubro'), {
+        target: { value: 'r1' },
+      })
+
+      await waitFor(() =>
+        expect(getProveedores).toHaveBeenLastCalledWith(
+          expect.objectContaining({ rubroId: 'r1', page: 1 }),
+        ),
+      )
     })
   })
 
