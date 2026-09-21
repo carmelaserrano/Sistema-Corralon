@@ -85,59 +85,147 @@ describe('proveedoresApi', () => {
   })
 
   describe('getProveedores', () => {
-    it('lista ordenado por razón social y aplana el rubro embebido', async () => {
-      const builder = crearQueryBuilder({
-        data: [
-          {
-            ...filaCorralon,
-            proveedor_rubro: [{ rubro: { id: 'r1', nombre: 'Cemento' } }],
-          },
-        ],
-        error: null,
-      })
-      supabase.from.mockReturnValue(builder)
+    const filaConRubro = {
+      ...filaCorralon,
+      rubro_id: 'r1',
+      rubro_nombre: 'Cemento',
+      total_count: 1,
+    }
 
-      const [proveedor] = await getProveedores()
+    it('busca vía RPC y aplana el rubro plano que devuelve la función', async () => {
+      supabase.rpc.mockResolvedValue({ data: [filaConRubro], error: null })
 
-      expect(supabase.from).toHaveBeenCalledWith('proveedores')
-      expect(builder.order).toHaveBeenCalledWith('razon_social')
+      const { proveedores: [proveedor] } = await getProveedores()
+
       expect(proveedor.rubro).toEqual({ id: 'r1', nombre: 'Cemento' })
-      expect(proveedor.proveedor_rubro).toBeUndefined()
+      expect(proveedor.rubro_id).toBeUndefined()
+      expect(proveedor.rubro_nombre).toBeUndefined()
+      expect(proveedor.total_count).toBeUndefined()
     })
 
-    it('devuelve rubro null cuando no hay vínculo', async () => {
-      supabase.from.mockReturnValue(
-        crearQueryBuilder({ data: [filaCorralon], error: null }),
-      )
+    it('devuelve rubro null cuando la función no trae uno', async () => {
+      supabase.rpc.mockResolvedValue({
+        data: [{ ...filaCorralon, rubro_id: null, rubro_nombre: null, total_count: 1 }],
+        error: null,
+      })
 
-      const [proveedor] = await getProveedores()
+      const { proveedores: [proveedor] } = await getProveedores()
 
       expect(proveedor.rubro).toBeNull()
     })
 
-    it('filtra los inactivos por defecto', async () => {
-      const builder = crearQueryBuilder({ data: [], error: null })
-      supabase.from.mockReturnValue(builder)
+    it('filtra los inactivos por defecto y pide la primera página de 20', async () => {
+      supabase.rpc.mockResolvedValue({ data: [], error: null })
 
       await getProveedores()
 
-      expect(builder.eq).toHaveBeenCalledWith('estado', 'activo')
+      expect(supabase.rpc).toHaveBeenCalledWith('buscar_proveedores', {
+        p_search: null,
+        p_rubro_id: null,
+        p_estado: 'activo',
+        p_limit: 20,
+        p_offset: 0,
+      })
     })
 
-    it('aplica el buscador por razón social', async () => {
-      const builder = crearQueryBuilder({ data: [], error: null })
-      supabase.from.mockReturnValue(builder)
+    // CA: más de 20 registros se muestran paginados de a 20.
+    it('pagina: calcula el offset a partir de page y pageSize', async () => {
+      supabase.rpc.mockResolvedValue({ data: [], error: null })
+
+      await getProveedores({ page: 3, pageSize: 20 })
+
+      expect(supabase.rpc).toHaveBeenCalledWith(
+        'buscar_proveedores',
+        expect.objectContaining({ p_limit: 20, p_offset: 40 }),
+      )
+    })
+
+    it('devuelve el total y el total de páginas que trae la función', async () => {
+      supabase.rpc.mockResolvedValue({
+        data: [{ ...filaConRubro, total_count: 45 }],
+        error: null,
+      })
+
+      const resultado = await getProveedores({ page: 2, pageSize: 20 })
+
+      expect(resultado.total).toBe(45)
+      expect(resultado.page).toBe(2)
+      expect(resultado.pageSize).toBe(20)
+      expect(resultado.totalPaginas).toBe(3)
+    })
+
+    it('devuelve total 0 y una sola página cuando no hay resultados', async () => {
+      supabase.rpc.mockResolvedValue({ data: [], error: null })
+
+      const resultado = await getProveedores()
+
+      expect(resultado.proveedores).toEqual([])
+      expect(resultado.total).toBe(0)
+      expect(resultado.totalPaginas).toBe(1)
+    })
+
+    // CA: filtrar por Razón Social, CUIT o Rubro (la función lo resuelve;
+    // acá se verifica que el texto se manda tal cual, sin espacios extremos)
+    it('manda el texto de búsqueda sin espacios extremos', async () => {
+      supabase.rpc.mockResolvedValue({ data: [], error: null })
 
       await getProveedores({ search: '  corralón  ' })
 
-      expect(builder.ilike).toHaveBeenCalledWith('razon_social', '%corralón%')
+      expect(supabase.rpc).toHaveBeenCalledWith(
+        'buscar_proveedores',
+        expect.objectContaining({ p_search: 'corralón' }),
+      )
+    })
+
+    it('no manda texto de búsqueda cuando está vacío', async () => {
+      supabase.rpc.mockResolvedValue({ data: [], error: null })
+
+      await getProveedores({ search: '   ' })
+
+      expect(supabase.rpc).toHaveBeenCalledWith(
+        'buscar_proveedores',
+        expect.objectContaining({ p_search: null }),
+      )
+    })
+
+    // CA: filtro por Rubro
+    it('restringe por rubro cuando se pasa rubroId', async () => {
+      supabase.rpc.mockResolvedValue({ data: [], error: null })
+
+      await getProveedores({ rubroId: 'r1' })
+
+      expect(supabase.rpc).toHaveBeenCalledWith(
+        'buscar_proveedores',
+        expect.objectContaining({ p_rubro_id: 'r1' }),
+      )
+    })
+
+    // CA: filtro de estado, incluye "Todos" e "Inactivos"
+    it('filtra por el estado pedido', async () => {
+      supabase.rpc.mockResolvedValue({ data: [], error: null })
+
+      await getProveedores({ estado: 'inactivo' })
+
+      expect(supabase.rpc).toHaveBeenCalledWith(
+        'buscar_proveedores',
+        expect.objectContaining({ p_estado: 'inactivo' }),
+      )
+    })
+
+    it('pide todos cuando no se filtra por estado ni por activos', async () => {
+      supabase.rpc.mockResolvedValue({ data: [], error: null })
+
+      await getProveedores({ estado: '', soloActivos: false })
+
+      expect(supabase.rpc).toHaveBeenCalledWith(
+        'buscar_proveedores',
+        expect.objectContaining({ p_estado: 'todos' }),
+      )
     })
 
     it('lanza el error cuando Supabase falla', async () => {
       const errorMock = { message: 'no se pudo conectar con la base' }
-      supabase.from.mockReturnValue(
-        crearQueryBuilder({ data: null, error: errorMock }),
-      )
+      supabase.rpc.mockResolvedValue({ data: null, error: errorMock })
 
       await expect(getProveedores()).rejects.toEqual(errorMock)
     })
@@ -671,32 +759,32 @@ describe('proveedoresApi', () => {
   describe('getProveedoresSeleccionables', () => {
     // CA 5
     it('excluye a los inactivos', async () => {
-      const builder = crearQueryBuilder({ data: [filaCorralon], error: null })
-      supabase.from.mockReturnValue(builder)
+      supabase.rpc.mockResolvedValue({ data: [filaCorralon], error: null })
 
       await getProveedoresSeleccionables()
 
-      expect(builder.eq).toHaveBeenCalledWith('estado', 'activo')
-    })
-  })
-
-  describe('getProveedores con filtro de estado', () => {
-    it('filtra por el estado pedido', async () => {
-      const builder = crearQueryBuilder({ data: [], error: null })
-      supabase.from.mockReturnValue(builder)
-
-      await getProveedores({ estado: 'inactivo' })
-
-      expect(builder.eq).toHaveBeenCalledWith('estado', 'inactivo')
+      expect(supabase.rpc).toHaveBeenCalledWith(
+        'buscar_proveedores',
+        expect.objectContaining({ p_estado: 'activo' }),
+      )
     })
 
-    it('devuelve todos cuando no se filtra por estado ni por activos', async () => {
-      const builder = crearQueryBuilder({ data: [], error: null })
-      supabase.from.mockReturnValue(builder)
+    // Es para selectores (p.ej. Orden de Compra): no puede faltar un
+    // proveedor activo por estar en "otra página".
+    it('pide una página grande y devuelve el array plano, sin envoltorio', async () => {
+      supabase.rpc.mockResolvedValue({
+        data: [{ ...filaCorralon, rubro_id: null, rubro_nombre: null, total_count: 1 }],
+        error: null,
+      })
 
-      await getProveedores({ estado: '', soloActivos: false })
+      const proveedores = await getProveedoresSeleccionables()
 
-      expect(builder.eq).not.toHaveBeenCalled()
+      expect(supabase.rpc).toHaveBeenCalledWith(
+        'buscar_proveedores',
+        expect.objectContaining({ p_limit: 10000, p_offset: 0 }),
+      )
+      expect(Array.isArray(proveedores)).toBe(true)
+      expect(proveedores[0].id).toBe('p1')
     })
   })
 

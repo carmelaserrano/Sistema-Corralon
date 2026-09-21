@@ -162,37 +162,69 @@ async function manejarErrorProveedor(error, { cuit } = {}) {
 }
 
 /**
- * Lista los proveedores ordenados por razón social, con el rubro asociado.
+ * Lista los proveedores ordenados por razón social, con el rubro asociado,
+ * paginados de a `pageSize` (CA: más de 20 registros se muestran paginados).
+ *
+ * La búsqueda cruza Razón Social, CUIT y nombre de Rubro, sin distinguir
+ * mayúsculas ni acentos (CA de "buscar proveedores"). Eso no lo resuelve un
+ * filtro REST simple —unaccent() no es una operación disponible como filtro
+ * de PostgREST, y el Rubro vive en una tabla relacionada—, así que delega en
+ * la función buscar_proveedores (migración 0023), que hace el join, el
+ * filtrado, la deduplicación (un proveedor con varios rubros no debe
+ * repetirse) y la paginación del lado del servidor en una sola consulta.
  *
  * @param {Object} [filtros]
- * @param {string} [filtros.search] Texto a buscar dentro de la razón social.
+ * @param {string} [filtros.search] Texto a buscar en razón social, CUIT o rubro.
+ * @param {string|null} [filtros.rubroId] Restringe el listado a ese rubro.
  * @param {boolean} [filtros.soloActivos=true] Excluir los inactivos.
  * @param {string} [filtros.estado] Filtrar por un estado puntual ('activo' o
  *   'inactivo'). Tiene prioridad sobre `soloActivos`: pasar `estado: ''`
  *   junto a `soloActivos: false` devuelve todos.
- * @returns {Promise<Array<Object>>} Proveedores con `rubro` resuelto.
+ * @param {number} [filtros.page=1] Página a traer (1-indexada).
+ * @param {number} [filtros.pageSize=20] Tamaño de página.
+ * @returns {Promise<{proveedores: Array<Object>, total: number, page: number,
+ *   pageSize: number, totalPaginas: number}>}
  */
 export async function getProveedores({
   search = '',
+  rubroId = null,
   soloActivos = true,
   estado = '',
+  page = 1,
+  pageSize = 20,
 } = {}) {
-  let consulta = supabase.from(TABLA).select(COLUMNAS)
+  const estadoFiltro = estado || (soloActivos ? 'activo' : 'todos')
 
-  if (estado) {
-    consulta = consulta.eq('estado', estado)
-  } else if (soloActivos) {
-    consulta = consulta.eq('estado', 'activo')
-  }
-
-  if (search.trim()) {
-    consulta = consulta.ilike('razon_social', `%${search.trim()}%`)
-  }
-
-  const { data, error } = await consulta.order('razon_social')
+  const { data, error } = await supabase.rpc('buscar_proveedores', {
+    p_search: search.trim() || null,
+    p_rubro_id: rubroId || null,
+    p_estado: estadoFiltro,
+    p_limit: pageSize,
+    p_offset: (page - 1) * pageSize,
+  })
 
   if (error) throw error
-  return (data ?? []).map(normalizarProveedor)
+
+  const filas = data ?? []
+  const total = filas[0]?.total_count ?? 0
+
+  return {
+    proveedores: filas.map((fila) => {
+      // total_count viaja en cada fila (count(*) over() de la función RPC):
+      // ya se usó arriba para `total`, acá se descarta, no es un dato del
+      // proveedor.
+      const { rubro_id, rubro_nombre, total_count, ...proveedor } = fila
+      void total_count
+      return {
+        ...proveedor,
+        rubro: rubro_id ? { id: rubro_id, nombre: rubro_nombre } : null,
+      }
+    }),
+    total,
+    page,
+    pageSize,
+    totalPaginas: Math.max(1, Math.ceil(total / pageSize)),
+  }
 }
 
 /**
@@ -221,12 +253,19 @@ export async function getProveedorById(id) {
  *
  * Existe como función propia y no como `getProveedores()` a secas para que
  * el módulo de Compras, cuando se construya, tenga una opción obvia y no
- * dependa de acordarse del valor por defecto de un parámetro.
+ * dependa de acordarse del valor por defecto de un parámetro. A diferencia
+ * de `getProveedores()`, devuelve el array plano sin paginar: un selector no
+ * puede dejar proveedores activos fuera de las opciones por estar en "otra
+ * página", así que pide una página lo bastante grande como para no cortar.
  *
  * @returns {Promise<Array<Object>>} Proveedores en estado activo.
  */
 export async function getProveedoresSeleccionables() {
-  return getProveedores({ estado: 'activo' })
+  const { proveedores } = await getProveedores({
+    estado: 'activo',
+    pageSize: 10000,
+  })
+  return proveedores
 }
 
 /**

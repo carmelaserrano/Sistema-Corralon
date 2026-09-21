@@ -62,6 +62,13 @@ function ProveedoresPage() {
   // '' = todos. Sin este filtro un proveedor inactivo desaparecería del
   // listado y no habría forma de volver a activarlo (CA 2).
   const [filtroEstado, setFiltroEstado] = useState('activo')
+  const [filtroRubroId, setFiltroRubroId] = useState('')
+
+  // CA: más de 20 registros se muestran paginados de a 20.
+  const [pagina, setPagina] = useState(1)
+  const [total, setTotal] = useState(0)
+  const [totalPaginas, setTotalPaginas] = useState(1)
+  const PAGE_SIZE = 20
 
   const [historial, setHistorial] = useState([])
   const [historialCargando, setHistorialCargando] = useState(false)
@@ -136,19 +143,39 @@ function ProveedoresPage() {
     }
   }
 
+  // `page` no tiene un default fijo: un reload genérico (guardar, cambiar
+  // estado) se queda en la página donde el usuario estaba, mientras que los
+  // cambios de filtro (buscar, cambiar rubro/estado, limpiar filtros) piden
+  // explícitamente `page: 1` — quedarse, por ejemplo, en la página 3 de un
+  // filtro nuevo que tiene una sola página dejaría el listado vacío sin que
+  // sea un estado vacío real.
   async function cargarProveedores({
     search = busqueda,
     estado = filtroEstado,
+    rubroId: rubroFiltro = filtroRubroId,
+    page = pagina,
   } = {}) {
     try {
       setLoading(true)
       setError('')
 
-      const data = await getProveedores({ search, estado, soloActivos: false })
-      setProveedores(data)
+      const resultado = await getProveedores({
+        search,
+        estado,
+        rubroId: rubroFiltro || null,
+        soloActivos: false,
+        page,
+        pageSize: PAGE_SIZE,
+      })
+      setProveedores(resultado.proveedores)
+      setTotal(resultado.total)
+      setTotalPaginas(resultado.totalPaginas)
+      setPagina(resultado.page)
       setBusquedaAplicada(search)
     } catch (err) {
       setProveedores([])
+      setTotal(0)
+      setTotalPaginas(1)
       setError(err.message || 'No se pudieron cargar los proveedores')
     } finally {
       setLoading(false)
@@ -283,7 +310,26 @@ function ProveedoresPage() {
   function cambiarFiltroEstado(event) {
     const estado = event.target.value
     setFiltroEstado(estado)
-    cargarProveedores({ estado })
+    cargarProveedores({ estado, page: 1 })
+  }
+
+  // CA: filtrar el listado por Rubro.
+  function cambiarFiltroRubro(event) {
+    const rubroFiltro = event.target.value
+    setFiltroRubroId(rubroFiltro)
+    cargarProveedores({ rubroId: rubroFiltro, page: 1 })
+  }
+
+  function irAPagina(nuevaPagina) {
+    cargarProveedores({ page: nuevaPagina })
+  }
+
+  // CA: estado vacío con la opción de limpiar filtros.
+  function limpiarFiltros() {
+    setBusqueda('')
+    setFiltroRubroId('')
+    setFiltroEstado('activo')
+    cargarProveedores({ search: '', estado: 'activo', rubroId: '', page: 1 })
   }
 
   async function guardarProveedor(event) {
@@ -337,12 +383,7 @@ function ProveedoresPage() {
 
   function buscar(event) {
     event.preventDefault()
-    cargarProveedores()
-  }
-
-  function limpiarBusqueda() {
-    setBusqueda('')
-    cargarProveedores({ search: '' })
+    cargarProveedores({ page: 1 })
   }
 
   // Un solo aviso en vez de uno por permiso: tres carteles apilados diciendo
@@ -371,6 +412,13 @@ function ProveedoresPage() {
   const proveedorDetalle = detalleId
     ? (proveedores.find((p) => p.id === detalleId) ?? null)
     : null
+
+  // CA: título distinto según sea "todavía no hay nada" o "no coincidió con
+  // el filtro", y cuándo ofrecer limpiar filtros.
+  const hayFiltrosActivos =
+    Boolean(busquedaAplicada.trim()) ||
+    Boolean(filtroRubroId) ||
+    filtroEstado !== 'activo'
 
   return (
     <main>
@@ -734,7 +782,7 @@ function ProveedoresPage() {
 
         <form onSubmit={buscar}>
           <div>
-            <label htmlFor="busqueda">Buscar por razón social</label>
+            <label htmlFor="busqueda">Buscar por razón social, CUIT o rubro</label>
             <input
               id="busqueda"
               name="busqueda"
@@ -742,6 +790,23 @@ function ProveedoresPage() {
               onChange={(event) => setBusqueda(event.target.value)}
               autoComplete="off"
             />
+          </div>
+
+          <div>
+            <label htmlFor="filtro-rubro">Filtrar por rubro</label>
+            <select
+              id="filtro-rubro"
+              name="filtro-rubro"
+              value={filtroRubroId}
+              onChange={cambiarFiltroRubro}
+            >
+              <option value="">Todos los rubros</option>
+              {rubros.map((rubro) => (
+                <option key={rubro.id} value={rubro.id}>
+                  {rubro.nombre}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>
@@ -760,8 +825,8 @@ function ProveedoresPage() {
 
           <div>
             <Button type="submit">Buscar</Button>
-            <Button type="button" variant="ghost" onClick={limpiarBusqueda}>
-              Limpiar
+            <Button type="button" variant="ghost" onClick={limpiarFiltros}>
+              Limpiar filtros
             </Button>
           </div>
         </form>
@@ -770,8 +835,7 @@ function ProveedoresPage() {
       <section>
         <h2>
           Proveedores registrados
-          {!loading && !error && proveedores.length > 0 &&
-            ` (${proveedores.length})`}
+          {!loading && !error && total > 0 && ` (${total})`}
         </h2>
 
         {loading && (
@@ -786,13 +850,23 @@ function ProveedoresPage() {
 
         {!loading && !error && proveedores.length === 0 && (
           <EmptyState
-            title="Todavía no hay proveedores"
+            title={
+              hayFiltrosActivos
+                ? 'No se encontraron proveedores'
+                : 'Todavía no hay proveedores'
+            }
             description={
-              busquedaAplicada
-                ? `Ningún proveedor coincide con "${busquedaAplicada}".`
+              hayFiltrosActivos
+                ? 'Ningún proveedor coincide con los filtros aplicados.'
                 : 'Creá el primer proveedor para empezar a armar el padrón.'
             }
-          />
+          >
+            {hayFiltrosActivos && (
+              <Button type="button" variant="ghost" onClick={limpiarFiltros}>
+                Limpiar filtros
+              </Button>
+            )}
+          </EmptyState>
         )}
 
         {!loading && !error && proveedores.length > 0 && (
@@ -864,6 +938,31 @@ function ProveedoresPage() {
               ))}
             </tbody>
           </table>
+        )}
+
+        {!loading && !error && totalPaginas > 1 && (
+          <div className="paginacion">
+            <p>
+              {total} proveedor(es) · página {pagina} de {totalPaginas}
+            </p>
+
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={pagina <= 1}
+              onClick={() => irAPagina(pagina - 1)}
+            >
+              Anterior
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={pagina >= totalPaginas}
+              onClick={() => irAPagina(pagina + 1)}
+            >
+              Siguiente
+            </Button>
+          </div>
         )}
       </section>
     </main>
