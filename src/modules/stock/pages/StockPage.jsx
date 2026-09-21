@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
+import { History } from 'lucide-react'
 import {
   getDepositos,
   getStockDisponibles,
   subscribeToStockChanges,
 } from '../api/stockApi'
+import HistorialArticuloModal from './HistorialArticuloModal'
 
 const STOCK_POR_PAGINA = 50
 
@@ -15,6 +17,7 @@ export default function StockPage() {
   const [total, setTotal] = useState(0)
   const [versionStock, setVersionStock] = useState(0)
   const [stock, setStock] = useState([])
+  const [articuloHistorial, setArticuloHistorial] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const ultimaSolicitudRef = useRef(0)
@@ -88,6 +91,15 @@ export default function StockPage() {
   }, [depositoId])
 
   const totalPaginas = Math.max(1, Math.ceil(total / STOCK_POR_PAGINA))
+  const depositoSeleccionado = depositos.find((deposito) => deposito.id === depositoId)
+
+  function abrirHistorial(row) {
+    setArticuloHistorial({
+      id: row.articulo_id ?? row.producto?.id,
+      nombre: row.articulo_nombre ?? row.producto?.nombre,
+      sku: row.articulo_sku ?? row.producto?.sku,
+    })
+  }
 
   return (
     <div>
@@ -141,6 +153,7 @@ export default function StockPage() {
                 <th>Comprometido</th>
                 <th>Disponible</th>
                 <th>Unidad</th>
+                <th>Historial</th>
               </tr>
             </thead>
             <tbody>
@@ -154,6 +167,18 @@ export default function StockPage() {
                   <td>{row.comprometido}</td>
                   <td>{row.disponible}</td>
                   <td>{row.producto?.unidad_medida?.abreviatura}</td>
+                  <td>
+                    <button
+                      aria-label={`Ver historial de ${row.articulo_nombre ?? row.producto?.nombre}`}
+                      className="icon-button"
+                      disabled={!depositoId || !(row.articulo_id ?? row.producto?.id)}
+                      onClick={() => abrirHistorial(row)}
+                      title="Ver historial"
+                      type="button"
+                    >
+                      <History aria-hidden="true" size={18} />
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -181,6 +206,15 @@ export default function StockPage() {
             </button>
           </nav>
         </>
+      )}
+
+      {articuloHistorial && (
+        <HistorialArticuloModal
+          articulo={articuloHistorial}
+          depositoId={depositoId}
+          depositoNombre={depositoSeleccionado?.nombre}
+          onCerrar={() => setArticuloHistorial(null)}
+        />
       )}
     </div>
   )

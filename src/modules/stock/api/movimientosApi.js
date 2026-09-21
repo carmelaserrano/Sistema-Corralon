@@ -7,6 +7,8 @@ import {
 } from './errores'
 
 const TABLA = 'movimientos_stock'
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 export const TIPOS = {
   INGRESO: 'ingreso',
@@ -65,6 +67,16 @@ const STATUS_POR_CODIGO = {
   AJ004: 404, // inventario inexistente
   AJ005: 409, // inventario no aprobado
   AJ006: 409, // ajustes ya aplicados
+}
+
+function validarUuid(label, valor) {
+  if (!valor) {
+    throw errorDeApi(`${label} es obligatorio`, 400)
+  }
+
+  if (!UUID_REGEX.test(String(valor))) {
+    throw errorDeApi(`${label} tiene un formato inválido`, 400)
+  }
 }
 
 // Los raise exception de la migración ya están redactados para mostrarse tal
@@ -194,6 +206,25 @@ export async function getHistorialMovimientos({
     pageSize,
     totalPaginas: Math.max(1, Math.ceil(total / pageSize)),
   }
+}
+
+export async function getHistorialArticuloDeposito({
+  articuloId,
+  depositoId,
+} = {}) {
+  validarUuid('articuloId', articuloId)
+  validarUuid('depositoId', depositoId)
+
+  const { data, error } = await supabase.rpc(
+    'consultar_historial_articulo_deposito',
+    {
+      p_producto_id: articuloId,
+      p_deposito_id: depositoId,
+    },
+  )
+
+  if (error) throw error
+  return data ?? []
 }
 
 /**

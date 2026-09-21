@@ -3,6 +3,7 @@ import {
   createMovimientoMultiarticulo,
   getTiposMovimiento,
   getHistorialMovimientos,
+  getHistorialArticuloDeposito,
 } from './movimientosApi'
 import { supabase } from '../../../lib/supabaseClient'
 
@@ -234,5 +235,52 @@ describe('movimientosApi', () => {
       0,
       9,
     )
+  })
+
+  // --- CORR-04: historial por artículo desde Stock ---
+
+  it('consulta el historial de un artículo en un depósito con la RPC dedicada', async () => {
+    const articuloId = '11111111-1111-4111-8111-111111111111'
+    const depositoId = '22222222-2222-4222-8222-222222222222'
+    const resultado = {
+      data: [
+        {
+          movimiento_id: 'mov-1',
+          tipo: 'Ingreso',
+          cantidad: 10,
+          stock_resultante: 10,
+        },
+      ],
+      error: null,
+    }
+
+    supabase.rpc.mockResolvedValue(resultado)
+
+    await expect(getHistorialArticuloDeposito({
+      articuloId,
+      depositoId,
+    })).resolves.toEqual(resultado.data)
+
+    expect(supabase.rpc).toHaveBeenCalledWith(
+      'consultar_historial_articulo_deposito',
+      {
+        p_producto_id: articuloId,
+        p_deposito_id: depositoId,
+      },
+    )
+  })
+
+  it('valida artículo y depósito antes de consultar el historial puntual', async () => {
+    await expect(getHistorialArticuloDeposito({
+      articuloId: 'sin-formato',
+      depositoId: '22222222-2222-4222-8222-222222222222',
+    })).rejects.toMatchObject({ status: 400 })
+
+    await expect(getHistorialArticuloDeposito({
+      articuloId: '11111111-1111-4111-8111-111111111111',
+      depositoId: '',
+    })).rejects.toMatchObject({ status: 400 })
+
+    expect(supabase.rpc).not.toHaveBeenCalled()
   })
 })

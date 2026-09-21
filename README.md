@@ -130,6 +130,44 @@ huecos ni repetidos). El pipeline de CI valida ese formato en cada PR con
 Más detalle (incluyendo por qué importa la numeración) en
 [`docs/ci-y-despliegue.md`](docs/ci-y-despliegue.md).
 
+## Sprint 3 — usuarios internos y usuario web de prueba
+
+Desde `0031_base_sprint3.sql`, la RLS de todo el sistema interno (Stock,
+Proveedores, Compras, Tesorería, Clientes, Ventas) depende de la tabla
+`usuarios_internos`: un usuario de Supabase Auth que no esté ahí puede
+loguearse, pero no ve ni puede escribir ninguna tabla interna (piensa que es
+un cliente web).
+
+**Marcar un usuario como interno** (SQL Editor de Supabase, con tu propio
+usuario ya creado vía Auth):
+
+```sql
+insert into public.usuarios_internos (usuario_id, nombre)
+select id, 'Nombre y Apellido'
+from auth.users
+where email = 'tu-email@ejemplo.com';
+```
+
+La migración ya inserta a los usuarios de staging conocidos al momento de
+escribirla; el resto del equipo necesita este mismo paso una vez con su
+propio email.
+
+**Crear el usuario web de prueba** (para probar `/tienda` como cliente):
+
+1. Dashboard de Supabase → **Authentication → Users → Add user**, con "Auto
+   Confirm User" tildado. No lo agregues a `usuarios_internos`: tiene que
+   quedar como cliente web, no como interno.
+2. Vinculalo al cliente seed "Juan Pérez" (documento `30111222`) para que
+   herede su historial y sus domicilios de prueba:
+
+```sql
+update public.clientes
+set usuario_web_id = '<uuid-del-usuario-creado>'
+where numero_documento = '30111222';
+```
+
+3. Entrá a `http://localhost:5173/tienda` e ingresá con ese email/contraseña.
+
 ## Staging
 
 No hay un servidor de staging propio: el despliegue lo maneja la integración

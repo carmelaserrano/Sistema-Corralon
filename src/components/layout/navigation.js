@@ -3,17 +3,27 @@ import {
   Boxes,
   Building2,
   ClipboardCheck,
+  ClipboardList,
   FileBarChart,
+  FileStack,
   FolderTree,
+  History,
   Layers3,
   PackageCheck,
   PackageOpen,
+  PackageSearch,
+  Percent,
+  Receipt,
   Ruler,
   Settings2,
   Shapes,
   ShoppingCart,
+  Store,
   Tags,
   Truck,
+  Upload,
+  Users,
+  Wallet,
 } from 'lucide-react'
 
 export const navigationGroups = [
@@ -68,6 +78,43 @@ export const navigationGroups = [
     module: 'Compras',
     items: [
       { id: 'ordenes-compra', label: 'Órdenes de Compra', icon: ShoppingCart },
+      { id: 'notas-proveedor', label: 'Notas de Crédito/Débito', icon: FileStack },
+    ],
+  },
+  {
+    label: 'Tesorería',
+    module: 'Tesorería',
+    items: [
+      { id: 'facturas-proveedor', label: 'Facturas de Proveedor', icon: Receipt },
+      { id: 'ordenes-pago', label: 'Órdenes de Pago', icon: Wallet },
+    ],
+  },
+  {
+    label: 'Clientes',
+    module: 'Clientes',
+    items: [
+      { id: 'clientes', label: 'Clientes', icon: Users },
+      { id: 'historial-cliente', label: 'Historial de cliente', icon: History },
+      { id: 'importar-clientes', label: 'Importar clientes', icon: Upload },
+    ],
+  },
+  {
+    label: 'Ventas',
+    module: 'Ventas',
+    items: [
+      { id: 'nueva-venta', label: 'Nueva venta', icon: ShoppingCart },
+      { id: 'ventas', label: 'Ventas', icon: Receipt },
+      { id: 'supervision-ventas', label: 'Supervisión de ventas', icon: ClipboardList },
+      { id: 'listas-precio', label: 'Listas de precios', icon: Tags },
+      { id: 'descuentos', label: 'Descuentos', icon: Percent },
+    ],
+  },
+  {
+    label: 'E-commerce',
+    module: 'E-commerce',
+    items: [
+      { id: 'publicacion-web', label: 'Publicación web', icon: Store },
+      { id: 'pedidos-web', label: 'Pedidos web', icon: PackageSearch },
     ],
   },
 ]
