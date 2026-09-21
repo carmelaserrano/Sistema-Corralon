@@ -1,0 +1,21 @@
+tipo_persona,nombre,apellido,razon_social,tipo_documento,numero_documento,condicion_iva,tipo_cliente,email,telefono,habilita_cta_cte
+fisica,Ana,López,,DNI,27111001,Monotributo,Consumidor Final,ana.lopez@example.com,3874100001,no
+fisica,Bruno,Díaz,,DNI,29222002,Consumidor Final,Consumidor Final,bruno.diaz@example.com,3874100002,no
+fisica,Carla,Ríos,,DNI,31333003,Consumidor Final,Consumidor Final,,3874100003,
+fisica,Diego,Sosa,,DNI,32444004,Monotributo,Consumidor Final,diego.sosa@example.com,3874100004,no
+fisica,Elena,Vega,,DNI,34.555.005,Consumidor Final,Consumidor Final,elena.vega@example.com,3874100005,no
+fisica,Fabián,Luna,,DNI,35666006,Monotributo,Consumidor Final,,3874100006,no
+fisica,Gisela,Paz,,DNI,36777007,Exento,Consumidor Final,gisela.paz@example.com,3874100007,no
+fisica,Hugo,Mora,,DNI,37888008,Consumidor Final,Consumidor Final,hugo.mora@example.com,3874100008,no
+juridica,,,Cementos del Norte SA,CUIT,30-71111111-4,Responsable Inscripto,Empresa constructora,compras@cementosnorte.com.ar,3874200001,si
+juridica,,,Hierros Salta SRL,CUIT,30722222225,Responsable Inscripto,Empresa constructora,ventas@hierrossalta.com.ar,3874200002,si
+juridica,,,Obras Andinas SA,CUIT,30733333336,Responsable Inscripto,Empresa constructora,obras@andinas.com.ar,3874200003,no
+juridica,,,Ladrillera Central SRL,CUIT,30744444447,Responsable Inscripto,Empresa constructora,,3874200004,no
+juridica,,,Pinturas del Sur SA,CUIT,30755555558,Responsable Inscripto,Empresa constructora,info@pinturassur.com.ar,3874200005,no
+fisica,Inés,Ferreyra,,CUIT,20-27654321-9,Monotributo,Consumidor Final,ines.ferreyra@example.com,3874100009,no
+fisica,Julio,Toledo,,CUIT,20301234567,Monotributo,Consumidor Final,,3874100010,no
+fisica,Juan,Pérez,,DNI,30111222,Consumidor Final,Consumidor Final,juan.perez@example.com,3874000002,no
+fisica,María,Gómez,,DNI,28555444,Monotributo,Consumidor Final,maria.gomez@example.com,3874000003,no
+juridica,,,Constructora Andes SRL,CUIT,20123456786,Responsable Inscripto,Empresa constructora,compras@andes.com.ar,3874000001,si
+juridica,,,Marmolería Norte SRL,CUIT,3071234,Responsable Inscripto,Empresa constructora,info@marmoleria.com.ar,3874200006,no
+juridica,,,Kiosco Los Andes SRL,CUIT,20-1234567-X,Monotributo,Consumidor Final,,3874200007,no
