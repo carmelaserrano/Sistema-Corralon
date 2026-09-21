@@ -1,4 +1,4 @@
--- Migración 0034: administración del estado del cliente.
+-- Migración 0035: administración del estado del cliente.
 --
 -- Historia: S3-02 — Activo / Inactivo / Bloqueado, con motivo e historial.
 --
@@ -157,4 +157,4 @@ grant execute on function public.cliente_habilitado_para_vender(uuid) to authent
 
 commit;
 
--- Fin migración 0034
+-- Fin migración 0035

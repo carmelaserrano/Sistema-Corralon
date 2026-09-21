@@ -1,4 +1,4 @@
--- Migración 0033: auditoría de edición para clientes.
+-- Migración 0034: auditoría de edición para clientes.
 --
 -- Historia: S3-01 — Alta de clientes (CA-07: "se actualizan y quedan
 -- registrados updated_by y updated_at").
@@ -23,4 +23,4 @@ create trigger trg_clientes_updated_audit
 
 commit;
 
--- Fin migración 0033
+-- Fin migración 0034
