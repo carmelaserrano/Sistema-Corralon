@@ -3,10 +3,13 @@ import {
   listarClientes,
   crearCliente,
   actualizarCliente,
+  cambiarEstadoCliente,
+  listarHistorialEstado,
   listarCondicionesIva,
   listarTiposCliente,
   puedeAltaClientes,
   puedeModificarClientes,
+  puedeCambiarEstadoClientes,
 } from './clientesApi'
 import { supabase } from '../../../lib/supabaseClient'
 
@@ -21,6 +24,7 @@ function crearQueryBuilder(resultado) {
     update: vi.fn(() => builder),
     eq: vi.fn(() => builder),
     or: vi.fn(() => builder),
+    in: vi.fn(() => builder),
     order: vi.fn(() => builder),
     range: vi.fn(() => Promise.resolve(resultado)),
     single: vi.fn(() => Promise.resolve(resultado)),
@@ -155,6 +159,34 @@ describe('clientesApi', () => {
       )
 
       await expect(listarClientes()).rejects.toEqual(errorMock)
+    })
+
+    // CA-03
+    it('filtra por Activo y Bloqueado por defecto', async () => {
+      const builder = crearQueryBuilder({ data: [], count: 0, error: null })
+      supabase.from.mockReturnValue(builder)
+
+      await listarClientes()
+
+      expect(builder.in).toHaveBeenCalledWith('estado', ['Activo', 'Bloqueado'])
+    })
+
+    it('filtra por los estados que se pidan', async () => {
+      const builder = crearQueryBuilder({ data: [], count: 0, error: null })
+      supabase.from.mockReturnValue(builder)
+
+      await listarClientes({ estados: ['Inactivo'] })
+
+      expect(builder.in).toHaveBeenCalledWith('estado', ['Inactivo'])
+    })
+
+    it('no filtra por estado cuando se pide una lista vacía', async () => {
+      const builder = crearQueryBuilder({ data: [], count: 0, error: null })
+      supabase.from.mockReturnValue(builder)
+
+      await listarClientes({ estados: [] })
+
+      expect(builder.in).not.toHaveBeenCalled()
     })
   })
 
@@ -625,6 +657,216 @@ describe('clientesApi', () => {
       supabase.rpc.mockResolvedValue({ data: null, error: errorMock })
 
       await expect(puedeModificarClientes()).rejects.toEqual(errorMock)
+    })
+  })
+
+  // Igual que en movimientosApi.test.js: las funciones que se llaman con
+  // .rpc(...).single() necesitan un builder propio.
+  function mockRpcSingle(resultado) {
+    const builder = { single: vi.fn(() => Promise.resolve(resultado)) }
+    supabase.rpc.mockReturnValue(builder)
+    return builder
+  }
+
+  describe('cambiarEstadoCliente', () => {
+    // CA-01
+    it('cambia el estado con motivo', async () => {
+      const actualizado = { ...filaCliente, estado: 'Bloqueado' }
+      mockRpcSingle({ data: actualizado, error: null })
+
+      const resultado = await cambiarEstadoCliente(
+        'c1',
+        'Bloqueado',
+        'Cheques rechazados',
+      )
+
+      expect(supabase.rpc).toHaveBeenCalledWith('cambiar_estado_cliente', {
+        p_cliente: 'c1',
+        p_estado_nuevo: 'Bloqueado',
+        p_motivo: 'Cheques rechazados',
+      })
+      expect(resultado).toEqual(actualizado)
+    })
+
+    it('pasar a Activo no requiere motivo', async () => {
+      mockRpcSingle({ data: { ...filaCliente, estado: 'Activo' }, error: null })
+
+      await expect(
+        cambiarEstadoCliente('c1', 'Activo'),
+      ).resolves.toMatchObject({ estado: 'Activo' })
+
+      expect(supabase.rpc).toHaveBeenCalledWith('cambiar_estado_cliente', {
+        p_cliente: 'c1',
+        p_estado_nuevo: 'Activo',
+        p_motivo: null,
+      })
+    })
+
+    it('rechaza con 400 un estado que no es válido', async () => {
+      await expect(
+        cambiarEstadoCliente('c1', 'Cancelado', 'motivo'),
+      ).rejects.toMatchObject({ status: 400, campo: 'estado' })
+      expect(supabase.rpc).not.toHaveBeenCalled()
+    })
+
+    it('rechaza con 400 cuando falta el motivo y no es Activo', async () => {
+      await expect(
+        cambiarEstadoCliente('c1', 'Inactivo', ''),
+      ).rejects.toMatchObject({ status: 400, campo: 'motivo' })
+      expect(supabase.rpc).not.toHaveBeenCalled()
+    })
+
+    it('rechaza con 400 cuando el motivo son sólo espacios', async () => {
+      await expect(
+        cambiarEstadoCliente('c1', 'Bloqueado', '   '),
+      ).rejects.toMatchObject({ status: 400, campo: 'motivo' })
+    })
+
+    it('traduce el rechazo de motivo que viene de la base', async () => {
+      mockRpcSingle({
+        data: null,
+        error: {
+          code: '23514',
+          message: 'El motivo es obligatorio para pasar a Bloqueado',
+        },
+      })
+
+      await expect(
+        cambiarEstadoCliente('c1', 'Bloqueado', 'x'),
+      ).rejects.toMatchObject({ status: 400, campo: 'motivo' })
+    })
+
+    it('traduce el check de estado de la base', async () => {
+      mockRpcSingle({
+        data: null,
+        error: { code: '23514', message: 'violates check "chk_cliente_estado"' },
+      })
+
+      await expect(
+        cambiarEstadoCliente('c1', 'Activo'),
+      ).rejects.toMatchObject({ status: 400, campo: 'estado' })
+    })
+
+    it('usa un mensaje genérico para un check desconocido', async () => {
+      mockRpcSingle({
+        data: null,
+        error: { code: '23514', message: 'violates check "otro"' },
+      })
+
+      await expect(
+        cambiarEstadoCliente('c1', 'Activo'),
+      ).rejects.toMatchObject({
+        status: 400,
+        message: 'Revisá los datos: no cumplen una validación del sistema',
+      })
+    })
+
+    // CA-04: lo levanta el trigger sin permiso, o la RPC si no encontró la fila
+    it('traduce a 403 la falta de permiso o de fila', async () => {
+      mockRpcSingle({
+        data: null,
+        error: {
+          code: '42501',
+          message: 'No tenés permiso para cambiar el estado del cliente',
+        },
+      })
+
+      await expect(
+        cambiarEstadoCliente('c1', 'Bloqueado', 'x'),
+      ).rejects.toMatchObject({
+        status: 403,
+        message: 'No tenés permiso para cambiar el estado del cliente',
+      })
+    })
+
+    it('usa un mensaje por defecto si la base no informa detalle', async () => {
+      mockRpcSingle({ data: null, error: { code: '42501' } })
+
+      await expect(
+        cambiarEstadoCliente('c1', 'Bloqueado', 'x'),
+      ).rejects.toMatchObject({
+        status: 403,
+        message:
+          'No se pudo cambiar el estado: no existe o no tenés permiso para modificarlo',
+      })
+    })
+
+    it('propaga cualquier otro error sin traducirlo', async () => {
+      const errorMock = { code: '08006', message: 'connection failure' }
+      mockRpcSingle({ data: null, error: errorMock })
+
+      await expect(
+        cambiarEstadoCliente('c1', 'Bloqueado', 'x'),
+      ).rejects.toEqual(errorMock)
+    })
+  })
+
+  describe('listarHistorialEstado', () => {
+    // CA-02
+    it('devuelve los cambios del más reciente al más antiguo', async () => {
+      const historial = [
+        {
+          id: 'h1',
+          estado_anterior: 'Activo',
+          estado_nuevo: 'Bloqueado',
+          motivo: 'Cheques rechazados',
+          usuario_id: 'u1',
+          created_at: '2026-09-10T12:00:00Z',
+        },
+      ]
+      const builder = crearQueryBuilder({ data: historial, error: null })
+      supabase.from.mockReturnValue(builder)
+
+      const resultado = await listarHistorialEstado('c1')
+
+      expect(supabase.from).toHaveBeenCalledWith('historial_estado_cliente')
+      expect(builder.eq).toHaveBeenCalledWith('cliente_id', 'c1')
+      expect(builder.order).toHaveBeenCalledWith('created_at', {
+        ascending: false,
+      })
+      expect(resultado).toEqual(historial)
+    })
+
+    it('devuelve una lista vacía cuando no hay datos', async () => {
+      supabase.from.mockReturnValue(
+        crearQueryBuilder({ data: null, error: null }),
+      )
+
+      await expect(listarHistorialEstado('c1')).resolves.toEqual([])
+    })
+
+    it('lanza el error cuando la consulta falla', async () => {
+      const errorMock = { message: 'error al leer el historial' }
+      supabase.from.mockReturnValue(
+        crearQueryBuilder({ data: null, error: errorMock }),
+      )
+
+      await expect(listarHistorialEstado('c1')).rejects.toEqual(errorMock)
+    })
+  })
+
+  describe('puedeCambiarEstadoClientes', () => {
+    // CA-04
+    it('consulta el permiso clientes.estado', async () => {
+      supabase.rpc.mockResolvedValue({ data: true, error: null })
+
+      await expect(puedeCambiarEstadoClientes()).resolves.toBe(true)
+      expect(supabase.rpc).toHaveBeenCalledWith('usuario_tiene_permiso', {
+        p_nombre: 'clientes.estado',
+      })
+    })
+
+    it('devuelve false cuando no lo tiene', async () => {
+      supabase.rpc.mockResolvedValue({ data: false, error: null })
+
+      await expect(puedeCambiarEstadoClientes()).resolves.toBe(false)
+    })
+
+    it('lanza el error cuando la consulta falla', async () => {
+      const errorMock = { message: 'no se pudo verificar el permiso' }
+      supabase.rpc.mockResolvedValue({ data: null, error: errorMock })
+
+      await expect(puedeCambiarEstadoClientes()).rejects.toEqual(errorMock)
     })
   })
 })

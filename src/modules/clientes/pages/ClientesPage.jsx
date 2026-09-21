@@ -1,31 +1,28 @@
 import { useEffect, useRef, useState } from 'react'
+import { X } from 'lucide-react'
 import {
+  ESTADOS_CLIENTE,
   TIPOS_DOCUMENTO,
   TIPOS_PERSONA,
   actualizarCliente,
+  cambiarEstadoCliente,
   crearCliente,
   listarClientes,
   listarCondicionesIva,
+  listarHistorialEstado,
   listarTiposCliente,
   puedeAltaClientes,
+  puedeCambiarEstadoClientes,
   puedeModificarClientes,
 } from '../api/clientesApi'
 import { cuitEsValido, formatearCuit } from '../../proveedores/cuit'
+import DomiciliosCliente from '../components/DomiciliosCliente'
+import EstadoClienteBadge from '../components/EstadoClienteBadge'
 import Button from '../../../components/ui/Button'
 import EmptyState from '../../../components/ui/EmptyState'
 import Feedback from '../../../components/ui/Feedback'
 
 const DEBOUNCE_BUSQUEDA_MS = 300
-
-// CA-03: el estado se muestra con un indicador visual (mismo patrón que
-// EstadoBadge en proveedores). Bloqueado reutiliza el tono "error" del
-// sistema de badges: es el estado que más atención necesita.
-function EstadoBadge({ estado }) {
-  const tono =
-    estado === 'Activo' ? 'activo' : estado === 'Bloqueado' ? 'error' : 'inactivo'
-
-  return <span className={`estado-badge estado-badge-${tono}`}>{estado}</span>
-}
 
 function nombreCliente(cliente) {
   return cliente.tipo_persona === 'fisica'
@@ -40,6 +37,174 @@ function formatearDocumento(cliente) {
       : cliente.numero_documento
 
   return `${cliente.tipo_documento} ${numero}`
+}
+
+// Modal de cambio de estado (CA-01). Vive dentro de este archivo, no en un
+// componente aparte: es la única pantalla que lo usa y el issue lo pide así
+// explícitamente ("Modal de cambio de estado dentro de ClientesPage.jsx").
+function ModalCambiarEstadoCliente({ cliente, onCambiado, onCerrar }) {
+  const [estadoNuevo, setEstadoNuevo] = useState(cliente.estado)
+  const [motivo, setMotivo] = useState('')
+  const [historial, setHistorial] = useState([])
+  const [historialCargando, setHistorialCargando] = useState(true)
+  const [error, setError] = useState('')
+  const [guardando, setGuardando] = useState(false)
+  const cerrarRef = useRef(null)
+
+  useEffect(() => {
+    cerrarRef.current?.focus()
+
+    listarHistorialEstado(cliente.id)
+      .then(setHistorial)
+      .catch(() => setHistorial([]))
+      .finally(() => setHistorialCargando(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    function manejarTecla(event) {
+      if (event.key === 'Escape') onCerrar()
+    }
+
+    document.addEventListener('keydown', manejarTecla)
+    return () => document.removeEventListener('keydown', manejarTecla)
+  }, [onCerrar])
+
+  // CA-01: el motivo es obligatorio salvo al pasar a Activo.
+  const motivoObligatorio = estadoNuevo !== 'Activo'
+
+  async function confirmar(event) {
+    event.preventDefault()
+
+    if (estadoNuevo === cliente.estado) {
+      onCerrar()
+      return
+    }
+
+    try {
+      setGuardando(true)
+      setError('')
+
+      const actualizado = await cambiarEstadoCliente(
+        cliente.id,
+        estadoNuevo,
+        motivo,
+      )
+      onCambiado(actualizado)
+    } catch (err) {
+      setError(err.message || 'No se pudo cambiar el estado')
+    } finally {
+      setGuardando(false)
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" onMouseDown={onCerrar}>
+      <section
+        aria-labelledby="cambiar-estado-title"
+        aria-modal="true"
+        className="modal-panel"
+        onMouseDown={(event) => event.stopPropagation()}
+        role="dialog"
+      >
+        <header className="modal-header">
+          <div>
+            <p className="eyebrow">Cambiar estado</p>
+            <h2 id="cambiar-estado-title">
+              {cliente.numero} — {nombreCliente(cliente)}
+            </h2>
+          </div>
+          <button
+            aria-label="Cerrar"
+            className="icon-button"
+            onClick={onCerrar}
+            ref={cerrarRef}
+            title="Cerrar"
+            type="button"
+          >
+            <X aria-hidden="true" size={18} />
+          </button>
+        </header>
+
+        {error && <Feedback tone="error">{error}</Feedback>}
+
+        <form onSubmit={confirmar}>
+          <div>
+            <label htmlFor="estado-nuevo">Nuevo estado</label>
+            <select
+              id="estado-nuevo"
+              value={estadoNuevo}
+              onChange={(event) => setEstadoNuevo(event.target.value)}
+            >
+              {ESTADOS_CLIENTE.map((opcion) => (
+                <option key={opcion} value={opcion}>
+                  {opcion}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label htmlFor="motivo">
+              Motivo{!motivoObligatorio && ' (opcional)'}
+            </label>
+            <textarea
+              id="motivo"
+              value={motivo}
+              onChange={(event) => setMotivo(event.target.value)}
+              placeholder={
+                motivoObligatorio ? `Por qué pasa a ${estadoNuevo}` : 'Opcional'
+              }
+            />
+          </div>
+
+          <div>
+            <Button type="submit" loading={guardando}>
+              Confirmar
+            </Button>
+            <Button type="button" variant="ghost" onClick={onCerrar}>
+              Cancelar
+            </Button>
+          </div>
+        </form>
+
+        <h3>Historial de cambios de estado</h3>
+
+        {historialCargando && (
+          <p className="loading-state" role="status">
+            Cargando historial…
+          </p>
+        )}
+
+        {!historialCargando && historial.length === 0 && (
+          <p>Este cliente no registra cambios de estado.</p>
+        )}
+
+        {!historialCargando && historial.length > 0 && (
+          <table>
+            <thead>
+              <tr>
+                <th>Fecha y hora</th>
+                <th>Anterior</th>
+                <th>Nuevo</th>
+                <th>Motivo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {historial.map((cambio) => (
+                <tr key={cambio.id}>
+                  <td>{new Date(cambio.created_at).toLocaleString('es-AR')}</td>
+                  <td>{cambio.estado_anterior ?? '—'}</td>
+                  <td>{cambio.estado_nuevo}</td>
+                  <td>{cambio.motivo || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+    </div>
+  )
 }
 
 const clienteInicial = {
@@ -75,12 +240,24 @@ function ClientesPage() {
   // misma búsqueda vacía.
   const busquedaAlMontar = useRef(true)
 
+  // CA-03: por defecto Activos y Bloqueados. Inactivo queda afuera salvo
+  // que se lo tilde a propósito.
+  const [filtroEstados, setFiltroEstados] = useState(['Activo', 'Bloqueado'])
+
+  // Cliente sobre el que está abierto el modal "Cambiar estado", o null si
+  // está cerrado.
+  const [clienteEstadoModal, setClienteEstadoModal] = useState(null)
+
+  // Cliente cuyo detalle (con la sección de Domicilios, S3-03) está abierto.
+  const [detalleId, setDetalleId] = useState(null)
+
   // Arrancan en true: si falla la consulta del permiso es preferible dejar
   // la acción a la vista y que la RLS rechace, antes que afirmarle al
   // usuario que no tiene un permiso que quizá sí tiene (mismo criterio que
   // en proveedoresApi/rubrosApi).
   const [puedeCrear, setPuedeCrear] = useState(true)
   const [puedeModificar, setPuedeModificar] = useState(true)
+  const [puedeCambiarEstado, setPuedeCambiarEstado] = useState(true)
   const [avisoPermisos, setAvisoPermisos] = useState('')
 
   const [error, setError] = useState('')
@@ -90,14 +267,20 @@ function ClientesPage() {
 
   async function verificarPermisos() {
     try {
-      const [alta, modificar] = await Promise.all([
+      const [alta, modificar, estado] = await Promise.all([
         puedeAltaClientes(),
         puedeModificarClientes(),
+        puedeCambiarEstadoClientes(),
       ])
       setPuedeCrear(alta)
       setPuedeModificar(modificar)
+      setPuedeCambiarEstado(estado)
 
-      const faltantes = [!alta && 'dar de alta', !modificar && 'editar']
+      const faltantes = [
+        !alta && 'dar de alta',
+        !modificar && 'editar',
+        !estado && 'cambiar el estado de',
+      ]
         .filter(Boolean)
         .join(' y ')
 
@@ -109,18 +292,23 @@ function ClientesPage() {
     } catch (err) {
       setPuedeCrear(true)
       setPuedeModificar(true)
+      setPuedeCambiarEstado(true)
       setAvisoPermisos(
         `No se pudo verificar tu permiso sobre clientes (${err.message || 'error desconocido'}). Las acciones quedan habilitadas, pero si al guardar no pasa nada, es por esto.`,
       )
     }
   }
 
-  async function cargarClientes({ search = busqueda, pagina: pag = 1 } = {}) {
+  async function cargarClientes({
+    search = busqueda,
+    estados = filtroEstados,
+    pagina: pag = 1,
+  } = {}) {
     try {
       setLoading(true)
       setError('')
 
-      const resultado = await listarClientes({ search, pagina: pag })
+      const resultado = await listarClientes({ search, estados, pagina: pag })
 
       setClientes(resultado.clientes)
       setTotal(resultado.total)
@@ -176,6 +364,43 @@ function ClientesPage() {
 
     setForm((actual) => ({ ...actual, [name]: value }))
     setErroresCampo((actual) => ({ ...actual, [name]: '' }))
+  }
+
+  // CA-03: filtrar por estado. Al menos uno queda siempre tildado; destildar
+  // el único activo no tendría un resultado sensato que mostrar.
+  function alternarFiltroEstado(estado) {
+    setFiltroEstados((actual) => {
+      const nuevo = actual.includes(estado)
+        ? actual.filter((valor) => valor !== estado)
+        : [...actual, estado]
+
+      if (nuevo.length === 0) return actual
+
+      cargarClientes({ estados: nuevo, pagina: 1 })
+      return nuevo
+    })
+  }
+
+  function verDetalle(cliente) {
+    setDetalleId(cliente.id)
+  }
+
+  function cerrarDetalle() {
+    setDetalleId(null)
+  }
+
+  function abrirModalEstado(cliente) {
+    setClienteEstadoModal(cliente)
+  }
+
+  function cerrarModalEstado() {
+    setClienteEstadoModal(null)
+  }
+
+  async function manejarEstadoCambiado() {
+    cerrarModalEstado()
+    setAviso('Estado actualizado')
+    await cargarClientes({ pagina })
   }
 
   // CA-01: el tipo de persona decide qué grupo de campos se pide. Cambiarlo
@@ -310,6 +535,9 @@ function ClientesPage() {
   }
 
   const esFisica = form.tipo_persona === 'fisica'
+  const clienteDetalle = detalleId
+    ? (clientes.find((c) => c.id === detalleId) ?? null)
+    : null
 
   return (
     <main>
@@ -528,6 +756,21 @@ function ClientesPage() {
             autoComplete="off"
           />
         </div>
+
+        {/* CA-03: filtro por estado, Activo y Bloqueado tildados por defecto. */}
+        <div>
+          {ESTADOS_CLIENTE.map((estado) => (
+            <label key={estado} className="checkbox-field" htmlFor={`filtro-${estado}`}>
+              <input
+                id={`filtro-${estado}`}
+                type="checkbox"
+                checked={filtroEstados.includes(estado)}
+                onChange={() => alternarFiltroEstado(estado)}
+              />
+              {estado}
+            </label>
+          ))}
+        </div>
       </section>
 
       <section>
@@ -580,10 +823,18 @@ function ClientesPage() {
                     <td>{cliente.telefono}</td>
                     <td>{cliente.origen}</td>
                     <td>
-                      <EstadoBadge estado={cliente.estado} />
+                      <EstadoClienteBadge estado={cliente.estado} />
                     </td>
                     <td>
-                      {puedeModificar ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => verDetalle(cliente)}
+                      >
+                        Ver detalle
+                      </Button>
+
+                      {puedeModificar && (
                         <Button
                           type="button"
                           variant="ghost"
@@ -591,9 +842,19 @@ function ClientesPage() {
                         >
                           Editar
                         </Button>
-                      ) : (
-                        <span>—</span>
                       )}
+
+                      {puedeCambiarEstado && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => abrirModalEstado(cliente)}
+                        >
+                          Cambiar estado
+                        </Button>
+                      )}
+
+                      {!puedeModificar && !puedeCambiarEstado && <span>—</span>}
                     </td>
                   </tr>
                 ))}
@@ -625,6 +886,39 @@ function ClientesPage() {
           </>
         )}
       </section>
+
+      {detalleId && (
+        <section>
+          <h2>Detalle del cliente</h2>
+
+          {!clienteDetalle && (
+            <p>Este cliente ya no está en el listado actual.</p>
+          )}
+
+          {clienteDetalle && (
+            <>
+              <p>
+                {clienteDetalle.numero} — {nombreCliente(clienteDetalle)}
+              </p>
+
+              <h3>Domicilios</h3>
+              <DomiciliosCliente clienteId={clienteDetalle.id} />
+            </>
+          )}
+
+          <Button type="button" variant="ghost" onClick={cerrarDetalle}>
+            Cerrar
+          </Button>
+        </section>
+      )}
+
+      {clienteEstadoModal && (
+        <ModalCambiarEstadoCliente
+          cliente={clienteEstadoModal}
+          onCambiado={manejarEstadoCambiado}
+          onCerrar={cerrarModalEstado}
+        />
+      )}
     </main>
   )
 }

@@ -4,13 +4,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import ClientesPage from './ClientesPage'
 import {
   actualizarCliente,
+  cambiarEstadoCliente,
   crearCliente,
   listarClientes,
   listarCondicionesIva,
+  listarHistorialEstado,
   listarTiposCliente,
   puedeAltaClientes,
+  puedeCambiarEstadoClientes,
   puedeModificarClientes,
 } from '../api/clientesApi'
+import { listarDomicilios } from '../api/domiciliosApi'
 
 vi.mock('../api/clientesApi', () => ({
   TIPOS_PERSONA: [
@@ -21,13 +25,25 @@ vi.mock('../api/clientesApi', () => ({
     { value: 'DNI', label: 'DNI' },
     { value: 'CUIT', label: 'CUIT' },
   ],
+  ESTADOS_CLIENTE: ['Activo', 'Inactivo', 'Bloqueado'],
   actualizarCliente: vi.fn(),
+  cambiarEstadoCliente: vi.fn(),
   crearCliente: vi.fn(),
   listarClientes: vi.fn(),
   listarCondicionesIva: vi.fn(),
+  listarHistorialEstado: vi.fn(() => Promise.resolve([])),
   listarTiposCliente: vi.fn(),
   puedeAltaClientes: vi.fn(),
+  puedeCambiarEstadoClientes: vi.fn(),
   puedeModificarClientes: vi.fn(),
+}))
+
+vi.mock('../api/domiciliosApi', () => ({
+  actualizarDomicilio: vi.fn(),
+  crearDomicilio: vi.fn(),
+  darDeBaja: vi.fn(),
+  listarDomicilios: vi.fn(() => Promise.resolve([])),
+  marcarPrincipal: vi.fn(),
 }))
 
 function errorDeApi(mensaje, status, campo) {
@@ -92,6 +108,7 @@ describe('ClientesPage', () => {
     vi.clearAllMocks()
     puedeAltaClientes.mockResolvedValue(true)
     puedeModificarClientes.mockResolvedValue(true)
+    puedeCambiarEstadoClientes.mockResolvedValue(true)
     listarClientes.mockResolvedValue(listaBase)
     listarCondicionesIva.mockResolvedValue(condicionesIvaMock)
     listarTiposCliente.mockResolvedValue(tiposClienteMock)
@@ -440,5 +457,245 @@ describe('ClientesPage', () => {
     expect(
       screen.queryByRole('button', { name: 'Editar' }),
     ).not.toBeInTheDocument()
+  })
+
+  // --------------------------------------------------------------------
+  // S3-02 · Administración del estado del cliente
+  // --------------------------------------------------------------------
+
+  describe('cambio de estado', () => {
+    // CA-03
+    it('filtra por Activo y Bloqueado desde el montaje', async () => {
+      render(<ClientesPage />)
+      await screen.findByText('Gómez, Ana')
+
+      expect(listarClientes).toHaveBeenCalledWith(
+        expect.objectContaining({ estados: ['Activo', 'Bloqueado'] }),
+      )
+      expect(screen.getByLabelText('Activo')).toBeChecked()
+      expect(screen.getByLabelText('Bloqueado')).toBeChecked()
+      expect(screen.getByLabelText('Inactivo')).not.toBeChecked()
+    })
+
+    it('recarga el listado al tildar un estado adicional', async () => {
+      render(<ClientesPage />)
+      await screen.findByText('Gómez, Ana')
+
+      fireEvent.click(screen.getByLabelText('Inactivo'))
+
+      await waitFor(() =>
+        expect(listarClientes).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            estados: ['Activo', 'Bloqueado', 'Inactivo'],
+          }),
+        ),
+      )
+    })
+
+    it('no permite destildar el último estado', async () => {
+      render(<ClientesPage />)
+      await screen.findByText('Gómez, Ana')
+
+      fireEvent.click(screen.getByLabelText('Activo'))
+      fireEvent.click(screen.getByLabelText('Bloqueado'))
+
+      expect(screen.getByLabelText('Bloqueado')).toBeChecked()
+    })
+
+    // CA-01
+    it('abre el modal con el estado actual preseleccionado', async () => {
+      render(<ClientesPage />)
+      await screen.findByText('Gómez, Ana')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Cambiar estado' }))
+
+      expect(await screen.findByRole('dialog')).toBeInTheDocument()
+      expect(screen.getByLabelText('Nuevo estado')).toHaveValue('Activo')
+    })
+
+    it('el motivo se pide como opcional al elegir Activo', async () => {
+      render(<ClientesPage />)
+      await screen.findByText('Gómez, Ana')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Cambiar estado' }))
+      await screen.findByRole('dialog')
+
+      expect(screen.getByText('Motivo (opcional)')).toBeInTheDocument()
+    })
+
+    it('el motivo deja de ser opcional al elegir Bloqueado', async () => {
+      render(<ClientesPage />)
+      await screen.findByText('Gómez, Ana')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Cambiar estado' }))
+      await screen.findByRole('dialog')
+
+      fireEvent.change(screen.getByLabelText('Nuevo estado'), {
+        target: { value: 'Bloqueado' },
+      })
+
+      expect(screen.getByText('Motivo')).toBeInTheDocument()
+      expect(screen.queryByText('Motivo (opcional)')).not.toBeInTheDocument()
+    })
+
+    it('confirma el cambio de estado con motivo', async () => {
+      cambiarEstadoCliente.mockResolvedValue({ ...anaGomez, estado: 'Bloqueado' })
+      render(<ClientesPage />)
+      await screen.findByText('Gómez, Ana')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Cambiar estado' }))
+      await screen.findByRole('dialog')
+
+      fireEvent.change(screen.getByLabelText('Nuevo estado'), {
+        target: { value: 'Bloqueado' },
+      })
+      fireEvent.change(screen.getByLabelText(/^Motivo/), {
+        target: { value: 'Cheques rechazados' },
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }))
+
+      await waitFor(() =>
+        expect(cambiarEstadoCliente).toHaveBeenCalledWith(
+          'c1',
+          'Bloqueado',
+          'Cheques rechazados',
+        ),
+      )
+      expect(await screen.findByText('Estado actualizado')).toBeInTheDocument()
+      // El modal se cierra y el listado se recarga.
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+
+    it('muestra el error cuando la base rechaza el cambio', async () => {
+      cambiarEstadoCliente.mockRejectedValue(
+        new Error('El motivo es obligatorio'),
+      )
+      render(<ClientesPage />)
+      await screen.findByText('Gómez, Ana')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Cambiar estado' }))
+      await screen.findByRole('dialog')
+
+      fireEvent.change(screen.getByLabelText('Nuevo estado'), {
+        target: { value: 'Bloqueado' },
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }))
+
+      expect(
+        await screen.findByText('El motivo es obligatorio'),
+      ).toBeInTheDocument()
+      // Sigue abierto: el usuario tiene que poder corregir y reintentar.
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
+    })
+
+    it('cierra el modal con Cancelar sin llamar a la API', async () => {
+      render(<ClientesPage />)
+      await screen.findByText('Gómez, Ana')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Cambiar estado' }))
+      await screen.findByRole('dialog')
+      fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
+
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(cambiarEstadoCliente).not.toHaveBeenCalled()
+    })
+
+    it('cierra el modal con Escape', async () => {
+      render(<ClientesPage />)
+      await screen.findByText('Gómez, Ana')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Cambiar estado' }))
+      await screen.findByRole('dialog')
+      fireEvent.keyDown(document, { key: 'Escape' })
+
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+
+    // CA-02
+    it('muestra el historial de cambios de estado dentro del modal', async () => {
+      listarHistorialEstado.mockResolvedValue([
+        {
+          id: 'h1',
+          estado_anterior: 'Activo',
+          estado_nuevo: 'Bloqueado',
+          motivo: 'Cheques rechazados',
+          usuario_id: 'u1',
+          created_at: '2026-09-10T12:00:00Z',
+        },
+      ])
+      render(<ClientesPage />)
+      await screen.findByText('Gómez, Ana')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Cambiar estado' }))
+
+      expect(listarHistorialEstado).toHaveBeenCalledWith('c1')
+      expect(await screen.findByText('Cheques rechazados')).toBeInTheDocument()
+    })
+
+    it('avisa cuando el cliente no registra cambios de estado', async () => {
+      // No depender del default del mock: un test anterior puede haberlo
+      // sobreescrito con .mockResolvedValue y vi.clearAllMocks() no lo
+      // restaura (sólo limpia calls/results, no la implementación).
+      listarHistorialEstado.mockResolvedValue([])
+      render(<ClientesPage />)
+      await screen.findByText('Gómez, Ana')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Cambiar estado' }))
+
+      expect(
+        await screen.findByText('Este cliente no registra cambios de estado.'),
+      ).toBeInTheDocument()
+    })
+
+    // CA-04
+    it('oculta la acción a quien no tiene el permiso clientes.estado', async () => {
+      puedeCambiarEstadoClientes.mockResolvedValue(false)
+      render(<ClientesPage />)
+
+      expect(
+        await screen.findByText(/no tenés permiso para cambiar el estado de/),
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Cambiar estado' }),
+      ).not.toBeInTheDocument()
+    })
+
+    // CA-05
+    it('no ofrece ninguna acción de borrado físico', async () => {
+      render(<ClientesPage />)
+      await screen.findByText('Gómez, Ana')
+
+      expect(
+        screen.queryByRole('button', { name: /eliminar|borrar/i }),
+      ).not.toBeInTheDocument()
+    })
+  })
+
+  // --------------------------------------------------------------------
+  // S3-03 · Domicilios de entrega
+  // --------------------------------------------------------------------
+
+  describe('detalle del cliente y domicilios', () => {
+    it('abre el detalle y muestra la sección de Domicilios', async () => {
+      render(<ClientesPage />)
+      await screen.findByText('Gómez, Ana')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Ver detalle' }))
+
+      expect(screen.getByText('Domicilios')).toBeInTheDocument()
+      expect(listarDomicilios).toHaveBeenCalledWith('c1')
+    })
+
+    it('cierra el detalle con el botón Cerrar', async () => {
+      render(<ClientesPage />)
+      await screen.findByText('Gómez, Ana')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Ver detalle' }))
+      expect(screen.getByText('Domicilios')).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Cerrar' }))
+
+      expect(screen.queryByText('Domicilios')).not.toBeInTheDocument()
+    })
   })
 })

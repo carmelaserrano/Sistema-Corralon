@@ -4,14 +4,22 @@ import {
   CODIGO_DUPLICADO,
   CODIGO_CHECK_VIOLADO,
   CODIGO_FK_VIOLADA,
+  CODIGO_PERMISO_INSUFICIENTE,
   CODIGO_SIN_FILAS,
 } from '../../stock/api/errores'
 import { cuitEsValido, limpiarCuit } from '../../proveedores/cuit'
 
 const TABLA = 'clientes'
+const TABLA_HISTORIAL_ESTADO = 'historial_estado_cliente'
 
 export const PERMISO_ALTA = 'clientes.alta'
 export const PERMISO_MODIFICAR = 'clientes.modificar'
+export const PERMISO_ESTADO = 'clientes.estado'
+
+// CA-05: única transición posible es entre estos tres. No existe baja
+// física: la tabla no tiene policy de DELETE (0031) y esta pantalla nunca
+// ofrece la acción.
+export const ESTADOS_CLIENTE = ['Activo', 'Inactivo', 'Bloqueado']
 
 export const TIPOS_PERSONA = [
   { value: 'fisica', label: 'Física' },
@@ -234,22 +242,35 @@ function armarCambios(datos) {
   }
 }
 
+// CA-03: por defecto se muestran Activos y Bloqueados. Quedan afuera los
+// Inactivos porque son la mayoría en un padrón viejo (bajas históricas) y
+// mostrarlos por defecto ahogaría el listado; Bloqueados sí se muestran
+// porque son los que más necesitan atención inmediata.
+const ESTADOS_LISTADO_DEFECTO = ['Activo', 'Bloqueado']
+
 /**
  * Lista clientes, con filtro de texto en vivo (nombre, apellido, razón
- * social, DNI o CUIT) y paginado de a 20 (CA-08).
+ * social, DNI o CUIT), filtro por estado y paginado de a 20 (CA-08).
  *
  * @param {Object} [filtros]
  * @param {string} [filtros.search] Texto a buscar.
+ * @param {Array<string>} [filtros.estados] Estados a incluir (CA-03). Por
+ *   defecto Activo y Bloqueado; pasar [] o null trae todos.
  * @param {number} [filtros.pagina=1] Página, arranca en 1.
  * @param {number} [filtros.pageSize=20]
  * @returns {Promise<{clientes: Array<Object>, total: number, pagina: number, pageSize: number, totalPaginas: number}>}
  */
 export async function listarClientes({
   search = '',
+  estados = ESTADOS_LISTADO_DEFECTO,
   pagina = 1,
   pageSize = PAGE_SIZE_DEFECTO,
 } = {}) {
   let consulta = supabase.from(TABLA).select(COLUMNAS, { count: 'exact' })
+
+  if (estados && estados.length > 0) {
+    consulta = consulta.in('estado', estados)
+  }
 
   if (search.trim()) {
     const patron = `%${search.trim()}%`
@@ -388,6 +409,110 @@ export async function puedeAltaClientes() {
 export async function puedeModificarClientes() {
   const { data, error } = await supabase.rpc('usuario_tiene_permiso', {
     p_nombre: PERMISO_MODIFICAR,
+  })
+
+  if (error) throw error
+  return data === true
+}
+
+function manejarErrorCambioEstado(error) {
+  if (error?.code === CODIGO_CHECK_VIOLADO) {
+    // Los dos textos están acoplados al RAISE de fn_registrar_cambio_estado_cliente
+    // (migración 0034): si se cambia uno hay que cambiar el otro.
+    if (error.message?.includes('motivo es obligatorio')) {
+      throw errorConCampo('El motivo es obligatorio', 400, 'motivo')
+    }
+    if (error.message?.includes('chk_cliente_estado')) {
+      throw errorConCampo('El estado no es válido', 400, 'estado')
+    }
+    throw errorDeApi(
+      'Revisá los datos: no cumplen una validación del sistema',
+      400,
+    )
+  }
+
+  // Lo levanta el trigger cuando falta el permiso clientes.estado, y la
+  // propia función RPC cuando el UPDATE no afectó ninguna fila (cliente
+  // inexistente o filtrado por la RLS de clientes_update).
+  if (error?.code === CODIGO_PERMISO_INSUFICIENTE) {
+    throw errorDeApi(
+      error.message ||
+        'No se pudo cambiar el estado: no existe o no tenés permiso para modificarlo',
+      403,
+    )
+  }
+
+  throw error
+}
+
+/**
+ * Cambia el estado de un cliente entre Activo, Inactivo y Bloqueado
+ * (CA-01). El motivo es obligatorio salvo al pasar a Activo; la validación
+ * real la hace la base (trigger trg_clientes_historial_estado, migración
+ * 0034) — acá se revisa antes para no ir a la red con un dato que ya
+ * sabemos que va a fallar.
+ *
+ * El historial (estado anterior, nuevo, motivo, usuario y fecha/hora —
+ * CA-02) lo escribe el mismo trigger, no esta función.
+ *
+ * @param {string} clienteId
+ * @param {'Activo'|'Inactivo'|'Bloqueado'} estadoNuevo
+ * @param {string} [motivo] Obligatorio salvo estadoNuevo === 'Activo'.
+ * @returns {Promise<Object>} Cliente actualizado.
+ * @throws {Error} 400 si el estado no es válido o falta el motivo; 403 si
+ *   no tenés el permiso clientes.estado o el cliente no existe.
+ */
+export async function cambiarEstadoCliente(clienteId, estadoNuevo, motivo) {
+  if (!ESTADOS_CLIENTE.includes(estadoNuevo)) {
+    throw errorConCampo('El estado no es válido', 400, 'estado')
+  }
+  if (estadoNuevo !== 'Activo' && !motivo?.trim()) {
+    throw errorConCampo('El motivo es obligatorio', 400, 'motivo')
+  }
+
+  const { data, error } = await supabase
+    .rpc('cambiar_estado_cliente', {
+      p_cliente: clienteId,
+      p_estado_nuevo: estadoNuevo,
+      p_motivo: motivo?.trim() || null,
+    })
+    .single()
+
+  if (error) manejarErrorCambioEstado(error)
+  return data
+}
+
+/**
+ * Historial de cambios de estado de un cliente, del más reciente al más
+ * antiguo (CA-02).
+ *
+ * `usuario_id` es el uuid del usuario de Supabase Auth: no se resuelve a un
+ * nombre o email porque el esquema `auth` no está expuesto por PostgREST y
+ * el proyecto todavía no tiene una tabla de perfiles.
+ *
+ * @param {string} clienteId
+ * @returns {Promise<Array<Object>>} Cambios de estado registrados.
+ */
+export async function listarHistorialEstado(clienteId) {
+  const { data, error } = await supabase
+    .from(TABLA_HISTORIAL_ESTADO)
+    .select('id, estado_anterior, estado_nuevo, motivo, usuario_id, created_at')
+    .eq('cliente_id', clienteId)
+    .order('created_at', { ascending: false })
+
+  if (error) throw error
+  return data ?? []
+}
+
+/**
+ * Indica si el usuario actual puede cambiar el estado de un cliente
+ * (CA-04): controla si la pantalla muestra la acción "Cambiar estado".
+ *
+ * @returns {Promise<boolean>} true si tiene el permiso 'clientes.estado'.
+ */
+export async function puedeCambiarEstadoClientes() {
+  const { data, error } = await supabase.rpc('usuario_tiene_permiso', {
+    p_nombre: PERMISO_ESTADO,
   })
 
   if (error) throw error
