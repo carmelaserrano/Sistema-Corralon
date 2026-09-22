@@ -127,7 +127,9 @@ export default function NotasProveedorPage() {
       return
     }
     getFacturasConSaldoDelProveedor(form.proveedor_id)
-      .then(setFacturasProveedor)
+      .then((resp) => {
+        setFacturasProveedor(Array.isArray(resp) ? resp : (resp?.facturas || []))
+      })
       .catch((err) => console.error('Error cargando facturas del proveedor', err))
   }, [form.proveedor_id])
 
@@ -141,9 +143,11 @@ export default function NotasProveedorPage() {
 
   async function cargarMaestros() {
     try {
-      setProveedores(await getProveedores({ estado: 'activo', soloActivos: true }))
+      const resp = await getProveedores({ estado: 'activo', soloActivos: true })
+      setProveedores(Array.isArray(resp) ? resp : (resp?.proveedores || []))
     } catch (err) {
       console.error('Error cargando proveedores', err)
+      setProveedores([])
     }
   }
 
@@ -157,9 +161,10 @@ export default function NotasProveedorPage() {
         fechaDesde: filtros.fechaDesde,
         fechaHasta: filtros.fechaHasta,
       })
-      setNotas(resp.notas)
+      setNotas(Array.isArray(resp?.notas) ? resp.notas : (Array.isArray(resp) ? resp : []))
     } catch (err) {
       setError(err.message || 'Error al cargar las notas de proveedor')
+      setNotas([])
     } finally {
       setLoadingListado(false)
     }
@@ -204,10 +209,14 @@ export default function NotasProveedorPage() {
   }
 
   async function cargarDetalle(id) {
-    const [nota, imps] = await Promise.all([getNotaById(id), getImputacionesDeNota(id)])
+    const [nota, imps, facturas] = await Promise.all([
+      getNotaById(id),
+      getImputacionesDeNota(id),
+      getFacturasConSaldoDelProveedor(id)
+    ])
     setNotaActiva(nota)
-    setImputaciones(imps)
-    setFacturasVinculables(await getFacturasConSaldoDelProveedor(nota.proveedor_id))
+    setImputaciones(Array.isArray(imps) ? imps : (imps?.imputaciones || []))
+    setFacturasVinculables(Array.isArray(facturas) ? facturas : (facturas?.facturas || []))
   }
 
   function cambiarVinculo(e) {
@@ -218,9 +227,7 @@ export default function NotasProveedorPage() {
       return
     }
 
-    // Al elegir la factura se precarga el máximo imputable, que es el caso
-    // más común (imputar todo lo que se pueda) y deja claro el tope.
-    const factura = facturasVinculables.find((f) => f.id === value)
+    const factura = facturasVinculables?.find((f) => f.id === value)
     setVinculo({
       factura_id: value,
       importe: factura ? String(calcularMaximoImputable(notaActiva, factura)) : '',
@@ -331,7 +338,7 @@ export default function NotasProveedorPage() {
                 <label htmlFor="tipo">Tipo *</label>
                 <select id="tipo" name="tipo" value={form.tipo} onChange={cambiarCampo} required>
                   <option value="">Seleccione</option>
-                  {TIPOS.map((tipo) => <option key={tipo} value={tipo}>{ETIQUETAS_TIPO[tipo]}</option>)}
+                  {TIPOS?.map((tipo) => <option key={tipo} value={tipo}>{ETIQUETAS_TIPO[tipo]}</option>)}
                 </select>
               </div>
 
@@ -339,7 +346,7 @@ export default function NotasProveedorPage() {
                 <label htmlFor="proveedor_id">Proveedor *</label>
                 <select id="proveedor_id" name="proveedor_id" value={form.proveedor_id} onChange={cambiarCampo} required>
                   <option value="">Seleccione un proveedor</option>
-                  {proveedores.map((p) => (
+                  {proveedores?.map((p) => (
                     <option key={p.id} value={p.id}>{p.razon_social} (CUIT {p.cuit})</option>
                   ))}
                 </select>
@@ -349,7 +356,7 @@ export default function NotasProveedorPage() {
                 <label htmlFor="letra">Letra *</label>
                 <select id="letra" name="letra" value={form.letra} onChange={cambiarCampo} required>
                   <option value="">Seleccione</option>
-                  {LETRAS.map((letra) => <option key={letra} value={letra}>{letra}</option>)}
+                  {LETRAS?.map((letra) => <option key={letra} value={letra}>{letra}</option>)}
                 </select>
               </div>
 
@@ -405,13 +412,13 @@ export default function NotasProveedorPage() {
                 disabled={!form.proveedor_id}
               >
                 <option value="">Sin vincular (queda Disponible)</option>
-                {facturasProveedor.map((f) => (
+                {facturasProveedor?.map((f) => (
                   <option key={f.id} value={f.id}>
                     {f.letra} {f.sucursal}-{f.numero} — saldo {formatearMoneda(f.saldo_pendiente)}
                   </option>
                 ))}
               </select>
-              {form.proveedor_id && facturasProveedor.length === 0 && (
+              {form.proveedor_id && facturasProveedor?.length === 0 && (
                 <p>Este proveedor no tiene facturas con saldo pendiente.</p>
               )}
             </div>
@@ -430,7 +437,7 @@ export default function NotasProveedorPage() {
     if (loadingDetalle) return <main><p role="status">Cargando detalle...</p></main>
     if (!notaActiva) return <main><p>Nota no encontrada</p><Button onClick={volverListado}>Volver</Button></main>
 
-    const facturaElegida = facturasVinculables.find((f) => f.id === vinculo.factura_id)
+    const facturaElegida = facturasVinculables?.find((f) => f.id === vinculo.factura_id)
     const maximoImputable = calcularMaximoImputable(notaActiva, facturaElegida)
     const puedeVincular =
       puedeRegistrar && notaActiva.estado !== 'anulada' && Number(notaActiva.saldo_pendiente) > 0
@@ -464,7 +471,7 @@ export default function NotasProveedorPage() {
         <section style={{ marginTop: '2rem' }}>
           <h2>Facturas vinculadas</h2>
 
-          {imputaciones.length === 0 ? (
+          {!imputaciones || imputaciones.length === 0 ? (
             <EmptyState
               title="Sin vinculaciones"
               description="Esta nota todavía no está imputada a ninguna factura."
@@ -480,7 +487,7 @@ export default function NotasProveedorPage() {
                 </tr>
               </thead>
               <tbody>
-                {imputaciones.map((imp) => (
+                {imputaciones?.map((imp) => (
                   <tr key={imp.id}>
                     <td><strong>{comprobanteFactura(imp.factura)}</strong></td>
                     <td style={{ textAlign: 'right' }}>{formatearMoneda(imp.importe_imputado)}</td>
@@ -516,7 +523,7 @@ export default function NotasProveedorPage() {
                 <label htmlFor="factura_id">Factura con saldo pendiente</label>
                 <select id="factura_id" name="factura_id" value={vinculo.factura_id} onChange={cambiarVinculo} required>
                   <option value="">Seleccione una factura</option>
-                  {facturasVinculables.map((f) => (
+                  {facturasVinculables?.map((f) => (
                     <option key={f.id} value={f.id}>
                       {f.letra} {f.sucursal}-{f.numero} — saldo {formatearMoneda(f.saldo_pendiente)}
                     </option>
@@ -554,7 +561,7 @@ export default function NotasProveedorPage() {
               </Feedback>
             )}
 
-            {facturasVinculables.length === 0 && (
+            {facturasVinculables?.length === 0 && (
               <p>Este proveedor no tiene facturas con saldo pendiente para vincular.</p>
             )}
           </section>
@@ -581,21 +588,21 @@ export default function NotasProveedorPage() {
           <label htmlFor="proveedorId">Proveedor</label>
           <select id="proveedorId" name="proveedorId" value={filtros.proveedorId} onChange={cambiarFiltro}>
             <option value="">Todos</option>
-            {proveedores.map((p) => <option key={p.id} value={p.id}>{p.razon_social}</option>)}
+            {proveedores?.map((p) => <option key={p.id} value={p.id}>{p.razon_social}</option>)}
           </select>
         </div>
         <div>
           <label htmlFor="tipo">Tipo</label>
           <select id="tipo" name="tipo" value={filtros.tipo} onChange={cambiarFiltro}>
             <option value="">Todos</option>
-            {TIPOS.map((tipo) => <option key={tipo} value={tipo}>{ETIQUETAS_TIPO[tipo]}</option>)}
+            {TIPOS?.map((tipo) => <option key={tipo} value={tipo}>{ETIQUETAS_TIPO[tipo]}</option>)}
           </select>
         </div>
         <div>
           <label htmlFor="estado">Estado</label>
           <select id="estado" name="estado" value={filtros.estado} onChange={cambiarFiltro}>
             <option value="">Todos</option>
-            {ESTADOS.map((estado) => (
+            {ESTADOS?.map((estado) => (
               <option key={estado} value={estado}>{ETIQUETAS_ESTADO[estado]}</option>
             ))}
           </select>
@@ -613,11 +620,11 @@ export default function NotasProveedorPage() {
       <section>
         {loadingListado && <p role="status">Cargando notas...</p>}
 
-        {!loadingListado && notas.length === 0 && (
+        {!loadingListado && (!notas || notas.length === 0) && (
           <EmptyState title="No hay notas registradas" description="Todavía no se registró ninguna nota de crédito o débito con estos filtros." />
         )}
 
-        {!loadingListado && notas.length > 0 && (
+        {!loadingListado && notas?.length > 0 && (
           <table>
             <thead>
               <tr>
@@ -632,7 +639,7 @@ export default function NotasProveedorPage() {
               </tr>
             </thead>
             <tbody>
-              {notas.map((nota) => (
+              {notas?.map((nota) => (
                 <tr key={nota.id}>
                   <td>{ETIQUETAS_TIPO[nota.tipo]}</td>
                   <td><strong>{nota.letra} {nota.sucursal}-{nota.numero}</strong></td>

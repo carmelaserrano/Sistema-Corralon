@@ -114,10 +114,12 @@ export default function OrdenesPagoPage() {
         getProveedores({ estado: 'activo', soloActivos: true }),
         getMediosPago(),
       ])
-      setProveedores(provs)
-      setMediosPago(medios)
+      setProveedores(Array.isArray(provs) ? provs : (provs?.proveedores || []))
+      setMediosPago(Array.isArray(medios) ? medios : (medios?.mediosPago || []))
     } catch (err) {
       console.error('Error cargando maestros', err)
+      setProveedores([])
+      setMediosPago([])
     }
   }
 
@@ -130,10 +132,12 @@ export default function OrdenesPagoPage() {
         getFacturasConSaldoDelProveedor(proveedorId),
         getNotasDisponiblesDelProveedor(proveedorId),
       ])
-      setFacturas(facts)
-      setNotasDisponibles(notas)
+      setFacturas(Array.isArray(facts) ? facts : (facts?.facturas || []))
+      setNotasDisponibles(Array.isArray(notas) ? notas : (notas?.notas || []))
     } catch (err) {
       setError(err.message || 'No se pudieron cargar los comprobantes del proveedor')
+      setFacturas([])
+      setNotasDisponibles([])
     } finally {
       setCargandoProveedor(false)
     }
@@ -143,9 +147,10 @@ export default function OrdenesPagoPage() {
     try {
       setLoadingListado(true)
       const resp = await getOrdenesPago(filtros)
-      setOrdenes(resp.ordenes)
+      setOrdenes(Array.isArray(resp?.ordenes) ? resp.ordenes : (Array.isArray(resp) ? resp : []))
     } catch (err) {
       setError(err.message || 'Error al cargar las órdenes de pago')
+      setOrdenes([])
     } finally {
       setLoadingListado(false)
     }
@@ -209,7 +214,7 @@ export default function OrdenesPagoPage() {
 
       // Se precarga la primera factura de la orden, que es el caso más común.
       const primeraFacturaId = Object.keys(seleccionFacturas)[0] ?? ''
-      const factura = facturas.find((f) => f.id === primeraFacturaId)
+      const factura = facturas?.find((f) => f.id === primeraFacturaId)
       siguiente[nota.id] = {
         factura_id: primeraFacturaId,
         importe: factura ? String(calcularMaximoImputable(nota, factura)) : '',
@@ -234,7 +239,7 @@ export default function OrdenesPagoPage() {
     nota_id: notaId,
     factura_id: datos.factura_id,
     importe: datos.importe,
-    tipo: notasDisponibles.find((n) => n.id === notaId)?.tipo,
+    tipo: notasDisponibles?.find((n) => n.id === notaId)?.tipo,
   }))
 
   const totales = calcularTotales(facturasElegidas, notasElegidas)
@@ -301,7 +306,7 @@ export default function OrdenesPagoPage() {
               <label htmlFor="proveedor_id">Proveedor *</label>
               <select id="proveedor_id" name="proveedor_id" value={form.proveedor_id} onChange={cambiarCampo} required>
                 <option value="">Seleccione un proveedor</option>
-                {proveedores.map((p) => (
+                {proveedores?.map((p) => (
                   <option key={p.id} value={p.id}>{p.razon_social} (CUIT {p.cuit})</option>
                 ))}
               </select>
@@ -314,14 +319,14 @@ export default function OrdenesPagoPage() {
 
               {cargandoProveedor && <p role="status">Cargando comprobantes...</p>}
 
-              {!cargandoProveedor && !sinProveedor && facturas.length === 0 && (
+              {!cargandoProveedor && !sinProveedor && (!facturas || facturas.length === 0) && (
                 <EmptyState
                   title="Sin facturas impagas"
                   description="Este proveedor no tiene facturas con saldo pendiente."
                 />
               )}
 
-              {!cargandoProveedor && facturas.length > 0 && (
+              {!cargandoProveedor && facturas?.length > 0 && (
                 <table>
                   <thead>
                     <tr>
@@ -334,7 +339,7 @@ export default function OrdenesPagoPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {facturas.map((factura) => (
+                    {facturas?.map((factura) => (
                       <tr key={factura.id}>
                         <td>
                           <input
@@ -351,7 +356,7 @@ export default function OrdenesPagoPage() {
                             <div>
                               {factura.notas.map((imp) => (
                                 <small key={imp.id} style={{ display: 'block' }}>
-                                  {ETIQUETAS_TIPO_NOTA[imp.nota.tipo]} {comprobante(imp.nota)} ·{' '}
+                                  {ETIQUETAS_TIPO_NOTA[imp.nota?.tipo]} {comprobante(imp.nota)} ·{' '}
                                   {formatearMoneda(imp.importe_imputado)} ya aplicado
                                 </small>
                               ))}
@@ -384,7 +389,7 @@ export default function OrdenesPagoPage() {
               <h2>Notas disponibles</h2>
 
               {/* CA 7: sin notas, la sección se ve vacía y no bloquea nada. */}
-              {!cargandoProveedor && notasDisponibles.length === 0 ? (
+              {!cargandoProveedor && (!notasDisponibles || notasDisponibles.length === 0) ? (
                 <EmptyState
                   title="Sin notas disponibles"
                   description="Este proveedor no tiene notas de crédito o débito con saldo para aplicar."
@@ -402,9 +407,9 @@ export default function OrdenesPagoPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {notasDisponibles.map((nota) => {
+                    {notasDisponibles?.map((nota) => {
                       const elegida = seleccionNotas[nota.id]
-                      const facturaDestino = facturas.find((f) => f.id === elegida?.factura_id)
+                      const facturaDestino = facturas?.find((f) => f.id === elegida?.factura_id)
                       return (
                         <tr key={nota.id}>
                           <td>
@@ -428,7 +433,7 @@ export default function OrdenesPagoPage() {
                             >
                               <option value="">Seleccione</option>
                               {facturasElegidas.map(({ factura_id: facturaId }) => {
-                                const factura = facturas.find((f) => f.id === facturaId)
+                                const factura = facturas?.find((f) => f.id === facturaId)
                                 return (
                                   <option key={facturaId} value={facturaId}>
                                     {comprobante(factura)}
@@ -456,7 +461,7 @@ export default function OrdenesPagoPage() {
                 </table>
               )}
 
-              {facturasElegidas.length === 0 && notasDisponibles.length > 0 && (
+              {facturasElegidas.length === 0 && notasDisponibles?.length > 0 && (
                 <p>Elegí al menos una factura para poder aplicarle notas.</p>
               )}
             </section>
@@ -473,7 +478,7 @@ export default function OrdenesPagoPage() {
                   <label htmlFor="medio_pago_id">Medio de pago *</label>
                   <select id="medio_pago_id" name="medio_pago_id" value={form.medio_pago_id} onChange={cambiarCampo} required>
                     <option value="">Seleccione</option>
-                    {mediosPago.map((m) => <option key={m.id} value={m.id}>{m.nombre}</option>)}
+                    {mediosPago?.map((m) => <option key={m.id} value={m.id}>{m.nombre}</option>)}
                   </select>
                 </div>
 
@@ -592,7 +597,7 @@ export default function OrdenesPagoPage() {
               </tr>
             </thead>
             <tbody>
-              {ordenActiva.facturas.map((imp) => (
+              {ordenActiva.facturas?.map((imp) => (
                 <tr key={imp.id}>
                   <td><strong>{comprobante(imp.factura)}</strong></td>
                   <td style={{ textAlign: 'right' }}>{formatearMoneda(imp.importe_imputado)}</td>
@@ -606,7 +611,7 @@ export default function OrdenesPagoPage() {
 
         <section style={{ marginTop: '2rem' }}>
           <h2>Notas imputadas</h2>
-          {ordenActiva.notas.length === 0 ? (
+          {!ordenActiva.notas || ordenActiva.notas.length === 0 ? (
             <EmptyState
               title="Sin notas"
               description="Esta orden de pago no aplicó notas de crédito ni de débito."
@@ -623,7 +628,7 @@ export default function OrdenesPagoPage() {
                 </tr>
               </thead>
               <tbody>
-                {ordenActiva.notas.map((imp) => (
+                {ordenActiva.notas?.map((imp) => (
                   <tr key={imp.id}>
                     <td>{ETIQUETAS_TIPO_NOTA[imp.nota?.tipo]}</td>
                     <td><strong>{comprobante(imp.nota)}</strong></td>
@@ -658,7 +663,7 @@ export default function OrdenesPagoPage() {
           <label htmlFor="proveedorId">Proveedor</label>
           <select id="proveedorId" name="proveedorId" value={filtros.proveedorId} onChange={cambiarFiltro}>
             <option value="">Todos</option>
-            {proveedores.map((p) => <option key={p.id} value={p.id}>{p.razon_social}</option>)}
+            {proveedores?.map((p) => <option key={p.id} value={p.id}>{p.razon_social}</option>)}
           </select>
         </div>
         <div>
@@ -674,14 +679,14 @@ export default function OrdenesPagoPage() {
       <section>
         {loadingListado && <p role="status">Cargando órdenes de pago...</p>}
 
-        {!loadingListado && ordenes.length === 0 && (
+        {!loadingListado && (!ordenes || ordenes.length === 0) && (
           <EmptyState
             title="No hay órdenes de pago"
             description="Todavía no se registró ninguna orden de pago con estos filtros."
           />
         )}
 
-        {!loadingListado && ordenes.length > 0 && (
+        {!loadingListado && ordenes?.length > 0 && (
           <table>
             <thead>
               <tr>
@@ -694,7 +699,7 @@ export default function OrdenesPagoPage() {
               </tr>
             </thead>
             <tbody>
-              {ordenes.map((orden) => (
+              {ordenes?.map((orden) => (
                 <tr key={orden.id}>
                   <td><strong>#{orden.numero}</strong></td>
                   <td>{formatearFechaCorta(orden.fecha)}</td>

@@ -140,7 +140,7 @@ export default function OrdenesCompraPage() {
       setError('')
       const resp = await getHistorialOC({ ...filtros, estado: estadoFiltro, page: pagina })
       if (solicitud !== solicitudListado.current) return
-      setOrdenes(resp.ordenes)
+      setOrdenes(Array.isArray(resp.ordenes) ? resp.ordenes : [])
       setTotalPaginas(resp.totalPaginas)
       setResumen({ total: resp.total, importeTotal: resp.importeTotal })
     } catch (err) {
@@ -168,7 +168,7 @@ export default function OrdenesCompraPage() {
       setProveedores(provs)
       setDepositos(deps)
       setArticulos(arts.articulos)
-      setProveedoresHistorial(todosProvs)
+      setProveedoresHistorial(Array.isArray(todosProvs) ? todosProvs : (todosProvs?.proveedores || []))
     } catch (err) {
       setError(err.message || 'No se pudieron cargar los proveedores y artículos. Recargá la página.')
     }
@@ -827,7 +827,7 @@ export default function OrdenesCompraPage() {
           <div><label htmlFor="proveedor-filtro">Proveedor</label>
             <select id="proveedor-filtro" value={filtros.proveedorId} onChange={e => cambiarFiltro('proveedorId', e.target.value)}>
               <option value="">Todos los proveedores</option>
-              {proveedoresHistorial.map(p => <option key={p.id} value={p.id}>{p.razon_social}</option>)}
+              {proveedoresHistorial?.map(p => <option key={p.id} value={p.id}>{p.razon_social}</option>)}
             </select>
           </div>
           <div><label htmlFor="fecha-desde">Creada desde</label><input id="fecha-desde" type="date" value={filtros.fechaDesde} max={filtros.fechaHasta || undefined} onChange={e => cambiarFiltro('fechaDesde', e.target.value)} /></div>
@@ -866,7 +866,7 @@ export default function OrdenesCompraPage() {
               </tr>
             </thead>
             <tbody>
-              {ordenes.map(orden => (
+              {ordenes?.map(orden => (
                 <tr key={orden.id} onClick={() => verDetalle(orden.id)} style={{ cursor: 'pointer' }}>
                   <td><strong>#{orden.numero}</strong></td>
                   <td>{orden.created_at ? new Date(orden.created_at).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }) : '—'}</td>
