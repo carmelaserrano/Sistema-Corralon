@@ -139,9 +139,11 @@ export default function FacturasProveedorPage() {
 
   async function cargarMaestros() {
     try {
-      setProveedores(await getProveedores({ estado: 'activo', soloActivos: true }))
+      const resp = await getProveedores({ estado: 'activo', soloActivos: true })
+      setProveedores(Array.isArray(resp) ? resp : (resp?.proveedores || []))
     } catch (err) {
       console.error('Error cargando proveedores', err)
+      setProveedores([])
     }
   }
 
@@ -151,10 +153,12 @@ export default function FacturasProveedorPage() {
         getOrdenesCompraDelProveedor(proveedorId),
         getRecepcionesConfirmadasDelProveedor(proveedorId),
       ])
-      setOrdenesProveedor(ordenes)
-      setRecepcionesProveedor(recepciones)
+      setOrdenesProveedor(Array.isArray(ordenes) ? ordenes : (ordenes?.ordenes || []))
+      setRecepcionesProveedor(Array.isArray(recepciones) ? recepciones : (recepciones?.recepciones || []))
     } catch (err) {
       console.error('Error cargando OC/recepciones del proveedor', err)
+      setOrdenesProveedor([])
+      setRecepcionesProveedor([])
     }
   }
 
@@ -167,9 +171,10 @@ export default function FacturasProveedorPage() {
         fechaHasta: filtros.fechaHasta,
         estado: filtros.estado,
       })
-      setFacturas(resp.facturas)
+      setFacturas(Array.isArray(resp?.facturas) ? resp.facturas : (Array.isArray(resp) ? resp : []))
     } catch (err) {
       setError(err.message || 'Error al cargar las facturas de proveedor')
+      setFacturas([])
     } finally {
       setLoadingListado(false)
     }
@@ -197,9 +202,12 @@ export default function FacturasProveedorPage() {
   }
 
   async function cargarDetalle(id) {
-    const data = await getFacturaById(id)
+    const [data, notas] = await Promise.all([
+      getFacturaById(id),
+      getNotasDisponiblesDelProveedor(id)
+    ])
     setFacturaActiva(data)
-    setNotasVinculables(await getNotasDisponiblesDelProveedor(data.proveedor_id))
+    setNotasVinculables(Array.isArray(notas) ? notas : (notas?.notas || []))
   }
 
   // ---- NOTAS VINCULADAS (S2-17, CA 2) ----
@@ -211,7 +219,7 @@ export default function FacturasProveedorPage() {
       return
     }
 
-    const nota = notasVinculables.find((n) => n.id === value)
+    const nota = notasVinculables?.find((n) => n.id === value)
     setVinculo({
       nota_id: value,
       importe: nota ? String(calcularMaximoImputable(nota, facturaActiva)) : '',
@@ -269,7 +277,7 @@ export default function FacturasProveedorPage() {
     setForm((f) => ({ ...f, [name]: normalizado }))
   }
 
-  const ordenSeleccionada = ordenesProveedor.find((o) => o.id === form.orden_compra_id) || null
+  const ordenSeleccionada = ordenesProveedor?.find((o) => o.id === form.orden_compra_id) || null
   const diferenciaImporte = tieneDesglose(form)
     ? calcularDiferenciaImporte(form.importe_neto, form.impuestos, form.importe_total)
     : 0
@@ -333,7 +341,7 @@ export default function FacturasProveedorPage() {
                 <label htmlFor="proveedor_id">Proveedor *</label>
                 <select id="proveedor_id" name="proveedor_id" value={form.proveedor_id} onChange={cambiarCampo} required>
                   <option value="">Seleccione un proveedor</option>
-                  {proveedores.map((p) => (
+                  {proveedores?.map((p) => (
                     <option key={p.id} value={p.id}>{p.razon_social} (CUIT {p.cuit})</option>
                   ))}
                 </select>
@@ -343,7 +351,7 @@ export default function FacturasProveedorPage() {
                 <label htmlFor="letra">Letra *</label>
                 <select id="letra" name="letra" value={form.letra} onChange={cambiarCampo} required>
                   <option value="">Seleccione</option>
-                  {LETRAS.map((letra) => <option key={letra} value={letra}>{letra}</option>)}
+                  {LETRAS?.map((letra) => <option key={letra} value={letra}>{letra}</option>)}
                 </select>
               </div>
 
@@ -432,7 +440,7 @@ export default function FacturasProveedorPage() {
                   disabled={!form.proveedor_id}
                 >
                   <option value="">Sin vincular</option>
-                  {ordenesProveedor.map((oc) => (
+                  {ordenesProveedor?.map((oc) => (
                     <option key={oc.id} value={oc.id}>#{oc.numero} — {formatearMoneda(oc.total)}</option>
                   ))}
                 </select>
@@ -448,7 +456,7 @@ export default function FacturasProveedorPage() {
                   disabled={!form.proveedor_id}
                 >
                   <option value="">Sin vincular</option>
-                  {recepcionesProveedor.map((rec) => (
+                  {recepcionesProveedor?.map((rec) => (
                     <option key={rec.id} value={rec.id}>#{rec.numero} — {formatearFechaCorta(rec.fecha_recepcion)}</option>
                   ))}
                 </select>
@@ -479,7 +487,7 @@ export default function FacturasProveedorPage() {
 
     // CA 7: una factura totalmente pagada no admite vincular ni desvincular.
     const facturaPagada = facturaActiva.estado === 'pagada'
-    const notaElegida = notasVinculables.find((n) => n.id === vinculo.nota_id)
+    const notaElegida = notasVinculables?.find((n) => n.id === vinculo.nota_id)
     const maximoImputable = calcularMaximoImputable(notaElegida, facturaActiva)
 
     return (
@@ -538,7 +546,7 @@ export default function FacturasProveedorPage() {
                 </tr>
               </thead>
               <tbody>
-                {facturaActiva.imputaciones.map((imp) => (
+                {facturaActiva.imputaciones?.map((imp) => (
                   <tr key={imp.id}>
                     <td>{ETIQUETAS_TIPO_NOTA[imp.nota?.tipo] || '—'}</td>
                     <td><strong>{imp.nota?.letra} {imp.nota?.sucursal}-{imp.nota?.numero}</strong></td>
@@ -572,7 +580,7 @@ export default function FacturasProveedorPage() {
                 <label htmlFor="nota_id">Vincular una nota disponible</label>
                 <select id="nota_id" name="nota_id" value={vinculo.nota_id} onChange={cambiarVinculo} required>
                   <option value="">Seleccione una nota</option>
-                  {notasVinculables.map((n) => (
+                  {notasVinculables?.map((n) => (
                     <option key={n.id} value={n.id}>
                       {ETIQUETAS_TIPO_NOTA[n.tipo]} {n.letra} {n.sucursal}-{n.numero} — disponible {formatearMoneda(n.saldo_pendiente)}
                     </option>
@@ -602,7 +610,7 @@ export default function FacturasProveedorPage() {
             </form>
           )}
 
-          {puedeRegistrar && !facturaPagada && notasVinculables.length === 0 && (
+          {puedeRegistrar && !facturaPagada && notasVinculables?.length === 0 && (
             <p>Este proveedor no tiene notas con saldo disponible para vincular.</p>
           )}
 
@@ -634,7 +642,7 @@ export default function FacturasProveedorPage() {
           <label htmlFor="proveedorId">Proveedor</label>
           <select id="proveedorId" name="proveedorId" value={filtros.proveedorId} onChange={cambiarFiltro}>
             <option value="">Todos</option>
-            {proveedores.map((p) => <option key={p.id} value={p.id}>{p.razon_social}</option>)}
+            {proveedores?.map((p) => <option key={p.id} value={p.id}>{p.razon_social}</option>)}
           </select>
         </div>
         <div>
@@ -649,7 +657,7 @@ export default function FacturasProveedorPage() {
           <label htmlFor="estado">Estado</label>
           <select id="estado" name="estado" value={filtros.estado} onChange={cambiarFiltro}>
             <option value="">Todos</option>
-            {ESTADOS.map((estado) => (
+            {ESTADOS?.map((estado) => (
               <option key={estado} value={estado}>{ETIQUETAS_ESTADO[estado]}</option>
             ))}
           </select>
@@ -659,11 +667,11 @@ export default function FacturasProveedorPage() {
       <section>
         {loadingListado && <p role="status">Cargando facturas...</p>}
 
-        {!loadingListado && facturas.length === 0 && (
+        {!loadingListado && (!facturas || facturas.length === 0) && (
           <EmptyState title="No hay facturas registradas" description="Todavía no se registró ninguna factura de proveedor con estos filtros." />
         )}
 
-        {!loadingListado && facturas.length > 0 && (
+        {!loadingListado && facturas?.length > 0 && (
           <table>
             <thead>
               <tr>
@@ -677,7 +685,7 @@ export default function FacturasProveedorPage() {
               </tr>
             </thead>
             <tbody>
-              {facturas.map((factura) => (
+              {facturas?.map((factura) => (
                 <tr key={factura.id}>
                   <td><strong>{factura.letra} {factura.sucursal}-{factura.numero}</strong></td>
                   <td>{factura.proveedor?.razon_social}</td>
