@@ -902,7 +902,10 @@ function ClientesPage() {
               </p>
 
               <h3>Domicilios</h3>
-              <DomiciliosCliente clienteId={clienteDetalle.id} />
+              {/* key: fuerza a remontar el panel al cambiar de cliente sin
+                  cerrar el detalle, para no arrastrar un formulario de
+                  domicilio abierto (o en edición) del cliente anterior. */}
+              <DomiciliosCliente key={clienteDetalle.id} clienteId={clienteDetalle.id} />
             </>
           )}
 
