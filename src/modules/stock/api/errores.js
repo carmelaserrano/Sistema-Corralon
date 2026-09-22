@@ -24,3 +24,5 @@ export const CODIGO_RESTRICT = '23001' // restrict_violation
 // trajo exactamente una fila. En un INSERT o UPDATE suele significar que la
 // RLS filtró la fila, no que el registro no exista.
 export const CODIGO_SIN_FILAS = 'PGRST116'
+
+export const CODIGO_PERMISO_INSUFICIENTE = '42501' // insufficient_privilege
