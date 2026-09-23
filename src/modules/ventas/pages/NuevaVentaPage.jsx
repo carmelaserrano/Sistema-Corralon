@@ -148,12 +148,14 @@ export default function NuevaVentaPage() {
   }
 
   // Reiniciar formulario para una nueva venta
-  function handleNuevaVenta() {
-    setVentaConfirmada(null)
-    setLineas([])
-    setObservaciones('')
-    setErrorEnvio('')
-  }
+function handleNuevaVenta() {
+  setVentaConfirmada(null)
+  setLineas([])
+  setObservaciones('')
+  setErrorEnvio('')
+  setCliente(null)
+  setBusquedaCliente('')
+}
 
   // Calcular totales de la venta (CA-04)
   const { total: totalVenta, totalArticulos } = calcularTotalesVenta(lineas)

@@ -349,7 +349,7 @@ export async function registrarVenta(cabecera, items) {
     .single()
 
   if (error) {
-    if (error.message?.includes('STOCK_INSUFICIENTE') || error.code === 'P0001') {
+    if (error.message?.includes('STOCK_INSUFICIENTE')) {
       const err = errorDeApi(error.message, 422)
       err.code = 'STOCK_INSUFICIENTE'
       throw err

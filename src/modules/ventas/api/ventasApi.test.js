@@ -393,6 +393,33 @@ describe('ventasApi', () => {
       expect(errorCapturado.status).toBe(403)
       expect(errorCapturado.message).toBe('No tenés permiso para registrar ventas')
     })
+
+    it('mapea errores genéricos P0001 (sin STOCK_INSUFICIENTE) a status 400', async () => {
+      const rpcBuilder = {
+        single: vi.fn(() =>
+          Promise.resolve({
+            data: null,
+            error: {
+              code: 'P0001',
+              message: 'El descuento del 15% requiere una autorización válida y vigente',
+            },
+          }),
+        ),
+      }
+      supabase.rpc.mockReturnValue(rpcBuilder)
+
+      let errorCapturado
+      try {
+        await registrarVenta(cabeceraValida, itemsValidos)
+      } catch (err) {
+        errorCapturado = err
+      }
+
+      expect(errorCapturado).toBeDefined()
+      expect(errorCapturado.status).toBe(400)
+      expect(errorCapturado.code).toBeUndefined()
+      expect(errorCapturado.message).toBe('El descuento del 15% requiere una autorización válida y vigente')
+    })
   })
 
   describe('redondear', () => {
