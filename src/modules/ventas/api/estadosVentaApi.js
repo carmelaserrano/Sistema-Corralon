@@ -2,7 +2,7 @@ import { supabase } from '../../../lib/supabaseClient'
 import { errorDeApi, CODIGO_CHECK_VIOLADO, CODIGO_PERMISO_INSUFICIENTE } from '../../stock/api/errores'
 
 // Tablas: ventas, historial_estado_venta, comprobantes_venta
-// (0031_base_sprint3.sql). Función: cambiar_estado_venta (0037_estados_venta.sql).
+// (0033_base_sprint3.sql). Función: cambiar_estado_venta (0039_estados_venta.sql).
 
 export const PERMISO_ENTREGAR = 'ventas.entregar'
 export const PERMISO_ANULAR = 'ventas.anular'

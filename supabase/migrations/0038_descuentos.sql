@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0036 · S3-06: Descuentos automáticos y descuento manual con autorización
+-- 0038 · S3-06: Descuentos automáticos y descuento manual con autorización
 --
 -- Reemplaza, con `create or replace` y sin tocar firmas, las tres funciones
 -- que S3-00 dejó como versión base:
