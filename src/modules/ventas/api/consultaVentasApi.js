@@ -118,7 +118,7 @@ export async function getVentaById(id) {
         precio_unitario,
         descuento_pct,
         subtotal,
-        producto:productos(id, nombre, codigo)
+        producto:productos(id, nombre, sku)
       ),
       comprobantes:comprobantes_venta(
         id,

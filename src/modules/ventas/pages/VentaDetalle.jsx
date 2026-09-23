@@ -69,14 +69,18 @@ export default function VentaDetalle({ ventaId, onCerrar, onComprobanteEmitido }
 
   const cerrarRef = useRef(null)
 
+  // Devuelve la venta recargada (o null si falló) para que quien la llama
+  // pueda usar los datos ya resueltos, sin esperar al próximo render.
   async function cargarDatos() {
     try {
       setCargando(true)
       setError('')
       const data = await getVentaById(ventaId)
       setVenta(data)
+      return data
     } catch (err) {
       setError(err.message || 'No se pudo cargar la venta')
+      return null
     } finally {
       setCargando(false)
     }
@@ -134,9 +138,17 @@ export default function VentaDetalle({ ventaId, onCerrar, onComprobanteEmitido }
       setError('')
       setAviso('')
       const comprobante = await emitirComprobante(venta.id, 'factura')
-      setAviso(`Factura ${comprobante.letra} emitida con éxito (Nº ${formatearComprobanteNumero(comprobante.punto_venta_id, comprobante.numero)})`)
       setMostrarConfirmarFactura(false)
-      await cargarDatos()
+      const recargada = await cargarDatos()
+
+      // emitir_comprobante devuelve sólo el id del punto de venta (un UUID);
+      // el número de punto de venta sale del comprobante ya recargado.
+      const emitido = recargada?.comprobantes?.find((c) => c.id === comprobante.id)
+      const numeroTexto = emitido?.punto_venta
+        ? formatearComprobanteNumero(emitido.punto_venta, comprobante.numero)
+        : String(comprobante.numero || 0).padStart(8, '0')
+      setAviso(`Factura ${comprobante.letra} emitida con éxito (Nº ${numeroTexto})`)
+
       if (onComprobanteEmitido) onComprobanteEmitido()
     } catch (err) {
       setError(err.message || 'Error al emitir la factura')
@@ -283,16 +295,20 @@ export default function VentaDetalle({ ventaId, onCerrar, onComprobanteEmitido }
                 onClick={() => setMostrarConfirmarFactura(true)}
                 disabled={!puedeEmitirFactura || procesando}
                 title={
-                  !puedeEmitirFactura
-                    ? 'Requiere que la venta esté cobrada o tenga medio Cuenta corriente para facturar'
-                    : 'Emitir comprobante fiscal'
+                  !puedeFacturar
+                    ? 'No tenés permiso para emitir comprobantes de venta'
+                    : !puedeEmitirFactura
+                      ? 'Requiere que la venta esté cobrada o tenga medio Cuenta corriente para facturar'
+                      : 'Emitir comprobante fiscal'
                 }
               >
                 Facturar (Factura {letraComprobante})
               </Button>
               {!puedeEmitirFactura && (
                 <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '4px 0 0' }}>
-                  Requiere estar cobrada o tener Cuenta corriente para facturar.
+                  {puedeFacturar
+                    ? 'Requiere estar cobrada o tener Cuenta corriente para facturar.'
+                    : 'No tenés permiso para facturar ventas.'}
                 </p>
               )}
             </div>
@@ -490,7 +506,7 @@ export default function VentaDetalle({ ventaId, onCerrar, onComprobanteEmitido }
             {(venta.detalle ?? []).map((item) => (
               <tr key={item.id}>
                 <td>
-                  {item.producto?.codigo ? `[${item.producto.codigo}] ` : ''}
+                  {item.producto?.sku ? `[${item.producto.sku}] ` : ''}
                   {item.producto?.nombre || 'Artículo'}
                 </td>
                 <td>{item.cantidad}</td>

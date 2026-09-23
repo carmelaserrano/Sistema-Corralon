@@ -99,6 +99,22 @@ describe('VentaDetalle', () => {
       ).toBeInTheDocument()
     })
 
+    it('sin permiso para facturar, el botón queda deshabilitado y el motivo es el permiso (no el cobro)', async () => {
+      puedeFacturarVentas.mockResolvedValue(false)
+      getVentaById.mockResolvedValue({
+        ...ventaBase,
+        totalCobrado: 1000,
+        estaCobrada: true,
+      })
+
+      render(<VentaDetalle ventaId="v-10" onCerrar={vi.fn()} />)
+
+      // La venta SÍ está cobrada: no corresponde decir que "requiere estar cobrada".
+      expect(await screen.findByText('No tenés permiso para facturar ventas.')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /Facturar \(Factura A\)/i })).toBeDisabled()
+      expect(screen.queryByText(/Requiere estar cobrada/i)).not.toBeInTheDocument()
+    })
+
     it('habilita el botón Facturar si la venta Pendiente está cobrada', async () => {
       getVentaById.mockResolvedValue({
         ...ventaBase,
@@ -203,6 +219,65 @@ describe('VentaDetalle', () => {
         expect(screen.getByText(/Factura A emitida con éxito/i)).toBeInTheDocument()
         expect(onEmitido).toHaveBeenCalled()
       })
+    })
+
+    it('el aviso de éxito muestra el punto de venta y número reales, no el UUID', async () => {
+      const recargada = {
+        ...ventaBase,
+        estado: 'Facturada',
+        estaCobrada: true,
+        comprobantes: [
+          {
+            id: 'comp-1',
+            tipo_comprobante: 'factura',
+            letra: 'A',
+            numero: 5,
+            estado: 'Emitido',
+            total: 1000,
+            punto_venta: { id: 'pv-uuid', numero: '3' },
+          },
+        ],
+      }
+      getVentaById
+        .mockResolvedValueOnce({ ...ventaBase, estaCobrada: true })
+        .mockResolvedValueOnce(recargada)
+      emitirComprobante.mockResolvedValue({
+        id: 'comp-1',
+        tipo_comprobante: 'factura',
+        letra: 'A',
+        numero: 5,
+        // emitir_comprobante devuelve el id (UUID) del punto de venta, no su número.
+        punto_venta_id: '3f2a9c1e-7b1d-4c55-9d0e-aaaaaaaaaaaa',
+      })
+
+      render(<VentaDetalle ventaId="v-10" onCerrar={vi.fn()} />)
+      fireEvent.click(await screen.findByRole('button', { name: /Facturar \(Factura A\)/i }))
+      fireEvent.click(screen.getByRole('button', { name: /Confirmar y Emitir/i }))
+
+      const aviso = await screen.findByText(/Factura A emitida con éxito/i)
+      expect(aviso).toHaveTextContent('0003-00000005')
+      expect(aviso).not.toHaveTextContent('3f2a9c1e')
+    })
+
+    it('si no se pudo recargar el comprobante, el aviso muestra solo el número (nunca el UUID)', async () => {
+      getVentaById
+        .mockResolvedValueOnce({ ...ventaBase, estaCobrada: true })
+        .mockResolvedValueOnce({ ...ventaBase, estado: 'Facturada', comprobantes: [] })
+      emitirComprobante.mockResolvedValue({
+        id: 'comp-1',
+        tipo_comprobante: 'factura',
+        letra: 'B',
+        numero: 12,
+        punto_venta_id: '3f2a9c1e-7b1d-4c55-9d0e-aaaaaaaaaaaa',
+      })
+
+      render(<VentaDetalle ventaId="v-10" onCerrar={vi.fn()} />)
+      fireEvent.click(await screen.findByRole('button', { name: /Facturar/i }))
+      fireEvent.click(screen.getByRole('button', { name: /Confirmar y Emitir/i }))
+
+      const aviso = await screen.findByText(/Factura B emitida con éxito/i)
+      expect(aviso).toHaveTextContent('Nº 00000012')
+      expect(aviso).not.toHaveTextContent('3f2a9c1e')
     })
 
     it('no ofrece el botón de facturar si la venta ya está Facturada (CA-07)', async () => {

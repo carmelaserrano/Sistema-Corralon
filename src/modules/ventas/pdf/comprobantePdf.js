@@ -35,7 +35,16 @@ function formatearPv4(pv) {
 
 function formatearFecha(fechaStr) {
   if (!fechaStr) return new Date().toLocaleDateString('es-AR')
-  const fecha = new Date(fechaStr)
+
+  // Una columna `date` de Postgres llega como 'YYYY-MM-DD'. new Date() la
+  // interpreta como medianoche UTC, que en Argentina (UTC-3) es el día
+  // ANTERIOR: el vencimiento del CAE salía un día antes. Se arma como fecha
+  // local para que se muestre el día que realmente está guardado.
+  const soloFecha = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(fechaStr))
+  const fecha = soloFecha
+    ? new Date(Number(soloFecha[1]), Number(soloFecha[2]) - 1, Number(soloFecha[3]))
+    : new Date(fechaStr)
+
   return isNaN(fecha.getTime()) ? String(fechaStr) : fecha.toLocaleDateString('es-AR')
 }
 
@@ -146,7 +155,7 @@ export function generarComprobantePdf({ comprobante, venta, emisor = EMISOR_DEFA
   doc.text(nombreCli, 50, 64)
 
   doc.setFont('helvetica', 'bold')
-  doc.text(`Doc / CUIT:`, 130, 64)
+  doc.text(`Documento:`, 130, 64)
   doc.setFont('helvetica', 'normal')
   doc.text(docCli, 150, 64)
 
@@ -195,13 +204,16 @@ export function generarComprobantePdf({ comprobante, venta, emisor = EMISOR_DEFA
         y = 20
       }
       const prodNombre = item.producto?.nombre || item.producto_nombre || 'Artículo'
-      const prodCodigo = item.producto?.codigo ? `[${item.producto.codigo}] ` : ''
+      const prodCodigo = item.producto?.sku ? `[${item.producto.sku}] ` : ''
       const cant = Number(item.cantidad || 1)
       const precioUnit = Number(item.precio_unitario || 0)
       const descPct = Number(item.descuento_pct || 0)
       const subtotal = Number(item.subtotal || cant * precioUnit * (1 - descPct / 100))
 
-      doc.text(`${prodCodigo}${prodNombre}`.substring(0, 50), 14, y)
+      // Se corta por ancho (hasta la columna Cant.), en el límite de una
+      // palabra y con "…", no a los 50 caracteres a mitad de palabra.
+      const [primeraLinea, ...resto] = doc.splitTextToSize(`${prodCodigo}${prodNombre}`, 88)
+      doc.text(resto.length > 0 ? `${primeraLinea.trimEnd()}…` : primeraLinea, 14, y)
       doc.text(String(cant), 115, y, { align: 'right' })
       doc.text(formatearMoneda(precioUnit), 142, y, { align: 'right' })
       doc.text(descPct > 0 ? `${descPct}%` : '0%', 165, y, { align: 'right' })
@@ -262,7 +274,8 @@ export function generarComprobantePdf({ comprobante, venta, emisor = EMISOR_DEFA
   doc.line(10, yPie, 200, yPie)
 
   const cae = comprobante?.cae || 'HOMOLOGACIÓN'
-  const caeVto = formatearFecha(comprobante?.cae_vencimiento)
+  // Sin vencimiento cargado no se inventa uno (antes imprimía la fecha de hoy).
+  const caeVto = comprobante?.cae_vencimiento ? formatearFecha(comprobante.cae_vencimiento) : '—'
 
   doc.setFillColor(250, 250, 250)
   doc.rect(10, yPie, 190, 37, 'F')
@@ -302,7 +315,7 @@ export function exportarComprobantePdf({ comprobante, venta, emisor = EMISOR_DEF
   const doc = generarComprobantePdf({ comprobante, venta, emisor })
   const nombreArchivo = `${comprobante?.tipo_comprobante || 'comprobante'}_${comprobante?.letra || ''}_${comprobante?.numero || '00000000'}.pdf`
 
-  if (guardar && typeof window !== 'undefined' && doc.save && process.env.NODE_ENV !== 'test') {
+  if (guardar && typeof window !== 'undefined' && doc.save) {
     doc.save(nombreArchivo)
   }
 

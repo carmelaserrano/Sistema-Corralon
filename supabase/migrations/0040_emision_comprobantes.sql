@@ -10,7 +10,7 @@
 --   CA-02: Letra automática: Responsable Inscripto → A; otros (CF, Monotributo, Exento) → B.
 --   CA-03: Numeración correlativa sin saltos (siguiente_numero_comprobante), desglose IVA 21%, CAE y vto.
 --   CA-04: Exportación PDF con emisor, cliente, detalle y CAE (capa frontend/jsPDF).
---   CA-05: Nota de Crédito asociada a la factura, sin superar su saldo. Si es total, trigger 0039 anula.
+--   CA-05: Nota de Crédito asociada a la factura, sin superar su saldo. Si lo acreditado (acumulado) iguala la factura, el trigger de 0039 (ajustado en la sección 2) anula y libera stock.
 --   CA-06: Atomicidad ante error (no consume número ni deja comprobante a medio grabar).
 --   CA-07: Venta ya facturada no permite volverse a facturar.
 -- ============================================================================
@@ -226,7 +226,7 @@ begin
     end if;
 
     if v_total_nc > v_saldo then
-      raise exception 'El monto de la nota de crédito (%s) supera el saldo de la factura (%s)',
+      raise exception 'El monto de la nota de crédito (%) supera el saldo de la factura (%)',
         v_total_nc, v_saldo
         using errcode = '22023';
     end if;
@@ -306,5 +306,95 @@ $$;
 
 revoke all on function public.emitir_comprobante(uuid, text, jsonb) from public;
 grant execute on function public.emitir_comprobante(uuid, text, jsonb) to authenticated;
+
+
+-- ============================================================================
+-- 2) Anulación por notas de crédito ACUMULADAS (ajuste al trigger de 0039)
+-- ============================================================================
+-- El trigger de 0039 sólo anulaba la venta si UNA nota de crédito igualaba el
+-- total de la venta. Pero esta migración permite varias NC parciales contra la
+-- misma factura: con NC de $200 + NC de $300 sobre una factura de $500 la
+-- factura quedaba acreditada al 100%, y aun así la venta seguía Facturada, con
+-- su stock reservado para siempre, sin poder anularse (ni otra NC —"ya
+-- acreditada"— ni cambiar_estado_venta —"generá una NC"—).
+--
+-- Ahora se compara lo acreditado ACUMULADO contra el total de la factura a la
+-- que la NC está asociada. Una NC sin factura asociada (insertada directo, no
+-- por emitir_comprobante) conserva la regla anterior: total de la NC = total
+-- de la venta.
+--
+-- Es un `create or replace` sobre la función de 0039 (que no se toca): el
+-- trigger trg_anular_venta_por_nota_credito sigue apuntando a ella.
+create or replace function public.fn_anular_venta_por_nota_credito()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_venta            public.ventas;
+  v_items            jsonb;
+  v_total_factura    numeric(14,2);
+  v_total_acreditado numeric(14,2);
+begin
+  select * into v_venta from public.ventas where id = new.venta_id for update;
+
+  if v_venta.estado is distinct from 'Facturada' then
+    return new;
+  end if;
+
+  if new.comprobante_asociado_id is not null then
+    select f.total into v_total_factura
+    from public.comprobantes_venta f
+    where f.id = new.comprobante_asociado_id
+      and f.tipo_comprobante = 'factura';
+
+    -- AFTER INSERT: la NC recién insertada ya suma en este total.
+    select coalesce(sum(nc.total), 0) into v_total_acreditado
+    from public.comprobantes_venta nc
+    where nc.comprobante_asociado_id = new.comprobante_asociado_id
+      and nc.tipo_comprobante = 'nota_credito'
+      and nc.estado = 'Emitido';
+
+    if v_total_factura is null or v_total_acreditado < v_total_factura then
+      return new;
+    end if;
+  elsif new.total is distinct from v_venta.total then
+    return new;
+  end if;
+
+  select coalesce(
+    jsonb_agg(jsonb_build_object('producto_id', producto_id, 'cantidad', cantidad)),
+    '[]'::jsonb
+  )
+    into v_items
+  from public.detalle_venta
+  where venta_id = new.venta_id;
+
+  perform public.liberar_stock(v_venta.deposito_id, v_items);
+
+  update public.ventas set estado = 'Anulada' where id = new.venta_id;
+
+  insert into public.historial_estado_venta (
+    venta_id, estado_anterior, estado_nuevo, motivo, usuario_id
+  ) values (
+    new.venta_id, 'Facturada', 'Anulada', 'Nota de crédito por el total', auth.uid()
+  );
+
+  return new;
+end;
+$$;
+
+
+-- ============================================================================
+-- 3) Una sola factura emitida por venta (CA-07, garantizado por la base)
+-- ============================================================================
+-- CA-07 sólo se validaba dentro de emitir_comprobante: la policy de
+-- comprobantes_venta (0033) deja insertar directo a quien tenga
+-- 'ventas.facturar', y nada impedía cargar una segunda factura para la misma
+-- venta salteándose el RPC. Con este índice la base lo rechaza siempre.
+create unique index if not exists ux_comprobante_factura_emitida_por_venta
+  on public.comprobantes_venta (venta_id)
+  where tipo_comprobante = 'factura' and estado = 'Emitido';
 
 commit;

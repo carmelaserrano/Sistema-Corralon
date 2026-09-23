@@ -106,6 +106,20 @@ describe('consultaVentasApi', () => {
   })
 
   describe('getVentaById', () => {
+    it('pide el SKU del producto y no una columna "codigo", que productos no tiene', async () => {
+      // productos tiene sku y codigo_barras (0001/0002). Pedir `codigo` hacía
+      // que PostgREST devolviera "column productos_1.codigo does not exist" y
+      // el detalle de la venta no cargaba en la base real (los mocks no lo ven).
+      const builder = crearQueryBuilder({ data: ventaMock, error: null })
+      supabase.from.mockReturnValue(builder)
+
+      await getVentaById('v-1')
+
+      const seleccion = builder.select.mock.calls[0][0]
+      expect(seleccion).toMatch(/producto:productos\(id, nombre, sku\)/)
+      expect(seleccion).not.toMatch(/\bcodigo\b/)
+    })
+
     it('exige id de la venta', async () => {
       await expect(getVentaById(null)).rejects.toThrow('El ID de la venta es obligatorio')
     })

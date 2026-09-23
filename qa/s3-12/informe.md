@@ -33,7 +33,7 @@
   `npm run build` → Vite build exitoso en ~1.7s.
 - **Tests Unitarios y Cobertura:**
   - `npm run test:coverage` ejecutado con éxito.
-  - **51 archivos de test / 1010 tests pasando (0 fallos)**.
+  - **52 archivos de test / 1023 tests pasando (0 fallos)**.
   - Cobertura de la capa de API de ventas:
     - `comprobantesApi.js`: **100 % Líneas**
     - `consultaVentasApi.js`: **100 % Líneas**
@@ -59,3 +59,24 @@ Se respetó estrictamente la regla de no modificar archivos ajenos a la issue:
   - `src/modules/ventas/pages/VentaDetalle.test.jsx`
   - `qa/s3-12/informe.md`
 - **Archivos intocados:** `App.jsx`, `navigation.js`, `main.jsx`, `package.json`, migraciones 0001 a 0039.
+
+---
+
+## 4. Revisión de QA independiente (antes de aceptar la PR)
+
+La revisión encontró defectos que la autoevaluación de arriba no detectaba (los tests mockean Supabase). Todos se corrigieron en esta misma PR y se verificaron contra una base PostgreSQL real (PGlite, 45+ chequeos sobre `emitir_comprobante` y los triggers).
+
+| # | Hallazgo | Corrección |
+|---|---|---|
+| 1 | **Bloqueante.** `getVentaById` pedía `productos.codigo`, columna que no existe (es `sku`): el detalle de la venta —donde viven Facturar, Nota de Crédito y el PDF— no cargaba en la base real. | `codigo` → `sku` en la API, la pantalla y el PDF. Test de regresión sobre la consulta. |
+| 2 | **Bloqueante.** `npm run lint` daba 1 error (`process` en `comprobantePdf.js`), contra el "0 errores" declarado. | Se quitó el chequeo de `NODE_ENV` del código de producción; el guardado se prueba con un jsPDF falso. |
+| 3 | Notas de crédito parciales que sumaban el total dejaban la venta **Facturada** sin poder anularse y con el stock reservado para siempre. | El trigger compara lo **acreditado acumulado** contra el total de la factura (sección 2 de la `0040`). |
+| 4 | El vencimiento del CAE se imprimía un día antes (fecha `YYYY-MM-DD` leída como UTC). | Se interpreta como fecha local. Tests con `TZ` de Argentina. |
+| 5 | Mensaje de saldo con `%s` sobrante ("400.00s"). | `%s` → `%`. |
+| 6 | El aviso de factura emitida mostraba el UUID del punto de venta. | Usa el número de punto de venta del comprobante recargado. |
+| 7 | Nada en la base impedía una 2ª factura por INSERT directo (CA-07 sólo en el RPC). | Índice único parcial `ux_comprobante_factura_emitida_por_venta`. |
+| 8 | Detalles: botón Facturar decía "requiere cobro" cuando faltaba el permiso; nombres de artículo cortados a mitad de palabra; "CUIT: CUIT:" repetido; sin vencimiento se imprimía la fecha de hoy. | Corregidos, con tests. |
+
+**Nota para quien aplique la migración:** `0040_emision_comprobantes.sql` es idempotente (`create or replace` + `create unique index if not exists`); si ya se había aplicado, se puede volver a ejecutar completa.
+
+**Fuera del alcance de esta PR (a tratar aparte):** en `develop`, `0029_vinculacion_notas_facturas.sql` quedó numerada *después* de `0027_orden_de_pago.sql`, que ya usa la columna `nota_id` que aquella crea. Una instalación desde cero falla en la `0027`.

@@ -21,7 +21,7 @@ const ventaFacturaA = {
       precio_unitario: 1000,
       descuento_pct: 0,
       subtotal: 10000,
-      producto: { codigo: 'C01', nombre: 'Bolsa de Cemento Loma Negra 50kg' },
+      producto: { sku: 'C01', nombre: 'Bolsa de Cemento Loma Negra 50kg' },
     },
     {
       id: 'dv-2',
@@ -29,7 +29,7 @@ const ventaFacturaA = {
       precio_unitario: 1050,
       descuento_pct: 0,
       subtotal: 2100,
-      producto: { codigo: 'A02', nombre: 'Arena fina m3' },
+      producto: { sku: 'A02', nombre: 'Arena fina m3' },
     },
   ],
 }
@@ -68,7 +68,7 @@ const ventaFacturaB = {
       precio_unitario: 1210,
       descuento_pct: 0,
       subtotal: 2420,
-      producto: { codigo: 'P01', nombre: 'Pintura Látex 4L' },
+      producto: { sku: 'P01', nombre: 'Pintura Látex 4L' },
     },
   ],
 }
@@ -158,14 +158,8 @@ describe('comprobantePdf (CA-04)', () => {
       expect(blob).toBeInstanceOf(Blob)
     })
 
-    it('intenta guardar el archivo si guardar es true y save está disponible', () => {
-      const blob = exportarComprobantePdf({
-        comprobante: comprobanteFacturaA,
-        venta: ventaFacturaA,
-        guardar: true,
-      })
-
-      expect(blob).toBeInstanceOf(Blob)
-    })
+    // El guardado (doc.save) se prueba en comprobantePdf.contenido.test.js con
+    // un jsPDF falso: `save` es una propiedad de cada instancia y no se puede
+    // espiar sobre la librería real.
   })
 })
