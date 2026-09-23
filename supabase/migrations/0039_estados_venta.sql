@@ -1,5 +1,5 @@
 -- ============================================================================
--- 0037 · S3-07: Supervisión de ventas — estados y transiciones
+-- 0039 · S3-07: Supervisión de ventas — estados y transiciones
 --
 -- Historia: supervisor gestiona el estado de cada venta (Pendiente,
 -- Facturada, Entregada, Anulada) para seguir el proceso comercial completo.

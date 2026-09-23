@@ -8,9 +8,9 @@ import {
 } from '../../stock/api/errores'
 
 // Tablas: reglas_descuento, parametros_ventas, autorizaciones_descuento
-// (0031_base_sprint3.sql). Funciones: calcular_precio_venta,
+// (0033_base_sprint3.sql). Funciones: calcular_precio_venta,
 // validar_descuento_manual, autorizar_descuento, autorizacion_descuento_valida
-// (0036_descuentos.sql).
+// (0038_descuentos.sql).
 
 const TABLA_REGLAS = 'reglas_descuento'
 const TABLA_PARAMETROS = 'parametros_ventas'
