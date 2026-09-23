@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ShoppingCart, Store } from 'lucide-react'
 import { CarritoProvider, useCarrito } from './context/CarritoContext'
 import { ClienteWebProvider, useClienteWeb } from './context/ClienteWebContext'
@@ -58,10 +58,10 @@ function TiendaHeader({ pagina, onNavigate }) {
   )
 }
 
-function TiendaRoutes({ pagina, onNavigate }) {
+function TiendaRoutes({ pagina, onNavigate, onIngresarDesdeCarrito }) {
   if (pagina === 'catalogo') return <CatalogoPage />
   if (pagina === 'producto') return <ProductoDetallePage />
-  if (pagina === 'carrito') return <CarritoPage onFinalizar={() => onNavigate('checkout')} />
+  if (pagina === 'carrito') return <CarritoPage onFinalizar={() => onNavigate('checkout')} onIngresar={onIngresarDesdeCarrito} />
   if (pagina === 'checkout') return <CheckoutPage />
   if (pagina === 'pago-resultado') return <PagoResultadoPage />
   if (pagina === 'pasarela-simulada') return <PasarelaSimuladaPage />
@@ -74,23 +74,43 @@ function TiendaRoutes({ pagina, onNavigate }) {
 
 function TiendaShell() {
   const [pagina, setPagina] = useState('catalogo')
+  const [volverAlCarrito, setVolverAlCarrito] = useState(false)
+  const { cliente } = useClienteWeb()
+
+  useEffect(() => {
+    if (cliente && volverAlCarrito) {
+      // Después de fusionar, el cliente revisa cantidades y total antes de pagar.
+      setPagina('carrito')
+      setVolverAlCarrito(false)
+    }
+  }, [cliente, volverAlCarrito])
+
+  function navegar(destino) {
+    setVolverAlCarrito(false)
+    setPagina(destino === 'checkout' && !cliente ? 'ingresar' : destino)
+  }
+
+  function ingresarDesdeCarrito() {
+    setVolverAlCarrito(true)
+    setPagina('ingresar')
+  }
 
   return (
+    <CarritoProvider>
     <div className="tienda-app">
-      <TiendaHeader pagina={pagina} onNavigate={setPagina} />
+      <TiendaHeader pagina={pagina} onNavigate={navegar} />
       <main className="tienda-main">
-        <TiendaRoutes pagina={pagina} onNavigate={setPagina} />
+        <TiendaRoutes pagina={pagina} onNavigate={navegar} onIngresarDesdeCarrito={ingresarDesdeCarrito} />
       </main>
     </div>
+    </CarritoProvider>
   )
 }
 
 export default function TiendaApp() {
   return (
     <ClienteWebProvider>
-      <CarritoProvider>
-        <TiendaShell />
-      </CarritoProvider>
+      <TiendaShell />
     </ClienteWebProvider>
   )
 }
