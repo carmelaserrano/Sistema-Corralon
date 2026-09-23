@@ -1,14 +1,21 @@
-import { useState } from 'react'
-import { supabase } from '../../../lib/supabaseClient'
+import { useEffect, useRef, useState } from 'react'
+import { X } from 'lucide-react'
+import { autorizarDescuentoComoSupervisor } from '../api/descuentosApi'
 import Button from '../../../components/ui/Button'
+import Feedback from '../../../components/ui/Feedback'
 
 /**
- * Modal de autorización de descuento manual. Firma de props congelada desde
- * S3-00 (la usa S3-09 por import); la implementación real —autenticar al
- * supervisor con un cliente Supabase sin persistir sesión— es de S3-06.
+ * Modal de autorización de descuento manual (S3-06, CA-05/CA-06). Firma de
+ * props congelada desde S3-00 (la usa S3-09 por import).
  *
- * Versión base: no pide credenciales, autoriza siempre llamando a
- * `autorizar_descuento` con el token de quien tiene la sesión abierta.
+ * El propio componente decide cuándo mostrarse (`if (!abierto) return null`,
+ * no un `{abierto && <Modal/>}` del que lo usa), así que queda montado todo
+ * el tiempo: el formulario se limpia solo cada vez que `abierto` pasa a
+ * true, para no arrastrar el email o un error de la vez anterior.
+ *
+ * Decidir CUÁNDO mostrarlo (si el descuento pedido supera el límite) es
+ * responsabilidad de quien lo usa, con `validarDescuentoManual` de
+ * descuentosApi — este componente solo sabe pedir credenciales y autorizar.
  *
  * @param {boolean} abierto Si el modal está visible.
  * @param {number} porcentaje Porcentaje de descuento a autorizar.
@@ -22,44 +29,132 @@ export default function ModalAutorizacionDescuento({
   onAutorizado,
   onCancelar,
 }) {
-  const [cargando, setCargando] = useState(false)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [autorizando, setAutorizando] = useState(false)
+  const emailRef = useRef(null)
+
+  useEffect(() => {
+    if (!abierto) return
+    setEmail('')
+    setPassword('')
+    setError('')
+    setAutorizando(false)
+    emailRef.current?.focus()
+  }, [abierto])
+
+  useEffect(() => {
+    if (!abierto) return undefined
+
+    function manejarTecla(event) {
+      if (event.key === 'Escape') onCancelar()
+    }
+
+    document.addEventListener('keydown', manejarTecla)
+    return () => document.removeEventListener('keydown', manejarTecla)
+  }, [abierto, onCancelar])
 
   if (!abierto) return null
 
-  async function autorizar() {
-    setCargando(true)
-    setError('')
-    const { data, error: errorRpc } = await supabase.rpc('autorizar_descuento', {
-      p_porcentaje: porcentaje,
-    })
-    setCargando(false)
+  async function autorizar(event) {
+    event.preventDefault()
 
-    if (errorRpc) {
-      setError('No se pudo autorizar el descuento')
+    if (!email.trim() || !password) {
+      setError('Completá el email y la contraseña del supervisor')
       return
     }
-    onAutorizado(data)
+
+    try {
+      setAutorizando(true)
+      setError('')
+
+      const autorizacionId = await autorizarDescuentoComoSupervisor({
+        email: email.trim(),
+        password,
+        porcentaje,
+      })
+
+      onAutorizado(autorizacionId)
+    } catch (err) {
+      setError(err.message || 'No se pudo autorizar el descuento')
+    } finally {
+      setAutorizando(false)
+    }
   }
 
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true">
-      <div className="modal">
-        <h2>Autorización de descuento</h2>
-        <p>
-          Descuento del {porcentaje}% — versión base: autoriza siempre
-          (S3-06 agrega la validación real contra el supervisor).
-        </p>
-        {error && <p className="feedback feedback-error">{error}</p>}
-        <div className="modal-actions">
-          <Button type="button" variant="ghost" onClick={onCancelar}>
-            Cancelar
-          </Button>
-          <Button type="button" onClick={autorizar} disabled={cargando}>
-            {cargando ? 'Autorizando…' : 'Autorizar'}
-          </Button>
-        </div>
-      </div>
+    <div className="modal-backdrop" onMouseDown={onCancelar}>
+      <section
+        aria-labelledby="autorizar-descuento-title"
+        aria-modal="true"
+        className="modal-panel"
+        onMouseDown={(event) => event.stopPropagation()}
+        role="dialog"
+      >
+        <header className="modal-header">
+          <div>
+            <p className="eyebrow">Autorización requerida</p>
+            <h2 id="autorizar-descuento-title">Descuento del {porcentaje}%</h2>
+            <p>
+              Este descuento supera el límite permitido. Un supervisor tiene
+              que autorizarlo con su email y contraseña.
+            </p>
+          </div>
+          <button
+            aria-label="Cerrar"
+            className="icon-button"
+            onClick={onCancelar}
+            title="Cerrar"
+            type="button"
+          >
+            <X aria-hidden="true" size={18} />
+          </button>
+        </header>
+
+        {error && <Feedback tone="error">{error}</Feedback>}
+
+        <form onSubmit={autorizar}>
+          <div>
+            <label htmlFor="supervisor-email">Email del supervisor</label>
+            <input
+              id="supervisor-email"
+              ref={emailRef}
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              autoComplete="off"
+              disabled={autorizando}
+            />
+          </div>
+
+          <div>
+            <label htmlFor="supervisor-password">Contraseña</label>
+            <input
+              id="supervisor-password"
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              autoComplete="off"
+              disabled={autorizando}
+            />
+          </div>
+
+          <div>
+            <Button type="submit" loading={autorizando} loadingLabel="Autorizando…">
+              Autorizar
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={onCancelar}
+              disabled={autorizando}
+            >
+              Cancelar
+            </Button>
+          </div>
+        </form>
+      </section>
     </div>
   )
 }
