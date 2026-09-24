@@ -9,6 +9,18 @@ import {
   validarDescuentoManual,
 } from '../api/ventasApi'
 
+vi.mock('../../../lib/supabaseClient', () => ({
+  supabase: {
+    from: vi.fn(),
+    rpc: vi.fn(),
+    auth: { getUser: vi.fn() },
+  },
+}))
+
+vi.mock('./ModalAutorizacionDescuento', () => ({
+  default: () => null,
+}))
+
 vi.mock('../api/ventasApi', () => ({
   buscarArticulos: vi.fn(),
   calcularPrecioVenta: vi.fn(),
