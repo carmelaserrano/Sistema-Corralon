@@ -1,4 +1,4 @@
--- Migración 0038: Registro de venta en mostrador (POS)
+-- Migración 0041: Registro de venta en mostrador (POS)
 --
 -- Historia: S3-09 (#104) — Registro de venta en mostrador (POS)
 --
