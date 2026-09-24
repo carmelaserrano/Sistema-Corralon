@@ -420,6 +420,59 @@ describe('ventasApi', () => {
       expect(errorCapturado.code).toBeUndefined()
       expect(errorCapturado.message).toBe('El descuento del 15% requiere una autorización válida y vigente')
     })
+
+    it('mapea error de PRECIO_DESACTUALIZADO a status 400 cuando el precio fue manipulado o cambió', async () => {
+      const rpcBuilder = {
+        single: vi.fn(() =>
+          Promise.resolve({
+            data: null,
+            error: {
+              code: 'P0001',
+              message:
+                'PRECIO_DESACTUALIZADO: El precio del producto p1 cambió o no coincide con la lista vigente (esperado 1000, recibido 500). Actualizá la venta.',
+            },
+          }),
+        ),
+      }
+      supabase.rpc.mockReturnValue(rpcBuilder)
+
+      let errorCapturado
+      try {
+        await registrarVenta(cabeceraValida, itemsValidos)
+      } catch (err) {
+        errorCapturado = err
+      }
+
+      expect(errorCapturado).toBeDefined()
+      expect(errorCapturado.status).toBe(400)
+      expect(errorCapturado.message).toContain('PRECIO_DESACTUALIZADO')
+    })
+
+    it('mapea error cuando un producto no tiene precio configurado a status 400', async () => {
+      const rpcBuilder = {
+        single: vi.fn(() =>
+          Promise.resolve({
+            data: null,
+            error: {
+              code: '22023',
+              message: 'El producto p1 no tiene un precio válido configurado',
+            },
+          }),
+        ),
+      }
+      supabase.rpc.mockReturnValue(rpcBuilder)
+
+      let errorCapturado
+      try {
+        await registrarVenta(cabeceraValida, itemsValidos)
+      } catch (err) {
+        errorCapturado = err
+      }
+
+      expect(errorCapturado).toBeDefined()
+      expect(errorCapturado.status).toBe(400)
+      expect(errorCapturado.message).toBe('El producto p1 no tiene un precio válido configurado')
+    })
   })
 
   describe('redondear', () => {

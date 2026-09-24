@@ -15,7 +15,7 @@
 | **CA-02** | Buscador de clientes filtra únicamente clientes habilitados (`cliente_habilitado_para_vender` / `estado = 'Activo'`). | ✅ Cumplido | `buscarClientes` en `ventasApi.js` filtra por `estado = 'Activo'` y busca por nombre, apellido, razón social o documento. |
 | **CA-03** | Buscador de artículos lista solo productos activos con stock disponible > 0 en el depósito seleccionado. | ✅ Cumplido | `buscarArticulos` consulta `v_stock_disponible` con filtro `deposito_id` y `disponible > 0`, uniendo contra productos activos. |
 | **CA-04** | Al modificar la cantidad, el precio unitario (`calcular_precio_venta`), subtotal de línea y total se recalculan en tiempo real. | ✅ Cumplido | Reactividad en `LineasVenta.jsx` con `calcularPrecioVenta` y `calcularTotalesVenta`. Probado en tests unitarios. |
-| **CA-05** | Si un descuento manual requiere autorización (`validar_descuento_manual`), abre `ModalAutorizacionDescuento`, guarda `autorizacion_id` y la función `registrar_venta` lo valida con `autorizacion_descuento_valida`. | ✅ Cumplido | Integrado en `LineasVenta.jsx` y validado transaccionalmente en la migración `0038_registrar_venta.sql`. |
+| **CA-05** | Si un descuento manual requiere autorización (`validar_descuento_manual`), abre `ModalAutorizacionDescuento`, guarda `autorizacion_id` y la función `registrar_venta` lo valida con `autorizacion_descuento_valida`. | ✅ Cumplido | Integrado en `LineasVenta.jsx` y validado transaccionalmente en la migración `0042_registrar_venta.sql`. |
 | **CA-06** | Confirmación de venta crea registro con número correlativo, estado `'Pendiente'`, líneas y reserva de stock en una sola transacción. Se pueden quitar/modificar líneas antes de confirmar. | ✅ Cumplido | Función SQL `registrar_venta` transaccional con `comprometer_stock` y registro en `ventas`, `detalle_venta` e `historial_estado_venta`. |
 | **CA-07** | Si se agrega un mismo artículo dos veces, suma la cantidad a la línea existente en vez de duplicar fila. | ✅ Cumplido | `agregarArticuloALineas` busca coincidencia por `producto_id` y acumula cantidades recalculando subtotales. Testeado exhaustivamente. |
 
@@ -33,7 +33,7 @@
 
 - **Migraciones**: `npm run validate:migrations`
   ```
-  Migraciones OK: 38 archivo(s) válidos en "supabase/migrations".
+  Migraciones OK: 42 archivo(s) válidos en "supabase/migrations".
   ```
 - **Linter**: `npm run lint`
   ```
@@ -58,6 +58,6 @@
 - `src/modules/ventas/components/LineasVenta.jsx`
 - `src/modules/ventas/api/ventasApi.js`
 - `src/modules/ventas/api/ventasApi.test.js`
-- `supabase/migrations/0038_registrar_venta.sql`
+- `supabase/migrations/0042_registrar_venta.sql`
 - `qa/s3-09/informe.md`
 

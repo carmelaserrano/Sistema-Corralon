@@ -157,17 +157,28 @@ function handleNuevaVenta() {
   setBusquedaCliente('')
 }
 
+  // Estado de recálculo asíncrono de precios
+  const [recalculandoPrecios, setRecalculandoPrecios] = useState(false)
+
   // Calcular totales de la venta (CA-04)
   const { total: totalVenta, totalArticulos } = calcularTotalesVenta(lineas)
 
   const lineasSuperanStock = lineas.some(
     (l) => l.cantidad > l.stock_disponible,
   )
+  const lineasSinPrecio = lineas.some(
+    (l) =>
+      l.precio_unitario === null ||
+      l.precio_unitario === undefined ||
+      Number(l.precio_unitario) <= 0,
+  )
   const puedeConfirmar =
     depositoId &&
     cliente &&
     lineas.length > 0 &&
     !lineasSuperanStock &&
+    !lineasSinPrecio &&
+    !recalculandoPrecios &&
     !guardando
 
   // Confirmar venta transaccional (CA-06)
@@ -543,6 +554,7 @@ function handleNuevaVenta() {
               clienteId={cliente.id}
               lineas={lineas}
               onLineasChange={setLineas}
+              onRecalculandoChange={setRecalculandoPrecios}
               deshabilitado={guardando}
             />
           )}
@@ -592,6 +604,16 @@ function handleNuevaVenta() {
                 Atención: hay artículos que superan el stock disponible en el depósito.
               </div>
             )}
+            {lineasSinPrecio && (
+              <div style={{ color: 'var(--color-danger, #b42318)', fontSize: '12px', marginTop: '4px' }}>
+                Atención: hay artículos sin precio asignado en la lista del cliente.
+              </div>
+            )}
+            {recalculandoPrecios && (
+              <div style={{ color: 'var(--text-secondary)', fontSize: '12px', marginTop: '4px' }}>
+                Recalculando precios en tiempo real…
+              </div>
+            )}
           </div>
 
           <div style={{ display: 'flex', gap: '12px' }}>
@@ -611,7 +633,7 @@ function handleNuevaVenta() {
               loadingLabel="Confirmando venta…"
               disabled={!puedeConfirmar}
             >
-              Confirmar venta
+              {recalculandoPrecios ? 'Recalculando precios…' : 'Confirmar venta'}
             </Button>
           </div>
         </section>

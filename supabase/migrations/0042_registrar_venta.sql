@@ -1,4 +1,4 @@
--- Migración 0038: Registro de venta en mostrador (POS)
+-- Migración 0042: Registro de venta en mostrador (POS)
 --
 -- Historia: S3-09 (#104) — Registro de venta en mostrador (POS)
 --
@@ -30,20 +30,21 @@ security definer
 set search_path = public, pg_temp
 as $$
 declare
-  v_deposito_id      uuid;
-  v_cliente_id       uuid;
-  v_observaciones    text;
-  v_venta            public.ventas;
-  v_item             record;
-  v_producto_id      uuid;
-  v_cantidad         numeric;
-  v_precio_unitario  numeric;
-  v_descuento_pct    numeric;
-  v_autorizacion_id  uuid;
-  v_subtotal         numeric;
-  v_total            numeric := 0;
-  v_items_stock      jsonb := '[]'::jsonb;
-  v_requiere_aut     boolean;
+  v_deposito_id       uuid;
+  v_cliente_id        uuid;
+  v_observaciones     text;
+  v_venta             public.ventas;
+  v_item              record;
+  v_producto_id       uuid;
+  v_cantidad          numeric;
+  v_precio_unitario   numeric;
+  v_precio_calculado  numeric;
+  v_descuento_pct     numeric;
+  v_autorizacion_id   uuid;
+  v_subtotal          numeric;
+  v_total             numeric := 0;
+  v_items_stock       jsonb := '[]'::jsonb;
+  v_requiere_aut      boolean;
 begin
   -- 1. Validar autenticación interna y permisos
   if not public.es_usuario_interno() then
@@ -118,6 +119,21 @@ begin
     if v_precio_unitario is null or v_precio_unitario <= 0 then
       raise exception 'El precio unitario debe ser mayor a 0'
         using errcode = '23514';
+    end if;
+
+    -- Validar precio del producto en backend contra lista de precios vigente (S3-06 / calcular_precio_venta)
+    v_precio_calculado := public.calcular_precio_venta(v_producto_id, v_cliente_id, v_cantidad);
+
+    if v_precio_calculado is null or v_precio_calculado <= 0 then
+      raise exception 'El producto % no tiene un precio válido configurado', v_producto_id
+        using errcode = '22023';
+    end if;
+
+    -- Validar que el precio unitario coincida con el precio de lista calculado
+    if v_precio_unitario is distinct from v_precio_calculado then
+      raise exception 'PRECIO_DESACTUALIZADO: El precio del producto % cambió o no coincide con la lista vigente (esperado %, recibido %). Actualizá la venta.',
+        v_producto_id, v_precio_calculado, v_precio_unitario
+        using errcode = 'P0001';
     end if;
 
     if v_descuento_pct < 0 or v_descuento_pct > 100 then

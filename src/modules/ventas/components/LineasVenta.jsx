@@ -28,6 +28,7 @@ function redondear(valor) {
  * @param {string} props.clienteId UUID del cliente seleccionado.
  * @param {Array<Object>} props.lineas Lista de artículos agregados a la venta.
  * @param {(lineas: Array<Object>) => void} props.onLineasChange Callback al actualizar líneas.
+ * @param {(recalculando: boolean) => void} [props.onRecalculandoChange] Callback de estado de recálculo.
  * @param {boolean} [props.deshabilitado=false] Si la carga está bloqueada.
  */
 export default function LineasVenta({
@@ -35,6 +36,7 @@ export default function LineasVenta({
   clienteId,
   lineas,
   onLineasChange,
+  onRecalculandoChange,
   deshabilitado = false,
 }) {
   const [busqueda, setBusqueda] = useState('')
@@ -44,12 +46,32 @@ export default function LineasVenta({
   const [errorBusqueda, setErrorBusqueda] = useState('')
   const [modalAut, setModalAut] = useState({
     abierto: false,
-    index: null,
+    productoId: null,
     porcentaje: 0,
     descuentoAnterior: 0,
   })
 
   const dropdownRef = useRef(null)
+
+  // Referencias para evitar race conditions y desfasajes por cierres (closures)
+  const lineasRef = useRef(lineas)
+  lineasRef.current = lineas
+  const clienteIdRef = useRef(clienteId)
+  clienteIdRef.current = clienteId
+  const depositoIdRef = useRef(depositoId)
+  depositoIdRef.current = depositoId
+
+  const solicitudesCantidadRef = useRef({}) // producto_id -> último requestId
+  const recalculosPendientesRef = useRef(new Set())
+
+  function notificarRecalculo(productoId, enProgreso) {
+    if (enProgreso) {
+      recalculosPendientesRef.current.add(productoId)
+    } else {
+      recalculosPendientesRef.current.delete(productoId)
+    }
+    onRecalculandoChange?.(recalculosPendientesRef.current.size > 0)
+  }
 
   // Cerrar dropdown al hacer click afuera
   useEffect(() => {
@@ -92,26 +114,33 @@ export default function LineasVenta({
 
     let activo = true
     async function actualizarPreciosPorCliente() {
-      const lineasActualizadas = await Promise.all(
-        lineas.map(async (linea) => {
-          const precio = await calcularPrecioVenta(
-            linea.producto_id,
-            clienteId,
-            linea.cantidad,
-          )
-          const precioFinal = precio !== null ? precio : linea.precio_unitario
-          const subtotal = redondear(
-            linea.cantidad * precioFinal * (1 - (linea.descuento_pct || 0) / 100),
-          )
-          return {
-            ...linea,
-            precio_unitario: precioFinal,
-            subtotal,
-          }
-        }),
-      )
-      if (activo) {
-        onLineasChange(lineasActualizadas)
+      try {
+        onRecalculandoChange?.(true)
+        const lineasActualizadas = await Promise.all(
+          lineasRef.current.map(async (linea) => {
+            const precio = await calcularPrecioVenta(
+              linea.producto_id,
+              clienteId,
+              linea.cantidad,
+            )
+            const precioFinal = precio !== null ? precio : linea.precio_unitario
+            const subtotal = redondear(
+              linea.cantidad * precioFinal * (1 - (linea.descuento_pct || 0) / 100),
+            )
+            return {
+              ...linea,
+              precio_unitario: precioFinal,
+              subtotal,
+            }
+          }),
+        )
+        if (activo) {
+          onLineasChange(lineasActualizadas)
+        }
+      } finally {
+        if (activo) {
+          onRecalculandoChange?.(false)
+        }
       }
     }
 
@@ -119,6 +148,7 @@ export default function LineasVenta({
 
     return () => {
       activo = false
+      onRecalculandoChange?.(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clienteId])
@@ -143,51 +173,86 @@ export default function LineasVenta({
     setDropdownAbierto(false)
   }
 
-  // Modificar cantidad en tiempo real (CA-04)
-  async function handleCambiarCantidad(index, valor) {
+  // Modificar cantidad en tiempo real (CA-04) con protección contra race conditions
+  async function handleCambiarCantidad(productoId, valor) {
     const cantidadNum = Math.max(1, Number(valor) || 1)
-    const lineaActual = lineas[index]
+    const lineaActual = lineasRef.current.find((l) => l.producto_id === productoId)
+    if (!lineaActual) return
 
-    let nuevoPrecio = lineaActual.precio_unitario
+    // 1. Actualización síncrona inmediata en UI
+    const subtotalInmediato = redondear(
+      cantidadNum * lineaActual.precio_unitario * (1 - (lineaActual.descuento_pct || 0) / 100),
+    )
+    const lineasInmediatas = lineasRef.current.map((l) =>
+      l.producto_id === productoId
+        ? { ...l, cantidad: cantidadNum, subtotal: subtotalInmediato }
+        : l,
+    )
+    onLineasChange(lineasInmediatas)
+
+    // 2. Consulta asíncrona de precio con número de secuencia por producto
+    const reqId = (solicitudesCantidadRef.current[productoId] || 0) + 1
+    solicitudesCantidadRef.current[productoId] = reqId
+    notificarRecalculo(productoId, true)
+
+    const targetClienteId = clienteIdRef.current
+    const targetDepositoId = depositoIdRef.current
+
     try {
       const precioCalculado = await calcularPrecioVenta(
-        lineaActual.producto_id,
-        clienteId,
+        productoId,
+        targetClienteId,
         cantidadNum,
       )
-      if (precioCalculado !== null) nuevoPrecio = precioCalculado
+
+      // Si llegó una respuesta posterior para este producto, descartar esta
+      if (solicitudesCantidadRef.current[productoId] !== reqId) return
+
+      // Si el cliente o depósito cambiaron, descartar
+      if (
+        clienteIdRef.current !== targetClienteId ||
+        depositoIdRef.current !== targetDepositoId
+      ) {
+        return
+      }
+
+      // Si el producto fue quitado del carrito mientras la petición estaba en vuelo, descartar
+      const lineaVigente = lineasRef.current.find((l) => l.producto_id === productoId)
+      if (!lineaVigente) return
+
+      const nuevoPrecio = precioCalculado !== null ? precioCalculado : lineaVigente.precio_unitario
+      const subtotalFinal = redondear(
+        lineaVigente.cantidad * nuevoPrecio * (1 - (lineaVigente.descuento_pct || 0) / 100),
+      )
+
+      const lineasFinales = lineasRef.current.map((l) =>
+        l.producto_id === productoId
+          ? { ...l, precio_unitario: nuevoPrecio, subtotal: subtotalFinal }
+          : l,
+      )
+      onLineasChange(lineasFinales)
     } catch {
-      // Mantiene precio actual
+      // Mantiene precio actual si falla la consulta
+    } finally {
+      if (solicitudesCantidadRef.current[productoId] === reqId) {
+        notificarRecalculo(productoId, false)
+      }
     }
-
-    const subtotal = redondear(
-      cantidadNum * nuevoPrecio * (1 - (lineaActual.descuento_pct || 0) / 100),
-    )
-
-    const nuevasLineas = [...lineas]
-    nuevasLineas[index] = {
-      ...lineaActual,
-      cantidad: cantidadNum,
-      precio_unitario: nuevoPrecio,
-      subtotal,
-    }
-    onLineasChange(nuevasLineas)
   }
 
   // Modificar descuento manual (CA-05)
-  async function handleCambiarDescuento(index, valor) {
+  async function handleCambiarDescuento(productoId, valor) {
     const desc = Math.min(100, Math.max(0, Number(valor) || 0))
-    const lineaActual = lineas[index]
+    const lineaActual = lineasRef.current.find((l) => l.producto_id === productoId)
+    if (!lineaActual) return
 
     if (desc === 0) {
       const subtotal = redondear(lineaActual.cantidad * lineaActual.precio_unitario)
-      const nuevasLineas = [...lineas]
-      nuevasLineas[index] = {
-        ...lineaActual,
-        descuento_pct: 0,
-        autorizacion_descuento_id: null,
-        subtotal,
-      }
+      const nuevasLineas = lineasRef.current.map((l) =>
+        l.producto_id === productoId
+          ? { ...l, descuento_pct: 0, autorizacion_descuento_id: null, subtotal }
+          : l,
+      )
       onLineasChange(nuevasLineas)
       return
     }
@@ -198,7 +263,7 @@ export default function LineasVenta({
         // Abrir modal de autorización
         setModalAut({
           abierto: true,
-          index,
+          productoId,
           porcentaje: desc,
           descuentoAnterior: lineaActual.descuento_pct || 0,
         })
@@ -207,13 +272,11 @@ export default function LineasVenta({
         const subtotal = redondear(
           lineaActual.cantidad * lineaActual.precio_unitario * (1 - desc / 100),
         )
-        const nuevasLineas = [...lineas]
-        nuevasLineas[index] = {
-          ...lineaActual,
-          descuento_pct: desc,
-          autorizacion_descuento_id: null,
-          subtotal,
-        }
+        const nuevasLineas = lineasRef.current.map((l) =>
+          l.producto_id === productoId
+            ? { ...l, descuento_pct: desc, autorizacion_descuento_id: null, subtotal }
+            : l,
+        )
         onLineasChange(nuevasLineas)
       }
     } catch (err) {
@@ -223,33 +286,43 @@ export default function LineasVenta({
 
   // Confirmar autorización de descuento (CA-05)
   function handleDescuentoAutorizado(autorizacionId) {
-    const { index, porcentaje } = modalAut
-    if (index === null || index === undefined) return
+    const { productoId, porcentaje } = modalAut
+    if (!productoId) return
 
-    const lineaActual = lineas[index]
+    const lineaActual = lineasRef.current.find((l) => l.producto_id === productoId)
+    if (!lineaActual) return
+
     const subtotal = redondear(
       lineaActual.cantidad * lineaActual.precio_unitario * (1 - porcentaje / 100),
     )
 
-    const nuevasLineas = [...lineas]
-    nuevasLineas[index] = {
-      ...lineaActual,
-      descuento_pct: porcentaje,
-      autorizacion_descuento_id: autorizacionId,
-      subtotal,
-    }
+    const nuevasLineas = lineasRef.current.map((l) =>
+      l.producto_id === productoId
+        ? {
+            ...l,
+            descuento_pct: porcentaje,
+            autorizacion_descuento_id: autorizacionId,
+            subtotal,
+          }
+        : l,
+    )
     onLineasChange(nuevasLineas)
 
-    setModalAut({ abierto: false, index: null, porcentaje: 0, descuentoAnterior: 0 })
+    setModalAut({ abierto: false, productoId: null, porcentaje: 0, descuentoAnterior: 0 })
   }
 
   function handleCancelarAutorizacion() {
-    setModalAut({ abierto: false, index: null, porcentaje: 0, descuentoAnterior: 0 })
+    setModalAut({ abierto: false, productoId: null, porcentaje: 0, descuentoAnterior: 0 })
   }
 
   // Quitar línea del carrito (CA-06)
-  function handleQuitarLinea(index) {
-    const nuevasLineas = lineas.filter((_, i) => i !== index)
+  function handleQuitarLinea(productoId) {
+    // Si había una petición en curso para este producto, invalidarla
+    solicitudesCantidadRef.current[productoId] =
+      (solicitudesCantidadRef.current[productoId] || 0) + 1
+    notificarRecalculo(productoId, false)
+
+    const nuevasLineas = lineasRef.current.filter((l) => l.producto_id !== productoId)
     onLineasChange(nuevasLineas)
   }
 
@@ -417,7 +490,7 @@ export default function LineasVenta({
                         min="1"
                         step="1"
                         value={linea.cantidad}
-                        onChange={(e) => handleCambiarCantidad(index, e.target.value)}
+                        onChange={(e) => handleCambiarCantidad(linea.producto_id, e.target.value)}
                         disabled={deshabilitado}
                         style={{
                           textAlign: 'center',
@@ -444,7 +517,7 @@ export default function LineasVenta({
                           max="100"
                           step="1"
                           value={linea.descuento_pct}
-                          onChange={(e) => handleCambiarDescuento(index, e.target.value)}
+                          onChange={(e) => handleCambiarDescuento(linea.producto_id, e.target.value)}
                           disabled={deshabilitado}
                           style={{ textAlign: 'center', maxWidth: '65px' }}
                           aria-label={`Descuento de ${linea.nombre}`}
@@ -472,7 +545,7 @@ export default function LineasVenta({
                       <Button
                         type="button"
                         variant="ghost"
-                        onClick={() => handleQuitarLinea(index)}
+                        onClick={() => handleQuitarLinea(linea.producto_id)}
                         disabled={deshabilitado}
                         title="Quitar artículo"
                         style={{ padding: '6px' }}
@@ -522,47 +595,6 @@ export default function LineasVenta({
         .lineas-venta-contenedor table.tabla-lineas-venta td {
           padding: 10px 12px;
           vertical-align: middle;
-        }
-
-        /* Estilo visual opaco para el modal de autorización de descuento */
-        .modal-backdrop {
-          position: fixed;
-          inset: 0;
-          z-index: 9999;
-          display: grid;
-          place-items: center;
-          padding: 20px;
-          background: rgba(18, 18, 16, 0.6);
-          backdrop-filter: blur(2px);
-        }
-        .modal-backdrop .modal {
-          width: min(480px, calc(100vw - 32px));
-          background: #ffffff;
-          border: 1px solid var(--border-default, #e5e7eb);
-          border-radius: var(--radius-lg, 12px);
-          padding: 24px;
-          box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.25), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
-          display: flex;
-          flex-direction: column;
-          gap: 16px;
-        }
-        .modal-backdrop .modal h2 {
-          margin: 0;
-          font-size: 18px;
-          font-weight: 700;
-          color: var(--text-primary, #111827);
-        }
-        .modal-backdrop .modal p {
-          margin: 0;
-          font-size: 14px;
-          color: var(--text-secondary, #4b5563);
-          line-height: 1.5;
-        }
-        .modal-backdrop .modal .modal-actions {
-          display: flex;
-          justify-content: flex-end;
-          gap: 12px;
-          margin-top: 12px;
         }
       `}</style>
     </div>
