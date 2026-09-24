@@ -162,7 +162,7 @@ describe('cobrosApi', () => {
 
 describe('contrato SQL de registrar_cobro', () => {
   const migracion = readFileSync(
-    'supabase/migrations/0038_cobro_ventas.sql',
+    'supabase/migrations/0041_cobro_ventas.sql',
     'utf8',
   )
   const baseSprint3 = readFileSync(

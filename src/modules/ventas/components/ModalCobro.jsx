@@ -63,11 +63,11 @@ function validarLinea(linea, medio, clienteHabilitado) {
     }
   }
 
-  if (esTarjeta(medio) && !/^\d{4}$/.test(linea.referencia.trim())) {
+  if (esTarjeta(medio) && !/^\d{4}$/.test((linea.referencia ?? '').trim())) {
     return 'Ingrese únicamente los últimos 4 dígitos de la tarjeta'
   }
 
-  if (esTransferencia(medio) && !linea.referencia.trim()) {
+  if (esTransferencia(medio) && !(linea.referencia ?? '').trim()) {
     return 'La referencia de la transferencia es obligatoria'
   }
 
