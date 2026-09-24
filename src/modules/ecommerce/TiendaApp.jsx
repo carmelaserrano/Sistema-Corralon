@@ -58,9 +58,9 @@ function TiendaHeader({ pagina, onNavigate }) {
   )
 }
 
-function TiendaRoutes({ pagina, onNavigate, onIngresarDesdeCarrito }) {
-  if (pagina === 'catalogo') return <CatalogoPage />
-  if (pagina === 'producto') return <ProductoDetallePage />
+function TiendaRoutes({ pagina, productoId, onNavigate, onVerProducto, onIngresarDesdeCarrito }) {
+  if (pagina === 'catalogo') return <CatalogoPage onVerProducto={onVerProducto} />
+  if (pagina === 'producto') return <ProductoDetallePage productoId={productoId} onVolver={() => onNavigate('catalogo')} />
   if (pagina === 'carrito') return <CarritoPage onFinalizar={() => onNavigate('checkout')} onIngresar={onIngresarDesdeCarrito} />
   if (pagina === 'checkout') return <CheckoutPage />
   if (pagina === 'pago-resultado') return <PagoResultadoPage />
@@ -69,12 +69,13 @@ function TiendaRoutes({ pagina, onNavigate, onIngresarDesdeCarrito }) {
   if (pagina === 'ingresar') return <IngresarPage />
   if (pagina === 'mis-datos') return <MisDatosPage />
   if (pagina === 'mis-pedidos') return <MisPedidosPage />
-  return <CatalogoPage />
+  return <CatalogoPage onVerProducto={onVerProducto} />
 }
 
 function TiendaShell() {
   const [pagina, setPagina] = useState('catalogo')
   const [volverAlCarrito, setVolverAlCarrito] = useState(false)
+  const [productoId, setProductoId] = useState(null)
   const { cliente } = useClienteWeb()
 
   useEffect(() => {
@@ -90,6 +91,11 @@ function TiendaShell() {
     setPagina(destino === 'checkout' && !cliente ? 'ingresar' : destino)
   }
 
+  function verProducto(id) {
+    setProductoId(id)
+    navegar('producto')
+  }
+
   function ingresarDesdeCarrito() {
     setVolverAlCarrito(true)
     setPagina('ingresar')
@@ -97,12 +103,18 @@ function TiendaShell() {
 
   return (
     <CarritoProvider>
-    <div className="tienda-app">
-      <TiendaHeader pagina={pagina} onNavigate={navegar} />
-      <main className="tienda-main">
-        <TiendaRoutes pagina={pagina} onNavigate={navegar} onIngresarDesdeCarrito={ingresarDesdeCarrito} />
-      </main>
-    </div>
+      <div className="tienda-app">
+        <TiendaHeader pagina={pagina} onNavigate={navegar} />
+        <main className="tienda-main">
+          <TiendaRoutes
+            pagina={pagina}
+            productoId={productoId}
+            onNavigate={navegar}
+            onVerProducto={verProducto}
+            onIngresarDesdeCarrito={ingresarDesdeCarrito}
+          />
+        </main>
+      </div>
     </CarritoProvider>
   )
 }
