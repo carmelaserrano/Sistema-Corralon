@@ -3,6 +3,7 @@ import {
   listarDepositos,
   buscarClientes,
   calcularPrecioVenta,
+  validarPrecioVenta,
   validarDescuentoManual,
   buscarArticulos,
   registrarVenta,
@@ -36,9 +37,26 @@ function crearQueryBuilder(resultado) {
   return builder
 }
 
+function mockRegistrarVenta({ data = null, error = null }) {
+  supabase.rpc.mockImplementation((nombre) => {
+    if (nombre === 'calcular_precio_venta') {
+      return Promise.resolve({ data: 500, error: null })
+    }
+
+    if (nombre === 'registrar_venta') {
+      return {
+        single: () => Promise.resolve({ data, error }),
+      }
+    }
+
+    return Promise.resolve({ data, error })
+  })
+}
+
 describe('ventasApi', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    supabase.rpc.mockResolvedValue({ data: 500, error: null })
   })
 
   describe('listarDepositos', () => {
@@ -147,6 +165,24 @@ describe('ventasApi', () => {
       })
 
       await expect(calcularPrecioVenta('prod-1')).rejects.toThrow('Error en RPC')
+    })
+  })
+
+  describe('validarPrecioVenta', () => {
+    it('rechaza precios manipulados cuando difieren del precio calculado', async () => {
+      supabase.rpc.mockResolvedValue({ data: 1500, error: null })
+
+      await expect(validarPrecioVenta('prod-1', 'cli-1', 2, 1200)).rejects.toThrow(
+        'El precio del artículo cambió. Actualizá y confirmá nuevamente.',
+      )
+    })
+
+    it('rechaza productos sin precio válido', async () => {
+      supabase.rpc.mockResolvedValue({ data: null, error: null })
+
+      await expect(validarPrecioVenta('prod-2', 'cli-1', 1, 1000)).rejects.toThrow(
+        'No existe un precio válido para este producto en la lista del cliente.',
+      )
     })
   })
 
@@ -313,11 +349,7 @@ describe('ventasApi', () => {
         estado: 'Pendiente',
         total: 5000,
       }
-
-      const rpcBuilder = {
-        single: vi.fn(() => Promise.resolve({ data: mockVentaCreada, error: null })),
-      }
-      supabase.rpc.mockReturnValue(rpcBuilder)
+      mockRegistrarVenta({ data: mockVentaCreada, error: null })
 
       const resultado = await registrarVenta(cabeceraValida, itemsValidos)
 
@@ -341,19 +373,14 @@ describe('ventasApi', () => {
     })
 
     it('mapea STOCK_INSUFICIENTE a status 422', async () => {
-      const rpcBuilder = {
-        single: vi.fn(() =>
-          Promise.resolve({
-            data: null,
-            error: {
-              code: 'P0001',
-              message:
-                'STOCK_INSUFICIENTE: producto p1 — disponible 5 — solicitado 10',
-            },
-          }),
-        ),
-      }
-      supabase.rpc.mockReturnValue(rpcBuilder)
+      mockRegistrarVenta({
+        data: null,
+        error: {
+          code: 'P0001',
+          message:
+            'STOCK_INSUFICIENTE: producto p1 — disponible 5 — solicitado 10',
+        },
+      })
 
       let errorCapturado
       try {
@@ -369,18 +396,13 @@ describe('ventasApi', () => {
     })
 
     it('mapea falta de permisos a status 403', async () => {
-      const rpcBuilder = {
-        single: vi.fn(() =>
-          Promise.resolve({
-            data: null,
-            error: {
-              code: '42501',
-              message: 'No tenés permiso para registrar ventas',
-            },
-          }),
-        ),
-      }
-      supabase.rpc.mockReturnValue(rpcBuilder)
+      mockRegistrarVenta({
+        data: null,
+        error: {
+          code: '42501',
+          message: 'No tenés permiso para registrar ventas',
+        },
+      })
 
       let errorCapturado
       try {
@@ -395,18 +417,13 @@ describe('ventasApi', () => {
     })
 
     it('mapea errores genéricos P0001 (sin STOCK_INSUFICIENTE) a status 400', async () => {
-      const rpcBuilder = {
-        single: vi.fn(() =>
-          Promise.resolve({
-            data: null,
-            error: {
-              code: 'P0001',
-              message: 'El descuento del 15% requiere una autorización válida y vigente',
-            },
-          }),
-        ),
-      }
-      supabase.rpc.mockReturnValue(rpcBuilder)
+      mockRegistrarVenta({
+        data: null,
+        error: {
+          code: 'P0001',
+          message: 'El descuento del 15% requiere una autorización válida y vigente',
+        },
+      })
 
       let errorCapturado
       try {
@@ -506,6 +523,7 @@ describe('ventasApi', () => {
         stock_disponible: 50,
         cantidad: 2,
         precio_unitario: 1000,
+        precio_validado: true,
         descuento_pct: 0,
         autorizacion_descuento_id: null,
         subtotal: 2000,

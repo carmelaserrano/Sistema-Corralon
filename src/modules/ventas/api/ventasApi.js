@@ -97,6 +97,52 @@ export async function calcularPrecioVenta(productoId, clienteId = null, cantidad
 }
 
 /**
+ * Valida que el precio enviado por el navegador coincida con el precio calculado
+ * por la base de datos para producto, cliente y cantidad. Esto evita precios
+ * manipulados en el frontend y rechaza productos sin precio válido.
+ *
+ * @param {string} productoId UUID del producto
+ * @param {string|null} clienteId UUID del cliente
+ * @param {number} cantidad Cantidad de la línea
+ * @param {number|null} precioUnitario Precio recibido en la UI
+ * @returns {Promise<{valido: boolean, precio_esperado: number}>}
+ */
+export async function validarPrecioVenta(
+  productoId,
+  clienteId = null,
+  cantidad = 1,
+  precioUnitario = null,
+) {
+  if (!productoId) {
+    throw errorDeApi('El producto es obligatorio para validar precio', 400)
+  }
+  if (precioUnitario === undefined || precioUnitario === null) {
+    throw errorDeApi('El precio unitario es obligatorio para validar la venta', 400)
+  }
+
+  const precioEsperado = await calcularPrecioVenta(productoId, clienteId, cantidad)
+
+  if (precioEsperado === null) {
+    throw errorDeApi(
+      'No existe un precio válido para este producto en la lista del cliente.',
+      400,
+    )
+  }
+
+  if (Math.abs(Number(precioUnitario) - Number(precioEsperado)) > 0.01) {
+    throw errorDeApi(
+      'El precio del artículo cambió. Actualizá y confirmá nuevamente.',
+      409,
+    )
+  }
+
+  return {
+    valido: true,
+    precio_esperado: precioEsperado,
+  }
+}
+
+/**
  * Valida si un porcentaje de descuento manual requiere autorización de un supervisor (CA-05).
  *
  * @param {number} porcentaje Porcentaje de descuento manual (0-100).
@@ -225,30 +271,29 @@ export function agregarArticuloALineas(
   const productoId = articulo.producto_id || articulo.id
   const cant = Math.max(1, Number(cantidad) || 1)
   const index = lineasExistentes.findIndex((l) => l.producto_id === productoId)
+  const precioValido = precioUnitario !== null && precioUnitario !== undefined
+  const precio = precioValido ? Number(precioUnitario) : Number(articulo.precio_unitario ?? 0)
 
   if (index >= 0) {
     const lineaActual = lineasExistentes[index]
     const nuevaCantidad = lineaActual.cantidad + cant
-    const precio =
-      precioUnitario !== null && precioUnitario !== undefined
-        ? precioUnitario
-        : lineaActual.precio_unitario
+    const precioLinea = precioValido ? precio : lineaActual.precio_unitario
     const descuento = Number(lineaActual.descuento_pct || 0)
     const nuevoSubtotal = redondear(
-      nuevaCantidad * precio * (1 - descuento / 100),
+      nuevaCantidad * precioLinea * (1 - descuento / 100),
     )
 
     const actualizadas = [...lineasExistentes]
     actualizadas[index] = {
       ...lineaActual,
       cantidad: nuevaCantidad,
-      precio_unitario: precio,
+      precio_unitario: precioLinea,
+      precio_validado: precioValido || lineaActual.precio_validado !== false,
       subtotal: nuevoSubtotal,
     }
     return actualizadas
   }
 
-  const precio = Number(precioUnitario ?? articulo.precio_unitario ?? 0)
   const subtotal = redondear(cant * precio)
 
   return [
@@ -261,6 +306,7 @@ export function agregarArticuloALineas(
       stock_disponible: articulo.stock_disponible ?? articulo.disponible ?? 0,
       cantidad: cant,
       precio_unitario: precio,
+      precio_validado: precioValido,
       descuento_pct: 0,
       autorizacion_descuento_id: null,
       subtotal,
@@ -327,6 +373,7 @@ export async function registrarVenta(cabecera, items) {
         throw errorDeApi('El porcentaje de descuento debe estar entre 0 y 100', 400)
       }
     }
+
   }
 
   const payloadItems = items.map((i) => ({
