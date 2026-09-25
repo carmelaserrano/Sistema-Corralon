@@ -65,6 +65,7 @@ export default function NuevaVentaPage() {
   const [guardando, setGuardando] = useState(false)
   const [errorEnvio, setErrorEnvio] = useState('')
   const [ventaConfirmada, setVentaConfirmada] = useState(null)
+  const [lineasStockError, setLineasStockError] = useState([])
 
   const dropdownClienteRef = useRef(null)
 
@@ -153,6 +154,7 @@ function handleNuevaVenta() {
   setLineas([])
   setObservaciones('')
   setErrorEnvio('')
+  setLineasStockError([])
   setCliente(null)
   setBusquedaCliente('')
 }
@@ -163,9 +165,10 @@ function handleNuevaVenta() {
   // Calcular totales de la venta (CA-04)
   const { total: totalVenta, totalArticulos } = calcularTotalesVenta(lineas)
 
-  const lineasSuperanStock = lineas.some(
+  const lineasConStockInsuficiente = lineas.filter(
     (l) => l.cantidad > l.stock_disponible,
   )
+  const lineasSuperanStock = lineasConStockInsuficiente.some((l) => !l.backorder)
   const lineasSinPrecio = lineas.some(
     (l) =>
       l.precio_unitario === null ||
@@ -202,11 +205,16 @@ function handleNuevaVenta() {
         precio_unitario: l.precio_unitario,
         descuento_pct: l.descuento_pct || 0,
         autorizacion_descuento_id: l.autorizacion_descuento_id || null,
+        backorder: Boolean(l.backorder),
       }))
 
       const ventaCreada = await registrarVenta(cabecera, items)
+      setLineasStockError([])
       setVentaConfirmada(ventaCreada)
     } catch (err) {
+      if (err.code === 'STOCK_INSUFICIENTE') {
+        setLineasStockError(err.details || [])
+      }
       setErrorEnvio(err.message || 'Ocurrió un error al registrar la venta')
     } finally {
       setGuardando(false)
@@ -318,6 +326,21 @@ function handleNuevaVenta() {
       {errorEnvio && (
         <div style={{ marginBottom: '16px' }}>
           <Feedback tone="error">{errorEnvio}</Feedback>
+        </div>
+      )}
+      {lineasStockError.length > 0 && (
+        <div style={{ marginBottom: '16px' }}>
+          <Feedback tone="error">
+            Stock insuficiente al confirmar:
+            <ul style={{ margin: '6px 0 0 18px' }}>
+              {lineasStockError.map((item) => (
+                <li key={item.producto_id}>
+                  {lineas.find((linea) => linea.producto_id === item.producto_id)?.nombre || item.producto_id}:{' '}
+                  disponible {item.disponible}, solicitado {item.solicitado}
+                </li>
+              ))}
+            </ul>
+          </Feedback>
         </div>
       )}
 
@@ -602,6 +625,11 @@ function handleNuevaVenta() {
             {lineasSuperanStock && (
               <div style={{ color: 'var(--color-danger, #b42318)', fontSize: '12px', marginTop: '4px' }}>
                 Atención: hay artículos que superan el stock disponible en el depósito.
+              </div>
+            )}
+            {lineasConStockInsuficiente.some((l) => l.backorder) && (
+              <div style={{ color: 'var(--text-secondary)', fontSize: '12px', marginTop: '4px' }}>
+                Las líneas marcadas como backorder comprometerán solo lo disponible.
               </div>
             )}
             {lineasSinPrecio && (

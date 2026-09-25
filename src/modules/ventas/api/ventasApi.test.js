@@ -366,6 +366,7 @@ describe('ventasApi', () => {
             precio_unitario: 500,
             descuento_pct: 0,
             autorizacion_descuento_id: null,
+            backorder: false,
           },
         ],
       })
@@ -379,6 +380,9 @@ describe('ventasApi', () => {
           code: 'P0001',
           message:
             'STOCK_INSUFICIENTE: producto p1 — disponible 5 — solicitado 10',
+          details: JSON.stringify([
+            { producto_id: 'p1', disponible: 5, solicitado: 10 },
+          ]),
         },
       })
 
@@ -392,6 +396,9 @@ describe('ventasApi', () => {
       expect(errorCapturado).toBeDefined()
       expect(errorCapturado.status).toBe(422)
       expect(errorCapturado.code).toBe('STOCK_INSUFICIENTE')
+      expect(errorCapturado.details).toEqual([
+        { producto_id: 'p1', disponible: 5, solicitado: 10 },
+      ])
       expect(errorCapturado.message).toContain('STOCK_INSUFICIENTE')
     })
 
@@ -524,6 +531,7 @@ describe('ventasApi', () => {
         cantidad: 2,
         precio_unitario: 1000,
         precio_validado: true,
+        backorder: false,
         descuento_pct: 0,
         autorizacion_descuento_id: null,
         subtotal: 2000,

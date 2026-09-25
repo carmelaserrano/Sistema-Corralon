@@ -305,6 +305,7 @@ export function agregarArticuloALineas(
       unidad_medida: articulo.unidad_medida || 'un.',
       stock_disponible: articulo.stock_disponible ?? articulo.disponible ?? 0,
       cantidad: cant,
+      backorder: false,
       precio_unitario: precio,
       precio_validado: precioValido,
       descuento_pct: 0,
@@ -340,9 +341,9 @@ export function calcularTotalesVenta(lineas = []) {
  * Registra una venta completa en una sola transacción atómica (CA-06).
  *
  * @param {Object} cabecera Datos de cabecera: {deposito_id, cliente_id, observaciones}
- * @param {Array<Object>} items Líneas de la venta: {producto_id, cantidad, precio_unitario, descuento_pct?, autorizacion_descuento_id?}
+ * @param {Array<Object>} items Líneas de la venta: {producto_id, cantidad, precio_unitario, descuento_pct?, autorizacion_descuento_id?, backorder?}
  * @returns {Promise<Object>} Venta creada con su número correlativo y estado 'Pendiente'.
- * @throws {Error} 422 STOCK_INSUFICIENTE con detalle de la línea.
+ * @throws {Error} 422 STOCK_INSUFICIENTE con `details` por línea.
  * @throws {Error} 403 si el usuario no tiene permiso 'ventas.registrar'.
  * @throws {Error} 400 por validación de parámetros.
  */
@@ -382,6 +383,7 @@ export async function registrarVenta(cabecera, items) {
     precio_unitario: Number(i.precio_unitario),
     descuento_pct: Number(i.descuento_pct || 0),
     autorizacion_descuento_id: i.autorizacion_descuento_id || null,
+    backorder: Boolean(i.backorder),
   }))
 
   const { data, error } = await supabase
@@ -397,8 +399,18 @@ export async function registrarVenta(cabecera, items) {
 
   if (error) {
     if (error.message?.includes('STOCK_INSUFICIENTE')) {
+      let details = []
+      const rawDetails = error.details || error.hint
+      if (rawDetails) {
+        try {
+          details = typeof rawDetails === 'string' ? JSON.parse(rawDetails) : rawDetails
+        } catch {
+          details = []
+        }
+      }
       const err = errorDeApi(error.message, 422)
       err.code = 'STOCK_INSUFICIENTE'
+      err.details = Array.isArray(details) ? details : []
       throw err
     }
     if (error.code === CODIGO_PERMISO_INSUFICIENTE || error.message?.includes('permiso')) {
