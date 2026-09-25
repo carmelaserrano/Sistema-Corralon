@@ -109,7 +109,11 @@ function ModalDetallePedido({ pedido, puedeGestionar, onCambio, onCerrar }) {
               <EstadoPedidoBadge estado={pedido.estado} />
             </p>
           </div>
-          <button aria-label="Cerrar" className="icon-button" onClick={onCerrar} ref={cerrarRef} title="Cerrar" type="button">
+          {/* padding 0 inline: `.page-canvas button[type="button"]` es más
+              específica que `.page-canvas .icon-button` y le devuelve 12px
+              de padding, que descentran la X. */}
+          <button aria-label="Cerrar" className="icon-button" onClick={onCerrar} ref={cerrarRef} title="Cerrar" type="button"
+            style={{ padding: 0 }}>
             <X aria-hidden="true" size={18} />
           </button>
         </header>
@@ -165,19 +169,20 @@ function ModalDetallePedido({ pedido, puedeGestionar, onCambio, onCerrar }) {
           <section>
             <h3>Historial de cambios</h3>
             {!cargandoHistorial && historial.length === 0 && <p>Este pedido no registra cambios de estado.</p>}
+            {/* Lista y no tabla: las tablas de .page-canvas tienen min-width
+                de 760px y en media columna del modal obligaban a scrollear. */}
             {historial.length > 0 && (
-              <table>
-                <thead><tr><th>Fecha</th><th>Cambio</th><th>Motivo</th></tr></thead>
-                <tbody>
-                  {[...historial].reverse().map((cambio) => (
-                    <tr key={cambio.id}>
-                      <td>{formatearFecha(cambio.created_at)}</td>
-                      <td>{cambio.estado_anterior ? `${cambio.estado_anterior} → ` : ''}{cambio.estado_nuevo}</td>
-                      <td>{cambio.motivo || '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+                {[...historial].reverse().map((cambio) => (
+                  <li key={cambio.id} style={{ padding: '10px 0', borderBottom: '1px solid var(--border-default)' }}>
+                    <small style={{ display: 'block', color: 'var(--text-muted)' }}>{formatearFecha(cambio.created_at)}</small>
+                    <strong style={{ fontWeight: 600 }}>
+                      {cambio.estado_anterior ? `${cambio.estado_anterior} → ` : 'Alta: '}{cambio.estado_nuevo}
+                    </strong>
+                    {cambio.motivo && <small style={{ display: 'block' }}>Motivo: {cambio.motivo}</small>}
+                  </li>
+                ))}
+              </ul>
             )}
           </section>
         </div>
