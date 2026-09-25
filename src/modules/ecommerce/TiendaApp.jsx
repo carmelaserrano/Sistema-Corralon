@@ -12,6 +12,7 @@ import RegistroPage from './pages/RegistroPage'
 import IngresarPage from './pages/IngresarPage'
 import MisDatosPage from './pages/MisDatosPage'
 import MisPedidosPage from './pages/MisPedidosPage'
+import { iniciarPago } from './api/checkoutApi'
 
 const RUTAS = [
   { id: 'catalogo', label: 'Catálogo' },
@@ -59,13 +60,13 @@ function TiendaHeader({ pagina, onNavigate }) {
   )
 }
 
-function TiendaRoutes({ pagina, productoId, onNavigate, onVerProducto, onIngresarDesdeCarrito }) {
+function TiendaRoutes({ pagina, productoId, onNavigate, onVerProducto, onIngresarDesdeCarrito, pago, onPasarelaSimulada, onResultadoPago, onReintentarPago }) {
   if (pagina === 'catalogo') return <CatalogoPage onVerProducto={onVerProducto} />
   if (pagina === 'producto') return <ProductoDetallePage productoId={productoId} onVolver={() => onNavigate('catalogo')} />
   if (pagina === 'carrito') return <CarritoPage onFinalizar={() => onNavigate('checkout')} onIngresar={onIngresarDesdeCarrito} />
-  if (pagina === 'checkout') return <CheckoutPage />
-  if (pagina === 'pago-resultado') return <PagoResultadoPage />
-  if (pagina === 'pasarela-simulada') return <PasarelaSimuladaPage />
+  if (pagina === 'checkout') return <CheckoutPage onPasarelaSimulada={onPasarelaSimulada} onVolverCarrito={() => onNavigate('carrito')} />
+  if (pagina === 'pago-resultado') return <PagoResultadoPage pedidoId={pago.pedidoId} resultado={pago.resultado} onReintentar={onReintentarPago} onIrCatalogo={() => onNavigate('catalogo')} />
+  if (pagina === 'pasarela-simulada') return <PasarelaSimuladaPage pedidoId={pago.pedidoId} onResultado={onResultadoPago} />
   if (pagina === 'registrarme') return <RegistroPage onNavigate={onNavigate} />
   if (pagina === 'ingresar') return <IngresarPage onNavigate={onNavigate} />
   if (pagina === 'mis-datos') return <MisDatosPage onNavigate={onNavigate} />
@@ -74,7 +75,11 @@ function TiendaRoutes({ pagina, productoId, onNavigate, onVerProducto, onIngresa
 }
 
 function TiendaShell() {
-  const [pagina, setPagina] = useState('catalogo')
+  const parametros = new URLSearchParams(window.location.search)
+  const retornoPago = parametros.get('pago')
+  const pedidoRetornado = parametros.get('pedido') || parametros.get('external_reference')
+  const [pagina, setPagina] = useState(retornoPago && pedidoRetornado ? 'pago-resultado' : 'catalogo')
+  const [pago, setPago] = useState({ pedidoId: pedidoRetornado || '', resultado: retornoPago || '' })
   const [volverAlCarrito, setVolverAlCarrito] = useState(false)
   const [productoId, setProductoId] = useState(null)
   const { cliente } = useClienteWeb()
@@ -89,6 +94,7 @@ function TiendaShell() {
 
   function navegar(destino) {
     setVolverAlCarrito(false)
+    if (destino !== 'pago-resultado') window.history.replaceState({}, '', window.location.pathname)
     setPagina(destino === 'checkout' && !cliente ? 'ingresar' : destino)
   }
 
@@ -102,6 +108,27 @@ function TiendaShell() {
     setPagina('ingresar')
   }
 
+  function abrirPasarelaSimulada(pedidoId) {
+    setPago({ pedidoId, resultado: '' })
+    setPagina('pasarela-simulada')
+  }
+
+  function mostrarResultado(pedidoId, resultado) {
+    const etiqueta = resultado === 'approved' ? 'aprobado' : 'rechazado'
+    setPago({ pedidoId, resultado: etiqueta })
+    window.history.replaceState({}, '', `${window.location.pathname}?pago=${etiqueta}&pedido=${pedidoId}`)
+    setPagina('pago-resultado')
+  }
+
+  async function reintentarPago(pedidoId) {
+    if (import.meta.env.VITE_PAGO_SIMULADO === 'true') {
+      abrirPasarelaSimulada(pedidoId)
+      return
+    }
+    const preferencia = await iniciarPago(pedidoId)
+    window.location.assign(preferencia.init_point)
+  }
+
   return (
     <CarritoProvider>
       <div className="tienda-app">
@@ -113,6 +140,10 @@ function TiendaShell() {
             onNavigate={navegar}
             onVerProducto={verProducto}
             onIngresarDesdeCarrito={ingresarDesdeCarrito}
+            pago={pago}
+            onPasarelaSimulada={abrirPasarelaSimulada}
+            onResultadoPago={mostrarResultado}
+            onReintentarPago={reintentarPago}
           />
         </main>
       </div>
