@@ -103,12 +103,18 @@ function TiendaShell() {
 
   return (
     <CarritoProvider>
-    <div className="tienda-app">
-      <TiendaHeader pagina={pagina} onNavigate={navegar} />
-      <main className="tienda-main">
-        <TiendaRoutes pagina={pagina} productoId={productoId} onNavigate={navegar} onVerProducto={verProducto} onIngresarDesdeCarrito={ingresarDesdeCarrito} />
-      </main>
-    </div>
+      <div className="tienda-app">
+        <TiendaHeader pagina={pagina} onNavigate={navegar} />
+        <main className="tienda-main">
+          <TiendaRoutes
+            pagina={pagina}
+            productoId={productoId}
+            onNavigate={navegar}
+            onVerProducto={verProducto}
+            onIngresarDesdeCarrito={ingresarDesdeCarrito}
+          />
+        </main>
+      </div>
     </CarritoProvider>
   )
 }
