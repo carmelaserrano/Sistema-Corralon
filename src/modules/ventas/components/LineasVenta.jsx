@@ -326,6 +326,16 @@ export default function LineasVenta({
     onLineasChange(nuevasLineas)
   }
 
+  function handleCambiarBackorder(productoId, activo) {
+    onLineasChange(
+      lineasRef.current.map((linea) =>
+        linea.producto_id === productoId
+          ? { ...linea, backorder: activo }
+          : linea,
+      ),
+    )
+  }
+
   return (
     <div className="lineas-venta-contenedor">
       {/* Buscador de artículos con autocompletado */}
@@ -444,19 +454,21 @@ export default function LineasVenta({
         <div style={{ overflowX: 'auto', marginTop: '16px' }}>
           <table className="tabla-lineas-venta">
             <colgroup>
-              <col style={{ width: '32%' }} />
+              <col style={{ width: '24%' }} />
+              <col style={{ width: '11%' }} />
+              <col style={{ width: '11%' }} />
+              <col style={{ width: '15%' }} />
               <col style={{ width: '12%' }} />
-              <col style={{ width: '14%' }} />
-              <col style={{ width: '13%' }} />
-              <col style={{ width: '12%' }} />
-              <col style={{ width: '12%' }} />
-              <col style={{ width: '5%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '11%' }} />
+              <col style={{ width: '6%' }} />
             </colgroup>
             <thead>
               <tr>
                 <th style={{ textAlign: 'left' }}>Artículo</th>
                 <th style={{ textAlign: 'center' }}>Stock disp.</th>
                 <th style={{ textAlign: 'center' }}>Cantidad</th>
+                <th style={{ textAlign: 'center' }}>Backorder</th>
                 <th style={{ textAlign: 'right' }}>Precio unit.</th>
                 <th style={{ textAlign: 'center' }}>Desc. %</th>
                 <th style={{ textAlign: 'right' }}>Subtotal</th>
@@ -504,6 +516,22 @@ export default function LineasVenta({
                         <div style={{ fontSize: '10px', color: 'var(--color-danger, #b42318)', marginTop: '2px' }}>
                           Supera disponible
                         </div>
+                      )}
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      {superaStock ? (
+                        <label style={{ fontSize: '11px', display: 'inline-flex', gap: '4px', alignItems: 'center' }}>
+                          <input
+                            type="checkbox"
+                            checked={Boolean(linea.backorder)}
+                            onChange={(e) => handleCambiarBackorder(linea.producto_id, e.target.checked)}
+                            disabled={deshabilitado}
+                            aria-label={`Aceptar backorder de ${linea.nombre}`}
+                          />
+                          Aceptar espera
+                        </label>
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)' }}>—</span>
                       )}
                     </td>
                     <td style={{ textAlign: 'right', fontWeight: '500' }}>
