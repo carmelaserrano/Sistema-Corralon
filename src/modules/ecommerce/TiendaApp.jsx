@@ -20,6 +20,7 @@ const RUTAS = [
   { id: 'checkout', label: 'Checkout' },
   { id: 'ingresar', label: 'Ingresar / Registrarme' },
   { id: 'mis-pedidos', label: 'Mis pedidos' },
+  { id: 'mis-datos', label: 'Mis datos' },
 ]
 
 function TiendaHeader({ pagina, onNavigate }) {
@@ -35,7 +36,7 @@ function TiendaHeader({ pagina, onNavigate }) {
       <nav className="tienda-nav">
         {RUTAS.map((ruta) => {
           if (ruta.id === 'ingresar' && cliente) return null
-          if (ruta.id === 'mis-pedidos' && !cliente) return null
+          if ((ruta.id === 'mis-pedidos' || ruta.id === 'mis-datos') && !cliente) return null
           return (
             <button
               key={ruta.id}
@@ -59,18 +60,18 @@ function TiendaHeader({ pagina, onNavigate }) {
   )
 }
 
-function TiendaRoutes({ pagina, onNavigate, onIngresarDesdeCarrito, pago, onPasarelaSimulada, onResultadoPago, onReintentarPago }) {
-  if (pagina === 'catalogo') return <CatalogoPage />
-  if (pagina === 'producto') return <ProductoDetallePage />
+function TiendaRoutes({ pagina, productoId, onNavigate, onVerProducto, onIngresarDesdeCarrito, pago, onPasarelaSimulada, onResultadoPago, onReintentarPago }) {
+  if (pagina === 'catalogo') return <CatalogoPage onVerProducto={onVerProducto} />
+  if (pagina === 'producto') return <ProductoDetallePage productoId={productoId} onVolver={() => onNavigate('catalogo')} />
   if (pagina === 'carrito') return <CarritoPage onFinalizar={() => onNavigate('checkout')} onIngresar={onIngresarDesdeCarrito} />
   if (pagina === 'checkout') return <CheckoutPage onPasarelaSimulada={onPasarelaSimulada} onVolverCarrito={() => onNavigate('carrito')} />
   if (pagina === 'pago-resultado') return <PagoResultadoPage pedidoId={pago.pedidoId} resultado={pago.resultado} onReintentar={onReintentarPago} onIrCatalogo={() => onNavigate('catalogo')} />
   if (pagina === 'pasarela-simulada') return <PasarelaSimuladaPage pedidoId={pago.pedidoId} onResultado={onResultadoPago} />
-  if (pagina === 'registrarme') return <RegistroPage />
-  if (pagina === 'ingresar') return <IngresarPage />
-  if (pagina === 'mis-datos') return <MisDatosPage />
+  if (pagina === 'registrarme') return <RegistroPage onNavigate={onNavigate} />
+  if (pagina === 'ingresar') return <IngresarPage onNavigate={onNavigate} />
+  if (pagina === 'mis-datos') return <MisDatosPage onNavigate={onNavigate} />
   if (pagina === 'mis-pedidos') return <MisPedidosPage />
-  return <CatalogoPage />
+  return <CatalogoPage onVerProducto={onVerProducto} />
 }
 
 function TiendaShell() {
@@ -80,6 +81,7 @@ function TiendaShell() {
   const [pagina, setPagina] = useState(retornoPago && pedidoRetornado ? 'pago-resultado' : 'catalogo')
   const [pago, setPago] = useState({ pedidoId: pedidoRetornado || '', resultado: retornoPago || '' })
   const [volverAlCarrito, setVolverAlCarrito] = useState(false)
+  const [productoId, setProductoId] = useState(null)
   const { cliente } = useClienteWeb()
 
   useEffect(() => {
@@ -94,6 +96,11 @@ function TiendaShell() {
     setVolverAlCarrito(false)
     if (destino !== 'pago-resultado') window.history.replaceState({}, '', window.location.pathname)
     setPagina(destino === 'checkout' && !cliente ? 'ingresar' : destino)
+  }
+
+  function verProducto(id) {
+    setProductoId(id)
+    navegar('producto')
   }
 
   function ingresarDesdeCarrito() {
@@ -124,13 +131,22 @@ function TiendaShell() {
 
   return (
     <CarritoProvider>
-    <div className="tienda-app">
-      <TiendaHeader pagina={pagina} onNavigate={navegar} />
-      <main className="tienda-main">
-        <TiendaRoutes pagina={pagina} onNavigate={navegar} onIngresarDesdeCarrito={ingresarDesdeCarrito}
-          pago={pago} onPasarelaSimulada={abrirPasarelaSimulada} onResultadoPago={mostrarResultado} onReintentarPago={reintentarPago} />
-      </main>
-    </div>
+      <div className="tienda-app">
+        <TiendaHeader pagina={pagina} onNavigate={navegar} />
+        <main className="tienda-main">
+          <TiendaRoutes
+            pagina={pagina}
+            productoId={productoId}
+            onNavigate={navegar}
+            onVerProducto={verProducto}
+            onIngresarDesdeCarrito={ingresarDesdeCarrito}
+            pago={pago}
+            onPasarelaSimulada={abrirPasarelaSimulada}
+            onResultadoPago={mostrarResultado}
+            onReintentarPago={reintentarPago}
+          />
+        </main>
+      </div>
     </CarritoProvider>
   )
 }
