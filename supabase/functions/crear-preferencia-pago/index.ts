@@ -64,7 +64,6 @@ Deno.serve(async (request) => {
           currency_id: 'ARS',
         })),
         external_reference: pedido.id,
-        notification_url: `${supabaseUrl}/functions/v1/webhook-pago`,
         back_urls: {
           success: `${appUrl}/tienda?pago=aprobado&pedido=${pedido.id}`,
           failure: `${appUrl}/tienda?pago=rechazado&pedido=${pedido.id}`,

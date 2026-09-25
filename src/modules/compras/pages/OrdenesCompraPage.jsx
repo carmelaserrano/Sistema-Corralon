@@ -160,14 +160,14 @@ export default function OrdenesCompraPage() {
   async function cargarMaestros() {
     try {
       const [provs, deps, arts, todosProvs] = await Promise.all([
-        getProveedores({ estado: 'activo', soloActivos: true }),
+        getProveedores({ estado: 'activo', soloActivos: true, pageSize: 10000 }),
         getDepositos(),
         getArticulos({ estado: 'activo', pageSize: 1000 }),
-        getProveedores({ soloActivos: false }),
+        getProveedores({ soloActivos: false, pageSize: 10000 }),
       ])
-      setProveedores(provs)
-      setDepositos(deps)
-      setArticulos(arts.articulos)
+      setProveedores(Array.isArray(provs) ? provs : (provs?.proveedores || []))
+      setDepositos(Array.isArray(deps) ? deps : [])
+      setArticulos(Array.isArray(arts?.articulos) ? arts.articulos : [])
       setProveedoresHistorial(Array.isArray(todosProvs) ? todosProvs : (todosProvs?.proveedores || []))
     } catch (err) {
       setError(err.message || 'No se pudieron cargar los proveedores y artículos. Recargá la página.')

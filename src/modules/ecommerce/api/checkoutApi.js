@@ -58,6 +58,21 @@ export async function resolverPagoSimulado(pedidoId, estado) {
 }
 
 /**
+ * Solicita a la Edge Function que busque y reconcilie el pago del pedido
+ * consultando directamente a Mercado Pago. Requiere sesión del usuario.
+ * @param {string} pedidoId ID del pedido a reconciliar.
+ * @returns {Promise<Object>} Pedido actualizado o mensaje informativo.
+ */
+export async function reconciliarPago(pedidoId) {
+  if (!pedidoId) throw new Error('Falta el pedido a reconciliar')
+  const { data, error } = await supabase.functions.invoke('webhook-pago', {
+    body: { action: 'reconcile', pedido_id: pedidoId },
+  })
+  if (error) throw await errorFuncion(error, 'No pudimos reconciliar el pago')
+  return data
+}
+
+/**
  * Obtiene el estado autoritativo de un pedido propio para mostrar el retorno.
  * @param {string} pedidoId ID del pedido.
  * @returns {Promise<Object|null>} Pedido visible para el cliente, o null.
