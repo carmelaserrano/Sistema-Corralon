@@ -1,24 +1,112 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { CheckCircle2, Clock3, XCircle } from 'lucide-react'
 import Button from '../../../components/ui/Button'
 import Feedback from '../../../components/ui/Feedback'
-import { obtenerPedido } from '../api/checkoutApi'
+import { obtenerPedido, reconciliarPago } from '../api/checkoutApi'
 
 const moneda = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' })
+const POLL_INTERVALS = [0, 3000, 5000, 7000, 10000, 15000]
+const ESTADOS_FINALES = ['Pagado', 'Cancelado']
+const PAGO_ESTADOS_FINALES = ['approved', 'rejected', 'cancelled']
 
 export default function PagoResultadoPage({ pedidoId, resultado, onReintentar, onIrCatalogo }) {
   const [pedido, setPedido] = useState(null)
   const [cargando, setCargando] = useState(true)
+  const [reconciliando, setReconciliando] = useState(false)
   const [reintentando, setReintentando] = useState(false)
   const [error, setError] = useState('')
+  const [mensajeReconciliacion, setMensajeReconciliacion] = useState('')
+  const timersRef = useRef([])
+  const desmontadoRef = useRef(false)
+
+  // Cancel all pending timers
+  const cancelarTimers = useCallback(() => {
+    timersRef.current.forEach(clearTimeout)
+    timersRef.current = []
+  }, [])
+
   const cargar = useCallback(async () => {
     setCargando(true)
     setError('')
-    try { setPedido(await obtenerPedido(pedidoId)) }
-    catch (err) { setError(err.message || 'No pudimos consultar el pedido') }
-    finally { setCargando(false) }
+    try {
+      const data = await obtenerPedido(pedidoId)
+      if (!desmontadoRef.current) setPedido(data)
+      return data
+    } catch (err) {
+      if (!desmontadoRef.current) setError(err.message || 'No pudimos consultar el pedido')
+      return null
+    } finally {
+      if (!desmontadoRef.current) setCargando(false)
+    }
   }, [pedidoId])
-  useEffect(() => { cargar() }, [cargar])
+
+  // Reconcile + reload
+  const actualizarEstado = useCallback(async () => {
+    if (desmontadoRef.current) return
+    setReconciliando(true)
+    setError('')
+    setMensajeReconciliacion('')
+    try {
+      const resp = await reconciliarPago(pedidoId)
+      if (resp?.mensaje && !desmontadoRef.current) {
+        setMensajeReconciliacion(resp.mensaje)
+      }
+    } catch (err) {
+      if (!desmontadoRef.current) setError(err.message || 'No pudimos reconciliar el pago')
+    }
+    // Always reload the order after reconciliation attempt
+    await cargar()
+    if (!desmontadoRef.current) setReconciliando(false)
+  }, [pedidoId, cargar])
+
+  // Auto-polling on mount: reconcile immediately, then poll a few times
+  useEffect(() => {
+    desmontadoRef.current = false
+    cancelarTimers()
+
+    let cancelado = false
+
+    async function poll(intentoIdx) {
+      if (cancelado || desmontadoRef.current) return
+
+      // First attempt: reconcile
+      if (intentoIdx === 0) {
+        setReconciliando(true)
+        try {
+          const resp = await reconciliarPago(pedidoId)
+          if (resp?.mensaje && !desmontadoRef.current) {
+            setMensajeReconciliacion(resp.mensaje)
+          }
+        } catch {
+          // Reconciliation failed silently on first load, we'll just load the order
+        }
+        if (!desmontadoRef.current) setReconciliando(false)
+      }
+
+      const data = await cargar()
+      if (cancelado || desmontadoRef.current) return
+
+      // Stop polling if we reached a terminal state
+      if (data && (ESTADOS_FINALES.includes(data.estado) || PAGO_ESTADOS_FINALES.includes(data.pago_estado))) {
+        return
+      }
+
+      // Schedule next poll if there are more intervals
+      const nextIdx = intentoIdx + 1
+      if (nextIdx < POLL_INTERVALS.length) {
+        const timer = setTimeout(() => poll(nextIdx), POLL_INTERVALS[nextIdx])
+        timersRef.current.push(timer)
+      }
+    }
+
+    poll(0)
+
+    return () => {
+      cancelado = true
+      desmontadoRef.current = true
+      cancelarTimers()
+    }
+  }, [pedidoId, cargar, cancelarTimers])
 
   const aprobado = pedido?.estado === 'Pagado'
   const cancelado = pedido?.estado === 'Cancelado'
@@ -39,14 +127,15 @@ export default function PagoResultadoPage({ pedidoId, resultado, onReintentar, o
     <h1>{titulo}</h1>
     {cargando && <Feedback>Consultando el estado del pedido…</Feedback>}
     {error && <Feedback tone="error">{error}</Feedback>}
+    {mensajeReconciliacion && !aprobado && !error && <Feedback>{mensajeReconciliacion}</Feedback>}
     {pedido && <p>Pedido <strong>#{pedido.numero}</strong> · {moneda.format(Number(pedido.total))}</p>}
     {aprobado && <Feedback tone="success">Recibimos el pago y vaciamos tu carrito.</Feedback>}
     {!aprobado && !cancelado && fallo && <Feedback tone="error">{pedido?.pago_motivo || 'La pasarela rechazó o canceló el pago.'} El pedido sigue pendiente y podés reintentar.</Feedback>}
     {!aprobado && !cancelado && !fallo && <Feedback>La notificación puede demorar unos segundos. Actualizá el estado antes de volver a pagar.</Feedback>}
     {cancelado && <Feedback tone="error">Pasaron más de 60 minutos y liberamos el stock reservado.</Feedback>}
     <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 10, marginTop: 24 }}>
-      {!aprobado && !cancelado && <Button type="button" loading={reintentando} onClick={reintentar}>Reintentar pago</Button>}
-      {!aprobado && !cancelado && <Button type="button" variant="ghost" disabled={cargando} onClick={cargar}>Actualizar estado</Button>}
+      {!aprobado && !cancelado && <Button type="button" loading={reintentando} disabled={reconciliando} onClick={reintentar}>Reintentar pago</Button>}
+      {!aprobado && !cancelado && <Button type="button" variant="ghost" disabled={cargando || reconciliando} onClick={actualizarEstado}>{reconciliando ? 'Reconciliando…' : 'Actualizar estado'}</Button>}
       <Button type="button" variant="ghost" onClick={onIrCatalogo}>Volver a la tienda</Button>
     </div>
   </section>

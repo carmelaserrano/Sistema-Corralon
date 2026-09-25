@@ -20,7 +20,12 @@ vi.mock('../../../lib/supabaseClient', () => ({
     })),
   },
 }))
-vi.mock('../../proveedores/api/proveedoresApi', () => ({ getProveedores: vi.fn().mockResolvedValue([]), CONDICIONES_PAGO: [] }))
+vi.mock('../../proveedores/api/proveedoresApi', () => ({
+  getProveedores: vi.fn().mockResolvedValue({ proveedores: [] }),
+  puedeModificarProveedores: vi.fn().mockResolvedValue(false),
+  CONDICIONES_PAGO: [],
+  CONDICIONES_FISCALES: [],
+}))
 vi.mock('../../stock/api/depositosApi', () => ({ getDepositos: vi.fn().mockResolvedValue([]) }))
 vi.mock('../../stock/api/articulosApi', () => ({ getArticulos: vi.fn().mockResolvedValue({ articulos: [] }) }))
 const orden = { id: 'oc1', numero: 1, estado: 'parcialmente_recibida', total: 100 }
@@ -32,8 +37,23 @@ beforeEach(() => {
   api.puedeCancelarOrdenes.mockResolvedValue(false)
 })
 
+it('abre Nueva Orden cuando proveedores devuelve el resultado paginado', async () => {
+  api.puedeCrearOrdenes.mockResolvedValue(true)
+  getProveedores.mockResolvedValue({
+    proveedores: [{ id: 'p1', razon_social: 'Proveedor activo', cuit: '30123456789' }],
+  })
+
+  render(<OrdenesCompraPage />)
+  fireEvent.click(await screen.findByRole('button', { name: 'Nueva Orden de Compra' }))
+
+  expect(screen.getByRole('heading', { name: 'Nueva Orden de Compra' })).toBeInTheDocument()
+  expect(screen.getByRole('option', { name: /Proveedor activo/ })).toBeInTheDocument()
+})
+
 it('combina proveedor, fechas, estado y orden; limpiar elimina los filtros', async () => {
-  getProveedores.mockResolvedValue([{ id: 'p1', razon_social: 'Proveedor histórico' }])
+  getProveedores.mockResolvedValue({
+    proveedores: [{ id: 'p1', razon_social: 'Proveedor histórico' }],
+  })
   render(<OrdenesCompraPage />)
   await screen.findByText('Proveedor histórico')
   fireEvent.change(screen.getByLabelText('Proveedor'), { target: { value: 'p1' } })
