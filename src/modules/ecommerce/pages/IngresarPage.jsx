@@ -35,7 +35,7 @@ export default function IngresarPage({ onNavigate }) {
   // vuelve al carrito sola al aparecer el cliente.
   if (cliente) {
     return (
-      <section aria-labelledby="titulo-ingresar" style={contenedor}>
+      <section className="tienda-auth-card" aria-labelledby="titulo-ingresar" style={contenedor}>
         <h1 id="titulo-ingresar">Hola, {cliente.nombre || cliente.razon_social}</h1>
         <Feedback tone="success">Ya ingresaste a tu cuenta.</Feedback>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
@@ -47,7 +47,7 @@ export default function IngresarPage({ onNavigate }) {
   }
 
   return (
-    <section aria-labelledby="titulo-ingresar" style={contenedor}>
+    <section className="tienda-auth-card" aria-labelledby="titulo-ingresar" style={contenedor}>
       <h1 id="titulo-ingresar"><LogIn size={26} aria-hidden="true" /> Ingresar</h1>
       {error && <Feedback tone="error">{error}</Feedback>}
       <form onSubmit={enviar} noValidate aria-busy={enviando}>
