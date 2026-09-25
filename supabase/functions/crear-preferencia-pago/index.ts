@@ -47,6 +47,11 @@ Deno.serve(async (request) => {
     if (errorLineas) throw errorLineas
     if (!lineas?.length) throw new Error('El pedido no tiene productos')
 
+    const venceAt = new Date(pedido.vence_at)
+    if (Number.isNaN(venceAt.getTime()) || venceAt.getTime() <= Date.now()) {
+      return json({ error: 'El pedido ya no admite pagos' }, 409)
+    }
+
     const preferenceResponse = await fetch('https://api.mercadopago.com/checkout/preferences', {
       method: 'POST',
       headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json', 'X-Idempotency-Key': pedido.id },
@@ -66,6 +71,11 @@ Deno.serve(async (request) => {
           pending: `${appUrl}/tienda?pago=pendiente&pedido=${pedido.id}`,
         },
         auto_return: 'approved',
+        // La preferencia deja de aceptar pagos cuando vence la reserva de stock.
+        // Así Mercado Pago y cancelar_pedidos_web_vencidos comparten el mismo límite.
+        expires: true,
+        expiration_date_from: new Date().toISOString(),
+        expiration_date_to: venceAt.toISOString(),
         statement_descriptor: 'CORRALON',
       }),
     })
