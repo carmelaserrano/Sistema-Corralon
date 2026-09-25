@@ -19,6 +19,7 @@ const RUTAS = [
   { id: 'checkout', label: 'Checkout' },
   { id: 'ingresar', label: 'Ingresar / Registrarme' },
   { id: 'mis-pedidos', label: 'Mis pedidos' },
+  { id: 'mis-datos', label: 'Mis datos' },
 ]
 
 function TiendaHeader({ pagina, onNavigate }) {
@@ -34,7 +35,7 @@ function TiendaHeader({ pagina, onNavigate }) {
       <nav className="tienda-nav">
         {RUTAS.map((ruta) => {
           if (ruta.id === 'ingresar' && cliente) return null
-          if (ruta.id === 'mis-pedidos' && !cliente) return null
+          if ((ruta.id === 'mis-pedidos' || ruta.id === 'mis-datos') && !cliente) return null
           return (
             <button
               key={ruta.id}
@@ -65,9 +66,9 @@ function TiendaRoutes({ pagina, productoId, onNavigate, onVerProducto, onIngresa
   if (pagina === 'checkout') return <CheckoutPage />
   if (pagina === 'pago-resultado') return <PagoResultadoPage />
   if (pagina === 'pasarela-simulada') return <PasarelaSimuladaPage />
-  if (pagina === 'registrarme') return <RegistroPage />
-  if (pagina === 'ingresar') return <IngresarPage />
-  if (pagina === 'mis-datos') return <MisDatosPage />
+  if (pagina === 'registrarme') return <RegistroPage onNavigate={onNavigate} />
+  if (pagina === 'ingresar') return <IngresarPage onNavigate={onNavigate} />
+  if (pagina === 'mis-datos') return <MisDatosPage onNavigate={onNavigate} />
   if (pagina === 'mis-pedidos') return <MisPedidosPage />
   return <CatalogoPage onVerProducto={onVerProducto} />
 }
