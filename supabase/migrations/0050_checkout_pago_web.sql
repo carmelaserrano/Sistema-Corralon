@@ -126,33 +126,28 @@ begin
 
   if v_cantidad_items = 0 then raise exception 'Tu carrito está vacío'; end if;
 
-  -- Un pedido se prepara completo en un solo deposito. Se elige en forma
-  -- deterministica el que deja mayor stock total luego de reservar.
-  select s.deposito_id, d.nombre
+  -- D-S3-03: el pedido sale del depósito de e-commerce, el mismo que usan
+  -- v_catalogo_web (0043) y validar_carrito_web (0046) para mostrar stock.
+  select d.id, d.nombre
   into v_deposito, v_deposito_nombre
-  from public.stock_x_deposito s
-  join public.depositos d on d.id = s.deposito_id
-  join jsonb_to_recordset(v_items) as i(producto_id uuid, cantidad numeric)
-    on i.producto_id = s.producto_id
-  where s.cantidad - s.comprometido >= i.cantidad
-  group by s.deposito_id, d.nombre
-  having count(*) = v_cantidad_items
-  order by sum(s.cantidad - s.comprometido - i.cantidad) desc, s.deposito_id
-  limit 1;
-
+  from public.parametros_ventas pv
+  join public.depositos d on d.id = (pv.valor ->> 'deposito_id')::uuid
+  where pv.clave = 'deposito_ecommerce';
   if v_deposito is null then
-    select i.nombre into v_no_disponible
-    from jsonb_to_recordset(v_items) as i(producto_id uuid, cantidad numeric, nombre text)
-    where not exists (
-      select 1 from public.stock_x_deposito s
-      where s.producto_id = i.producto_id
-        and s.cantidad - s.comprometido >= i.cantidad
-    )
-    order by i.nombre limit 1;
-    if v_no_disponible is not null then
-      raise exception 'Stock insuficiente para %', v_no_disponible using errcode = 'P0001';
-    end if;
-    raise exception 'No hay una sucursal con stock suficiente para preparar todo el pedido' using errcode = 'P0001';
+    raise exception 'La tienda no tiene un depósito configurado para despachar pedidos';
+  end if;
+
+  select i.nombre into v_no_disponible
+  from jsonb_to_recordset(v_items) as i(producto_id uuid, cantidad numeric, nombre text)
+  where not exists (
+    select 1 from public.stock_x_deposito s
+    where s.producto_id = i.producto_id
+      and s.deposito_id = v_deposito
+      and s.cantidad - s.comprometido >= i.cantidad
+  )
+  order by i.nombre limit 1;
+  if v_no_disponible is not null then
+    raise exception 'Stock insuficiente para %', v_no_disponible using errcode = 'P0001';
   end if;
 
   -- Esta llamada bloquea el stock y vuelve a validar la disponibilidad. Si
