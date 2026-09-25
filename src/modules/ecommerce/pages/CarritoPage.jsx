@@ -82,14 +82,14 @@ export default function CarritoPage({ onFinalizar, onIngresar }) {
 
   const noDisponibles = items.some((item) => !item.disponible)
   return (
-    <section aria-labelledby="titulo-carrito" aria-busy={cargando} style={{ maxWidth: 1100, margin: '24px auto', padding: '0 16px' }}>
+    <section className="tienda-carrito" aria-labelledby="titulo-carrito" aria-busy={cargando} style={{ maxWidth: 1100, margin: '24px auto', padding: '0 16px' }}>
       <h1 id="titulo-carrito"><ShoppingCart size={26} aria-hidden="true" /> Tu carrito</h1>
       <p>Revisá tus productos antes de finalizar la compra.</p>
       {cargando && <Feedback>Actualizando carrito…</Feedback>}
       {aviso && <Feedback>{aviso}</Feedback>}
       {!items.length && !cargando && !error && <Feedback>Tu carrito está vacío. Agregá productos desde el catálogo.</Feedback>}
       {items.length > 0 && <>
-        <div style={{ overflowX: 'auto', background: 'var(--surface-panel)', borderRadius: 12, border: '1px solid var(--border-default)' }}>
+        <div className="tienda-tabla-contenedor" style={{ overflowX: 'auto', background: 'var(--surface-panel)', borderRadius: 12, border: '1px solid var(--border-default)' }}>
           <table style={{ width: '100%' }}>
             <caption style={{ textAlign: 'left', padding: 16 }}>Productos de tu carrito</caption>
             <thead><tr><th scope="col">Producto</th><th scope="col">Precio unitario</th><th scope="col">Cantidad</th><th scope="col">Subtotal</th><th scope="col">Acciones</th></tr></thead>

@@ -66,7 +66,7 @@ export default function RegistroPage({ onNavigate }) {
 
   if (resultado?.estado === 'confirmar_email') {
     return (
-      <section aria-labelledby="titulo-registro" style={contenedor}>
+      <section className="tienda-auth-card" aria-labelledby="titulo-registro" style={contenedor}>
         <h1 id="titulo-registro">Revisá tu correo</h1>
         <Feedback tone="success">
           Si el email no estaba registrado, te enviamos un enlace para confirmar tu cuenta.
@@ -79,7 +79,7 @@ export default function RegistroPage({ onNavigate }) {
 
   if (resultado?.estado === 'registrado' || cliente) {
     return (
-      <section aria-labelledby="titulo-registro" style={contenedor}>
+      <section className="tienda-auth-card" aria-labelledby="titulo-registro" style={contenedor}>
         <h1 id="titulo-registro">¡Listo!</h1>
         <Feedback tone="success">Tu cuenta ya está activa.</Feedback>
         <Button type="button" onClick={() => onNavigate?.('catalogo')}>Ir al catálogo</Button>
@@ -89,7 +89,7 @@ export default function RegistroPage({ onNavigate }) {
 
   const esCuit = form.tipo_documento === 'CUIT'
   return (
-    <section aria-labelledby="titulo-registro" style={contenedor}>
+    <section className="tienda-auth-card" aria-labelledby="titulo-registro" style={contenedor}>
       <h1 id="titulo-registro"><UserPlus size={26} aria-hidden="true" /> Registrarme</h1>
       <p>Creá tu cuenta para guardar tus datos de entrega y ver tus compras.</p>
       {error && <Feedback tone="error">{error}</Feedback>}

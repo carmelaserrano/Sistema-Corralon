@@ -53,14 +53,14 @@ export default function ProductoDetallePage({ productoId, onVolver }) {
   }
 
   return (
-    <section aria-busy={cargando} style={{ maxWidth: 1000, margin: '24px auto', padding: '0 16px' }}>
+    <section className="tienda-detalle" aria-busy={cargando} style={{ maxWidth: 1000, margin: '24px auto', padding: '0 16px' }}>
       <Button type="button" variant="ghost" icon={ArrowLeft} onClick={onVolver}>Volver al catálogo</Button>
 
       {cargando && <Feedback>Cargando producto…</Feedback>}
       {error && <Feedback tone="error">{error}</Feedback>}
 
       {producto && (
-        <article aria-labelledby="titulo-producto" style={{ display: 'grid', gap: 24, gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', marginTop: 16 }}>
+        <article className="tienda-producto-detalle" aria-labelledby="titulo-producto" style={{ display: 'grid', gap: 24, gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', marginTop: 16 }}>
           <ImagenProducto url={producto.imagen_url} nombre={producto.nombre} alto={360} />
           <div style={{ display: 'grid', gap: 12, alignContent: 'start' }}>
             <h1 id="titulo-producto" style={{ margin: 0 }}>{producto.nombre}</h1>

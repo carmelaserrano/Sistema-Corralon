@@ -103,11 +103,11 @@ export default function CatalogoPage({ onVerProducto }) {
   const hayFiltros = Boolean(busqueda || categoriaId || marcaId)
 
   return (
-    <section aria-labelledby="titulo-catalogo" aria-busy={cargando} style={{ maxWidth: 1200, margin: '24px auto', padding: '0 16px' }}>
+    <section className="tienda-catalogo" aria-labelledby="titulo-catalogo" aria-busy={cargando} style={{ maxWidth: 1200, margin: '24px auto', padding: '0 16px' }}>
       <h1 id="titulo-catalogo"><Store size={26} aria-hidden="true" /> Catálogo</h1>
       <p>Buscá, filtrá y elegí los productos que necesitás.</p>
 
-      <div role="search" style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end', margin: '16px 0' }}>
+      <div className="tienda-busqueda" role="search" style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end', margin: '16px 0' }}>
         <label style={{ display: 'grid', gap: 4, flex: '2 1 240px' }}>
           Buscar
           <span style={{ position: 'relative' }}>
@@ -157,10 +157,10 @@ export default function CatalogoPage({ onVerProducto }) {
       {resultado.items.length > 0 && (
         <>
           <p aria-live="polite">{resultado.total} {resultado.total === 1 ? 'producto' : 'productos'}</p>
-          <ul style={{ listStyle: 'none', padding: 0, display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', opacity: cargando ? 0.6 : 1 }}>
+          <ul className="tienda-productos" style={{ listStyle: 'none', padding: 0, display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', opacity: cargando ? 0.6 : 1 }}>
             {resultado.items.map((producto) => (
               <li key={producto.id}>
-                <article style={{ display: 'grid', gap: 8, height: '100%', padding: 12, background: 'var(--surface-panel)', border: '1px solid var(--border-default)', borderRadius: 12 }}>
+                <article className="tienda-producto" style={{ display: 'grid', gap: 8, height: '100%', padding: 12, background: 'var(--surface-panel)', border: '1px solid var(--border-default)', borderRadius: 12 }}>
                   <ImagenProducto url={producto.imagen_url} nombre={producto.nombre} />
                   <h2 style={{ fontSize: 16, margin: 0 }}>{producto.nombre}</h2>
                   {producto.marca_nombre && <small>{producto.marca_nombre}</small>}

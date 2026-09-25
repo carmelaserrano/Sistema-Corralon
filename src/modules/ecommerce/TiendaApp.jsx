@@ -13,6 +13,7 @@ import IngresarPage from './pages/IngresarPage'
 import MisDatosPage from './pages/MisDatosPage'
 import MisPedidosPage from './pages/MisPedidosPage'
 import { iniciarPago } from './api/checkoutApi'
+import './tienda.css'
 
 const RUTAS = [
   { id: 'catalogo', label: 'Catálogo' },
