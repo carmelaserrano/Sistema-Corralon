@@ -140,6 +140,22 @@ function CarritoSesion({ children, clienteId, esperandoSesion, visitante }) {
     })
   }
 
+  function agregarVarios(nuevosItems) {
+    return modificar((prev) => {
+      let resultado = [...prev]
+      for (const { productoId, cantidad } of nuevosItems) {
+        if (typeof cantidad !== 'number' || !Number.isFinite(cantidad) || cantidad <= 0) continue
+        const idx = resultado.findIndex((item) => item.productoId === productoId)
+        if (idx >= 0) {
+          resultado[idx] = { ...resultado[idx], cantidad: resultado[idx].cantidad + cantidad }
+        } else {
+          resultado.push({ productoId, cantidad })
+        }
+      }
+      return resultado
+    })
+  }
+
   function actualizar(productoId, cantidad) {
     return modificar((prev) => {
       if (typeof cantidad !== 'number' || !Number.isFinite(cantidad) || cantidad < 0) {
@@ -161,7 +177,7 @@ function CarritoSesion({ children, clienteId, esperandoSesion, visitante }) {
   const cantidadTotal = items.reduce((sum, item) => sum + item.cantidad, 0)
   const total = Math.round(items.reduce((sum, item) => sum + item.subtotal, 0) * 100) / 100
   return (
-    <CarritoContext.Provider value={{ items, cantidadTotal, total, agregar, actualizar, quitar, vaciar }}>
+    <CarritoContext.Provider value={{ items, cantidadTotal, total, agregar, agregarVarios, actualizar, quitar, vaciar }}>
       <EstadoCarritoContext.Provider value={{ cargando: cargando || esperandoSesion, error, aviso, recargar }}>
         {error && <Feedback tone="error">{error} <button type="button" disabled={cargando} onClick={() => recargar()}>Reintentar carga</button></Feedback>}
         {aviso && <Feedback>{aviso}</Feedback>}

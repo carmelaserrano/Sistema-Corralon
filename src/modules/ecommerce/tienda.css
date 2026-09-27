@@ -2302,3 +2302,466 @@
   }
 }
 
+/* ==========================================================================
+   13. PORTAL DEL CLIENTE: MIS PEDIDOS (CARDS COMERCIALES)
+   ========================================================================== */
+.tienda-pedidos-page {
+  max-width: 1000px;
+  margin: 32px auto;
+  padding: 0 20px 48px;
+}
+
+.tienda-pedidos-header {
+  margin-bottom: 28px;
+}
+
+.tienda-pedidos-header h1 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin: 0 0 6px 0;
+}
+
+.tienda-pedidos-header p {
+  color: var(--text-muted);
+  font-size: 14px;
+  margin: 0;
+}
+
+.tienda-pedidos-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.tienda-pedido-card {
+  background: var(--surface-panel);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg, 12px);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease;
+}
+
+.tienda-pedido-card:hover {
+  border-color: var(--border-strong, #ccc);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+}
+
+.tienda-pedido-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.tienda-pedido-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.tienda-pedido-num {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.tienda-pedido-fecha {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.tienda-pedido-tipo-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  background: var(--surface-subtle, #f0f0f0);
+  border: 1px solid var(--border-default);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.tienda-pedido-card-body {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 20px;
+  align-items: center;
+}
+
+.tienda-pedido-preview-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tienda-pedido-preview-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tienda-pedido-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--surface-bg, #fbfbf9);
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+.tienda-pedido-tag strong {
+  color: var(--color-brand);
+}
+
+.tienda-pedido-card-total-box {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.tienda-pedido-card-total-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.tienda-pedido-card-total {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.tienda-pedido-card-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-default);
+}
+
+/* ==========================================================================
+   14. DETALLE DE PEDIDO WEB & SEGUIMIENTO (2 COLUMNAS)
+   ========================================================================== */
+.tienda-detalle-page {
+  max-width: 1060px;
+  margin: 28px auto;
+  padding: 0 20px 48px;
+}
+
+.tienda-detalle-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.tienda-detalle-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.tienda-detalle-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 16px 20px;
+  border-radius: var(--radius-md, 8px);
+  margin-bottom: 24px;
+}
+
+.tienda-detalle-banner.is-pagado,
+.tienda-detalle-banner.is-preparacion,
+.tienda-detalle-banner.is-enviado,
+.tienda-detalle-banner.is-listo-para-retirar {
+  background: rgba(30, 144, 255, 0.08);
+  border: 1px solid rgba(30, 144, 255, 0.3);
+  color: #0b5394;
+}
+
+.tienda-detalle-banner.is-entregado {
+  background: rgba(46, 213, 115, 0.1);
+  border: 1px solid rgba(46, 213, 115, 0.35);
+  color: #1b7a43;
+}
+
+.tienda-detalle-banner.is-pendiente-de-pago {
+  background: rgba(230, 167, 0, 0.1);
+  border: 1px solid rgba(230, 167, 0, 0.35);
+  color: #8c6200;
+}
+
+.tienda-detalle-banner.is-cancelado {
+  background: rgba(255, 71, 87, 0.1);
+  border: 1px solid rgba(255, 71, 87, 0.35);
+  color: #a81c2b;
+}
+
+.tienda-detalle-banner-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.tienda-detalle-banner-info strong {
+  display: block;
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 3px;
+}
+
+.tienda-detalle-banner-info p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.tienda-detalle-grid {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 24px;
+  align-items: start;
+}
+
+.tienda-detalle-col {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.tienda-detalle-box {
+  background: var(--surface-panel);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg, 12px);
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+}
+
+.tienda-detalle-box h2,
+.tienda-detalle-box h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 16px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tienda-entrega-detalle-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.tienda-entrega-item {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  font-size: 13px;
+}
+
+.tienda-entrega-item-icon {
+  color: var(--color-brand);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.tienda-entrega-item-text strong {
+  display: block;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.tienda-entrega-item-text p {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.35;
+}
+
+.tienda-articulos-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tienda-articulo-fila {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.tienda-articulo-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tienda-articulo-nombre {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.tienda-articulo-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.tienda-articulo-subtotal {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.tienda-detalle-totales {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-default);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tienda-detalle-totales-fila {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.tienda-detalle-totales-fila.is-total {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text-primary);
+  padding-top: 8px;
+  border-top: 1px dashed var(--border-default);
+}
+
+.tienda-detalle-totales-fila.is-total strong {
+  color: var(--color-brand);
+}
+
+/* ==========================================================================
+   15. MIS DATOS (PERFIL COMERCIAL)
+   ========================================================================== */
+.tienda-datos-page {
+  max-width: 900px;
+  margin: 32px auto;
+  padding: 0 20px 48px;
+}
+
+.tienda-datos-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.tienda-datos-header h1 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.tienda-datos-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.tienda-datos-card {
+  background: var(--surface-panel);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg, 12px);
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+}
+
+.tienda-datos-card h2 {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 16px 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tienda-datos-dl {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  row-gap: 10px;
+  column-gap: 16px;
+  font-size: 14px;
+  margin: 0 0 12px 0;
+}
+
+.tienda-datos-dl dt {
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.tienda-datos-dl dd {
+  margin: 0;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+@media (max-width: 900px) {
+  .tienda-detalle-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .tienda-pedido-card-body {
+    grid-template-columns: 1fr;
+  }
+
+  .tienda-pedido-card-total-box {
+    text-align: left;
+    align-items: flex-start;
+  }
+
+  .tienda-datos-dl {
+    grid-template-columns: 1fr;
+    row-gap: 4px;
+  }
+
+  .tienda-datos-dl dt {
+    margin-top: 8px;
+  }
+}
+
+

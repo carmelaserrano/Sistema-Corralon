@@ -188,6 +188,7 @@ function TiendaRoutes({
   onResultadoPago,
   onReintentarPago,
   onNotificar,
+  onAbrirCarrito,
 }) {
   if (pagina === 'catalogo') {
     return <CatalogoPage onVerProducto={onVerProducto} onNotificar={onNotificar} />
@@ -237,7 +238,16 @@ function TiendaRoutes({
   if (pagina === 'registrarme') return <RegistroPage onNavigate={onNavigate} />
   if (pagina === 'ingresar') return <IngresarPage onNavigate={onNavigate} />
   if (pagina === 'mis-datos') return <MisDatosPage onNavigate={onNavigate} />
-  if (pagina === 'mis-pedidos') return <MisPedidosPage />
+  if (pagina === 'mis-pedidos') {
+    return (
+      <MisPedidosPage
+        onNavigate={onNavigate}
+        onVerProducto={onVerProducto}
+        onNotificar={onNotificar}
+        onAbrirCarrito={onAbrirCarrito}
+      />
+    )
+  }
   return <CatalogoPage onVerProducto={onVerProducto} onNotificar={onNotificar} />
 }
 
@@ -333,6 +343,7 @@ function TiendaShell() {
             onResultadoPago={mostrarResultado}
             onReintentarPago={reintentarPago}
             onNotificar={notificar}
+            onAbrirCarrito={() => setDrawerAbierto(true)}
           />
         </main>
         <TiendaFooter onNavigate={navegar} />
