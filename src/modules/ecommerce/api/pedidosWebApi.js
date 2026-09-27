@@ -137,7 +137,10 @@ export async function obtenerSeguimientoPedido(pedidoId) {
   if (!pedidoId) return null
   const { data: pedido, error } = await supabase
     .from('pedidos_web')
-    .select(COLUMNAS_PEDIDO)
+    .select(`
+      ${COLUMNAS_PEDIDO},
+      domicilio:domicilios_cliente(id, alias, calle, numero, localidad, provincia, codigo_postal, referencias)
+    `)
     .eq('id', pedidoId)
     .maybeSingle()
   if (error) throw error

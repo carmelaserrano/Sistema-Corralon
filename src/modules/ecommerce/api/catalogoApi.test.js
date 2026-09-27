@@ -24,6 +24,8 @@ function crearQueryBuilder(resultado) {
     update: vi.fn(() => builder),
     eq: vi.fn(() => builder),
     gt: vi.fn(() => builder),
+    gte: vi.fn(() => builder),
+    lte: vi.fn(() => builder),
     in: vi.fn(() => builder),
     or: vi.fn(() => builder),
     ilike: vi.fn(() => builder),
@@ -113,6 +115,17 @@ describe('listarCatalogo', () => {
 
     expect(builder.eq).toHaveBeenCalledWith('categoria_id', 'c1')
     expect(builder.eq).toHaveBeenCalledWith('marca_id', 'm2')
+  })
+
+  it('filtra por disponibilidad y rango de precios', async () => {
+    const builder = crearQueryBuilder({ data: [], error: null, count: 0 })
+    supabase.from.mockReturnValue(builder)
+
+    await listarCatalogo({ soloDisponibles: true, precioMin: 1000, precioMax: 5000 })
+
+    expect(builder.eq).toHaveBeenCalledWith('disponible', true)
+    expect(builder.gte).toHaveBeenCalledWith('precio', 1000)
+    expect(builder.lte).toHaveBeenCalledWith('precio', 5000)
   })
 
   it.each([
