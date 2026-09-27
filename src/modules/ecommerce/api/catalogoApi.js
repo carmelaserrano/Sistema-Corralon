@@ -84,6 +84,9 @@ export async function listarCatalogo({
   orden = 'nombre',
   direccion = 'asc',
   pagina = 1,
+  soloDisponibles = false,
+  precioMin,
+  precioMax,
 } = {}) {
   if (!ORDENES.includes(orden)) throw errorDeApi('El orden elegido no es válido', 400)
   if (!DIRECCIONES.includes(direccion)) throw errorDeApi('La dirección de orden no es válida', 400)
@@ -98,6 +101,9 @@ export async function listarCatalogo({
   if (texto) consulta = consulta.ilike('nombre', `%${escaparLike(texto)}%`)
   if (categoriaId) consulta = consulta.eq('categoria_id', categoriaId)
   if (marcaId) consulta = consulta.eq('marca_id', marcaId)
+  if (soloDisponibles) consulta = consulta.eq('disponible', true)
+  if (precioMin && Number(precioMin) > 0) consulta = consulta.gte('precio', Number(precioMin))
+  if (precioMax && Number(precioMax) > 0) consulta = consulta.lte('precio', Number(precioMax))
 
   // El id desempata para que el paginado sea estable entre páginas.
   const { data, error, count } = await consulta

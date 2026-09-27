@@ -289,126 +289,539 @@
 }
 
 /* --------------------------------------------------------------------------
-   3. CONTENIDO PRINCIPAL & SECCIÓN CATÁLOGO
+   3. HERO BANNER COMERCIAL & CATEGORÍAS RÁPIDAS
+   -------------------------------------------------------------------------- */
+.tienda-hero {
+  background: linear-gradient(145deg, #191816 0%, #292621 100%);
+  color: #fff;
+  padding: 44px 20px 36px;
+  margin-bottom: 28px;
+  border-bottom: 1px solid rgba(230, 167, 0, 0.2);
+  box-shadow: inset 0 -10px 20px rgba(0, 0, 0, 0.2);
+}
+
+.tienda-hero-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.tienda-hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  background: rgba(230, 167, 0, 0.15);
+  color: var(--color-brand);
+  border: 1px solid rgba(230, 167, 0, 0.35);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 16px;
+}
+
+.tienda-hero-title {
+  font-size: clamp(26px, 4vw, 40px);
+  font-weight: 850;
+  line-height: 1.18;
+  letter-spacing: -0.035em;
+  max-width: 820px;
+  margin: 0 0 14px;
+  color: #fff;
+}
+
+.tienda-hero-desc {
+  font-size: clamp(14px, 1.8vw, 17px);
+  color: #c4c0b5;
+  max-width: 720px;
+  line-height: 1.6;
+  margin: 0 0 24px;
+}
+
+.tienda-hero-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.tienda-hero-pill-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #eeede9;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.tienda-hero-pill-item svg {
+  color: var(--color-brand);
+}
+
+.tienda-hero-categorias {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  width: 100%;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.tienda-hero-cat-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #a4a095;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.tienda-hero-cat-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tienda-cat-bubble {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 160ms ease;
+}
+
+.tienda-cat-bubble:hover {
+  background: rgba(230, 167, 0, 0.2);
+  border-color: var(--color-brand);
+  color: var(--color-brand);
+}
+
+.tienda-cat-bubble.is-active {
+  background: var(--color-brand);
+  border-color: var(--color-brand);
+  color: #121210;
+  font-weight: 750;
+  box-shadow: 0 2px 10px rgba(230, 167, 0, 0.4);
+}
+
+/* --------------------------------------------------------------------------
+   4. LAYOUT CATÁLOGO: SIDEBAR FACETADO + GRILLA PRINCIPAL
    -------------------------------------------------------------------------- */
 .tienda-main {
   flex: 1 0 auto;
-  padding: 28px 16px 64px;
+  padding: 0 16px 64px;
+}
+
+.tienda-catalogo-wrap {
+  width: 100%;
 }
 
 .tienda-catalogo {
-  max-width: 1200px;
+  max-width: 1240px;
   margin: 0 auto;
 }
 
-.tienda-catalogo-header {
-  margin-bottom: 24px;
+.tienda-catalogo-layout {
+  display: grid;
+  grid-template-columns: 270px 1fr;
+  gap: 28px;
+  align-items: start;
 }
 
-.tienda-catalogo-header h1 {
+/* Sidebar de Filtros */
+.tienda-sidebar-filtros {
+  background: var(--surface-panel);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  box-shadow: var(--shadow-1);
+  position: sticky;
+  top: 90px;
+}
+
+.tienda-sidebar-header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin: 0 0 8px;
-  font-size: clamp(24px, 3.5vw, 32px);
-  font-weight: 800;
-  color: var(--text-primary);
-  letter-spacing: -0.03em;
+  justify-content: space-between;
+  padding-bottom: 14px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border-default);
 }
 
-.tienda-catalogo-header h1 svg {
+.tienda-sidebar-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tienda-sidebar-title h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.tienda-sidebar-title svg {
   color: var(--color-brand-hover);
 }
 
-.tienda-catalogo-sub {
-  margin: 0;
+.tienda-btn-limpiar-filtros {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: transparent;
+  border: none;
+  color: var(--color-danger);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+}
+
+.tienda-btn-limpiar-filtros:hover {
+  background: var(--color-danger-soft);
+}
+
+.tienda-sidebar-close-mobile {
+  display: none;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+}
+
+.tienda-filtro-seccion {
+  padding-bottom: 18px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.tienda-filtro-seccion:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.tienda-filtro-seccion h4 {
+  font-size: 13px;
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   color: var(--text-secondary);
-  font-size: 15px;
+  margin: 0 0 12px;
 }
 
-/* Barra de Búsqueda y Filtros */
-.tienda-busqueda {
+.tienda-checkbox-label {
   display: flex;
-  flex-wrap: wrap;
-  gap: 14px;
-  align-items: flex-end;
-  padding: 18px 20px;
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-lg);
-  background: var(--surface-panel);
-  box-shadow: var(--shadow-1);
-  margin-bottom: 20px;
-}
-
-.tienda-filtro-campo {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  flex: 1 1 180px;
+  align-items: center;
+  gap: 10px;
   font-size: 13px;
   font-weight: 600;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.tienda-checkbox-label input[type="checkbox"] {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--color-brand-hover);
+  cursor: pointer;
+}
+
+.tienda-filtro-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.tienda-filtro-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  text-align: left;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: 1px solid transparent;
+  font-size: 13px;
+  font-weight: 500;
   color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 140ms ease;
 }
 
-.tienda-filtro-buscar {
-  flex: 2 1 260px;
+.tienda-filtro-item:hover {
+  background: var(--surface-subtle);
+  color: var(--text-primary);
 }
 
-.tienda-input-icon-wrap {
+.tienda-filtro-item.is-active {
+  background: var(--color-brand-soft);
+  color: var(--color-brand-hover);
+  font-weight: 750;
+  border-color: rgba(230, 167, 0, 0.4);
+}
+
+/* Formulario de Rango de Precio */
+.tienda-precio-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tienda-precio-inputs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tienda-precio-inputs input {
+  width: 100%;
+  height: 36px;
+  padding: 0 8px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  background: var(--surface-panel);
+}
+
+.tienda-precio-inputs span {
+  color: var(--text-muted);
+}
+
+.tienda-btn-aplicar-precio {
+  width: 100%;
+  height: 34px;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 140ms ease;
+}
+
+.tienda-btn-aplicar-precio:hover {
+  background: var(--color-brand);
+  border-color: var(--color-brand);
+  color: #121210;
+}
+
+/* --------------------------------------------------------------------------
+   5. TOOLBAR, BÚSQUEDA Y CHIPS ACTIVOS
+   -------------------------------------------------------------------------- */
+.tienda-catalogo-principal {
+  min-width: 0;
+}
+
+.tienda-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: var(--surface-panel);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: 12px 18px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-1);
+}
+
+.tienda-toolbar-search {
   position: relative;
+  flex: 1 1 300px;
   display: flex;
   align-items: center;
 }
 
-.tienda-input-icon {
+.tienda-search-icon {
   position: absolute;
   left: 12px;
   color: var(--text-muted);
   pointer-events: none;
 }
 
-.tienda-busqueda input,
-.tienda-busqueda select {
+.tienda-toolbar-search input {
   width: 100%;
-  height: 40px;
-  padding: 0 12px;
+  height: 42px;
+  padding: 0 36px 0 38px;
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
-  background: var(--surface-panel);
+  background: var(--surface-canvas);
   color: var(--text-primary);
   font-size: 14px;
-  transition: border-color 150ms ease, box-shadow 150ms ease;
+  transition: all 160ms ease;
 }
 
-.tienda-busqueda input[type="search"] {
-  padding-left: 36px;
-}
-
-.tienda-busqueda input:focus,
-.tienda-busqueda select:focus {
+.tienda-toolbar-search input:focus {
+  background: #fff;
   border-color: var(--color-brand);
   box-shadow: 0 0 0 3px rgba(230, 167, 0, 0.2);
 }
 
-.tienda-catalogo-meta {
+.tienda-search-clear {
+  position: absolute;
+  right: 10px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
+  padding: 4px;
 }
 
-.tienda-total-contador {
-  margin: 0;
-  font-size: 14px;
-  color: var(--text-secondary);
-}
-
-.tienda-total-contador strong {
+.tienda-search-clear:hover {
   color: var(--text-primary);
 }
 
+.tienda-toolbar-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tienda-btn-mobile-filtros {
+  display: none;
+  align-items: center;
+  gap: 7px;
+  height: 42px;
+  padding: 0 14px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--surface-canvas);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.tienda-filtros-badge {
+  background: var(--color-brand);
+  color: #121210;
+  font-size: 11px;
+  font-weight: 800;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tienda-orden-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.tienda-orden-wrap label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.tienda-orden-wrap select {
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--surface-canvas);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Chips de Filtros Activos */
+.tienda-filtros-activos {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  background: var(--surface-panel);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+.tienda-filtros-activos-label {
+  font-size: 12px;
+  font-weight: 750;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.tienda-filtro-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border-default);
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+.tienda-filtro-pill strong {
+  color: var(--color-brand-hover);
+}
+
+.tienda-filtro-pill button {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+}
+
+.tienda-filtro-pill button:hover {
+  color: var(--color-danger);
+}
+
+.tienda-btn-borrar-filtros {
+  background: transparent;
+  border: none;
+  color: var(--color-danger);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-left: 4px;
+}
+
+.tienda-meta-info {
+  margin-bottom: 16px;
+}
+
+.tienda-meta-info p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
 /* --------------------------------------------------------------------------
-   4. GRILLA Y CARDS DE PRODUCTOS
+   6. GRILLA Y CARDS DE PRODUCTOS
    -------------------------------------------------------------------------- */
 .tienda-productos {
   list-style: none;
@@ -416,7 +829,7 @@
   margin: 0;
   display: grid;
   gap: 20px;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   transition: opacity 160ms ease;
 }
 
@@ -435,7 +848,7 @@
 .tienda-producto:hover {
   transform: translateY(-4px);
   border-color: var(--color-brand) !important;
-  box-shadow: 0 10px 24px -6px rgba(18, 18, 16, 0.12) !important;
+  box-shadow: 0 12px 28px -6px rgba(18, 18, 16, 0.14) !important;
 }
 
 .tienda-producto-img-wrap {
@@ -455,7 +868,7 @@
 }
 
 .tienda-producto:hover .tienda-producto-img-wrap img {
-  transform: scale(1.04);
+  transform: scale(1.05);
 }
 
 .tienda-producto-badge-pos {
@@ -602,7 +1015,7 @@
 }
 
 /* --------------------------------------------------------------------------
-   5. NOTIFICACIÓN FLOTANTE (TOAST)
+   7. NOTIFICACIÓN FLOTANTE (TOAST)
    -------------------------------------------------------------------------- */
 .tienda-toast {
   position: fixed;
@@ -703,7 +1116,7 @@
 }
 
 /* --------------------------------------------------------------------------
-   6. FOOTER COMERCIAL
+   8. FOOTER COMERCIAL
    -------------------------------------------------------------------------- */
 .tienda-footer {
   margin-top: auto;
@@ -850,7 +1263,7 @@
 }
 
 /* --------------------------------------------------------------------------
-   7. DETALLE, CHECKOUT, CARRITO Y AUTH (PRESERVACIÓN DE ESTILOS EXISTENTES)
+   9. DETALLE, CHECKOUT, CARRITO Y AUTH
    -------------------------------------------------------------------------- */
 .tienda-detalle .tienda-producto-detalle {
   align-items: center;
@@ -925,9 +1338,48 @@
 }
 
 /* --------------------------------------------------------------------------
-   8. RESPONSIVE DESIGN (MEDIA QUERIES)
+   10. RESPONSIVE DESIGN (MEDIA QUERIES)
    -------------------------------------------------------------------------- */
-@media (max-width: 900px) {
+@media (max-width: 960px) {
+  .tienda-catalogo-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .tienda-btn-mobile-filtros {
+    display: inline-flex;
+  }
+
+  /* Sidebar pasa a ser un Drawer deslizante */
+  .tienda-sidebar-filtros {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 300px;
+    z-index: 1050;
+    border-radius: 0;
+    overflow-y: auto;
+    transform: translateX(-100%);
+    transition: transform 250ms cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 10px 0 30px rgba(0, 0, 0, 0.3);
+  }
+
+  .tienda-sidebar-filtros.is-open {
+    transform: translateX(0);
+  }
+
+  .tienda-sidebar-close-mobile {
+    display: flex;
+  }
+
+  .tienda-drawer-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(2px);
+    z-index: 1040;
+  }
+
   .tienda-footer-main {
     grid-template-columns: 1fr 1fr;
   }
@@ -958,6 +1410,15 @@
     flex-wrap: wrap;
   }
 
+  .tienda-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tienda-toolbar-controls {
+    justify-content: space-between;
+  }
+
   .tienda-footer-main {
     grid-template-columns: 1fr;
   }
@@ -980,10 +1441,6 @@
     flex: 0 0 auto;
   }
 
-  .tienda-busqueda {
-    padding: 14px;
-  }
-
   .tienda-toast {
     left: 16px;
     right: 16px;
@@ -995,11 +1452,16 @@
   .tienda-toast-actions {
     justify-content: flex-end;
   }
+
+  .tienda-productos {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .tienda-producto,
-  .tienda-toast {
+  .tienda-toast,
+  .tienda-sidebar-filtros {
     transition: none;
     animation: none;
   }
