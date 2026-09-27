@@ -24,6 +24,7 @@ import MisDatosPage from './pages/MisDatosPage'
 import MisPedidosPage from './pages/MisPedidosPage'
 import TiendaFooter from './components/TiendaFooter'
 import TiendaToast from './components/TiendaToast'
+import TiendaCartDrawer from './components/TiendaCartDrawer'
 import { iniciarPago } from './api/checkoutApi'
 import './tienda.css'
 
@@ -33,7 +34,7 @@ const monedaHeader = new Intl.NumberFormat('es-AR', {
   maximumFractionDigits: 0,
 })
 
-function TiendaHeader({ pagina, onNavigate }) {
+function TiendaHeader({ pagina, onNavigate, onAbrirCarrito }) {
   const { cantidadTotal, total } = useCarrito()
   const { cliente, salir } = useClienteWeb()
 
@@ -150,7 +151,13 @@ function TiendaHeader({ pagina, onNavigate }) {
           <button
             type="button"
             className={`tienda-cart-btn ${pagina === 'carrito' ? 'is-active' : ''}`}
-            onClick={() => onNavigate('carrito')}
+            onClick={() => {
+              if (pagina === 'checkout') {
+                onNavigate('carrito')
+              } else {
+                onAbrirCarrito?.()
+              }
+            }}
             aria-label={`Carrito de compras, ${cantidadTotal} productos`}
           >
             <div className="tienda-cart-icon-wrap">
@@ -248,6 +255,7 @@ function TiendaShell() {
   const [volverAlCarrito, setVolverAlCarrito] = useState(false)
   const [productoId, setProductoId] = useState(null)
   const [toast, setToast] = useState(null)
+  const [drawerAbierto, setDrawerAbierto] = useState(false)
   const { cliente } = useClienteWeb()
 
   useEffect(() => {
@@ -308,7 +316,11 @@ function TiendaShell() {
   return (
     <CarritoProvider>
       <div className="tienda-app">
-        <TiendaHeader pagina={pagina} onNavigate={navegar} />
+        <TiendaHeader
+          pagina={pagina}
+          onNavigate={navegar}
+          onAbrirCarrito={() => setDrawerAbierto(true)}
+        />
         <main className="tienda-main">
           <TiendaRoutes
             pagina={pagina}
@@ -325,13 +337,22 @@ function TiendaShell() {
         </main>
         <TiendaFooter onNavigate={navegar} />
 
+        {/* Slide-over Mini-Carrito Drawer */}
+        <TiendaCartDrawer
+          abierto={drawerAbierto}
+          onCerrar={() => setDrawerAbierto(false)}
+          onIrCheckout={() => navegar('checkout')}
+          onIrCarritoCompleto={() => navegar('carrito')}
+        />
+
+        {/* Notificación Toast */}
         {toast && (
           <TiendaToast
             mensaje={toast.mensaje}
             productoNombre={toast.productoNombre}
             onVerCarrito={() => {
               setToast(null)
-              navegar('carrito')
+              setDrawerAbierto(true)
             }}
             onCerrar={() => setToast(null)}
           />
