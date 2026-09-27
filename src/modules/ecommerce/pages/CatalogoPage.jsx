@@ -1,6 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronLeft, ChevronRight, ImageOff, Search, Store } from 'lucide-react'
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  ImageOff,
+  Search,
+  ShoppingCart,
+  Store,
+} from 'lucide-react'
 import { listarCatalogo, listarFiltrosCatalogo, POR_PAGINA } from '../api/catalogoApi'
+import { useCarrito } from '../context/CarritoContext'
 import Button from '../../../components/ui/Button'
 import EmptyState from '../../../components/ui/EmptyState'
 import Feedback from '../../../components/ui/Feedback'
@@ -31,13 +41,15 @@ export function ImagenProducto({ url, nombre, alto = 180 }) {
 
 export function EtiquetaDisponibilidad({ disponible }) {
   return (
-    <span style={{ fontWeight: 600, color: disponible ? 'var(--color-success)' : 'var(--color-danger)' }}>
-      {disponible ? 'Disponible' : 'Sin stock'}
+    <span className={`tienda-badge-stock ${disponible ? 'is-available' : 'is-empty'}`}>
+      <span className="tienda-badge-dot" />
+      {disponible ? 'En stock' : 'Sin stock'}
     </span>
   )
 }
 
-export default function CatalogoPage({ onVerProducto }) {
+export default function CatalogoPage({ onVerProducto, onNotificar }) {
+  const { agregar } = useCarrito()
   const [texto, setTexto] = useState('')
   const [busqueda, setBusqueda] = useState('')
   const [categoriaId, setCategoriaId] = useState('')
@@ -49,6 +61,8 @@ export default function CatalogoPage({ onVerProducto }) {
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
   const [reintento, setReintento] = useState(0)
+  const [agregandoId, setAgregandoId] = useState(null)
+  const [agregadoExitoId, setAgregadoExitoId] = useState(null)
   const ultimaConsulta = useRef(0)
 
   useEffect(() => {
@@ -99,41 +113,80 @@ export default function CatalogoPage({ onVerProducto }) {
     setPagina(1)
   }
 
+  async function agregarRapido(e, producto) {
+    e.stopPropagation()
+    if (!producto.disponible || agregandoId) return
+    setAgregandoId(producto.id)
+    try {
+      await agregar(producto.id, 1)
+      setAgregadoExitoId(producto.id)
+      onNotificar?.({
+        mensaje: 'Producto agregado al carrito',
+        productoNombre: producto.nombre,
+      })
+      setTimeout(() => {
+        setAgregadoExitoId(null)
+      }, 1800)
+    } catch (err) {
+      console.error('Error al agregar al carrito:', err)
+    } finally {
+      setAgregandoId(null)
+    }
+  }
+
   const totalPaginas = Math.max(1, Math.ceil(resultado.total / POR_PAGINA))
   const hayFiltros = Boolean(busqueda || categoriaId || marcaId)
 
   return (
-    <section className="tienda-catalogo" aria-labelledby="titulo-catalogo" aria-busy={cargando} style={{ maxWidth: 1200, margin: '24px auto', padding: '0 16px' }}>
-      <h1 id="titulo-catalogo"><Store size={26} aria-hidden="true" /> Catálogo</h1>
-      <p>Buscá, filtrá y elegí los productos que necesitás.</p>
+    <section className="tienda-catalogo" aria-labelledby="titulo-catalogo" aria-busy={cargando}>
+      <header className="tienda-catalogo-header">
+        <div>
+          <h1 id="titulo-catalogo">
+            <Store size={26} aria-hidden="true" /> Catálogo de Materiales
+          </h1>
+          <p className="tienda-catalogo-sub">
+            Encontrá todo lo necesario para tu obra con stock garantizado en depósito central.
+          </p>
+        </div>
+      </header>
 
-      <div className="tienda-busqueda" role="search" style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end', margin: '16px 0' }}>
-        <label style={{ display: 'grid', gap: 4, flex: '2 1 240px' }}>
-          Buscar
-          <span style={{ position: 'relative' }}>
-            <Search size={16} aria-hidden="true" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }} />
-            <input type="search" value={texto} placeholder="Nombre del producto" style={{ width: '100%', paddingLeft: 32 }}
-              onChange={(event) => setTexto(event.target.value)} />
+      <div className="tienda-busqueda" role="search">
+        <label className="tienda-filtro-campo tienda-filtro-buscar">
+          <span>Buscar material</span>
+          <span className="tienda-input-icon-wrap">
+            <Search size={16} aria-hidden="true" className="tienda-input-icon" />
+            <input
+              type="search"
+              value={texto}
+              placeholder="Ej: cemento, arena, hierro..."
+              onChange={(event) => setTexto(event.target.value)}
+            />
           </span>
         </label>
-        <label style={{ display: 'grid', gap: 4, flex: '1 1 160px' }}>
-          Categoría
+        <label className="tienda-filtro-campo">
+          <span>Categoría</span>
           <select value={categoriaId} onChange={cambiarFiltro(setCategoriaId)}>
-            <option value="">Todas</option>
-            {filtros.categorias.map((categoria) => <option key={categoria.id} value={categoria.id}>{categoria.nombre}</option>)}
+            <option value="">Todas las categorías</option>
+            {filtros.categorias.map((categoria) => (
+              <option key={categoria.id} value={categoria.id}>{categoria.nombre}</option>
+            ))}
           </select>
         </label>
-        <label style={{ display: 'grid', gap: 4, flex: '1 1 160px' }}>
-          Marca
+        <label className="tienda-filtro-campo">
+          <span>Marca</span>
           <select value={marcaId} onChange={cambiarFiltro(setMarcaId)}>
-            <option value="">Todas</option>
-            {filtros.marcas.map((marca) => <option key={marca.id} value={marca.id}>{marca.nombre}</option>)}
+            <option value="">Todas las marcas</option>
+            {filtros.marcas.map((marca) => (
+              <option key={marca.id} value={marca.id}>{marca.nombre}</option>
+            ))}
           </select>
         </label>
-        <label style={{ display: 'grid', gap: 4, flex: '1 1 160px' }}>
-          Ordenar por
+        <label className="tienda-filtro-campo">
+          <span>Ordenar por</span>
           <select value={orden} onChange={cambiarFiltro(setOrden)}>
-            {OPCIONES_ORDEN.map((opcion) => <option key={opcion.value} value={opcion.value}>{opcion.label}</option>)}
+            {OPCIONES_ORDEN.map((opcion) => (
+              <option key={opcion.value} value={opcion.value}>{opcion.label}</option>
+            ))}
           </select>
         </label>
       </div>
@@ -156,29 +209,119 @@ export default function CatalogoPage({ onVerProducto }) {
 
       {resultado.items.length > 0 && (
         <>
-          <p aria-live="polite">{resultado.total} {resultado.total === 1 ? 'producto' : 'productos'}</p>
-          <ul className="tienda-productos" style={{ listStyle: 'none', padding: 0, display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', opacity: cargando ? 0.6 : 1 }}>
-            {resultado.items.map((producto) => (
-              <li key={producto.id}>
-                <article className="tienda-producto" style={{ display: 'grid', gap: 8, height: '100%', padding: 12, background: 'var(--surface-panel)', border: '1px solid var(--border-default)', borderRadius: 12 }}>
-                  <ImagenProducto url={producto.imagen_url} nombre={producto.nombre} />
-                  <h2 style={{ fontSize: 16, margin: 0 }}>{producto.nombre}</h2>
-                  {producto.marca_nombre && <small>{producto.marca_nombre}</small>}
-                  <strong style={{ fontSize: 20 }}>{moneda.format(producto.precio)}</strong>
-                  <EtiquetaDisponibilidad disponible={producto.disponible} />
-                  <Button type="button" variant="ghost" aria-label={`Ver ${producto.nombre}`} onClick={() => onVerProducto?.(producto.id)}>
-                    Ver producto
-                  </Button>
-                </article>
-              </li>
-            ))}
+          <div className="tienda-catalogo-meta">
+            <p aria-live="polite" className="tienda-total-contador">
+              Mostrando <strong>{resultado.items.length}</strong> de <strong>{resultado.total}</strong> materiales disponibles
+            </p>
+          </div>
+
+          <ul className="tienda-productos" style={{ opacity: cargando ? 0.6 : 1 }}>
+            {resultado.items.map((producto) => {
+              const estaAgregando = agregandoId === producto.id
+              const exito = agregadoExitoId === producto.id
+
+              return (
+                <li key={producto.id}>
+                  <article className="tienda-producto">
+                    <div
+                      className="tienda-producto-img-wrap"
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => onVerProducto?.(producto.id)}
+                      onKeyDown={(e) => e.key === 'Enter' && onVerProducto?.(producto.id)}
+                    >
+                      <ImagenProducto url={producto.imagen_url} nombre={producto.nombre} alto={190} />
+                      <div className="tienda-producto-badge-pos">
+                        <EtiquetaDisponibilidad disponible={producto.disponible} />
+                      </div>
+                    </div>
+
+                    <div className="tienda-producto-body">
+                      <div className="tienda-producto-chips">
+                        {producto.categoria_nombre && (
+                          <span className="tienda-chip">{producto.categoria_nombre}</span>
+                        )}
+                        {producto.marca_nombre && (
+                          <span className="tienda-chip tienda-chip-marca">{producto.marca_nombre}</span>
+                        )}
+                      </div>
+
+                      <h2
+                        className="tienda-producto-titulo"
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => onVerProducto?.(producto.id)}
+                        onKeyDown={(e) => e.key === 'Enter' && onVerProducto?.(producto.id)}
+                        title={producto.nombre}
+                      >
+                        {producto.nombre}
+                      </h2>
+
+                      {producto.sku && (
+                        <span className="tienda-producto-sku">SKU: {producto.sku}</span>
+                      )}
+
+                      <div className="tienda-producto-precio-box">
+                        <strong className="tienda-producto-precio">
+                          {moneda.format(producto.precio)}
+                        </strong>
+                        {producto.unidad_medida && (
+                          <span className="tienda-producto-unidad">
+                            / {producto.unidad_medida.toLowerCase()}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="tienda-producto-footer">
+                      <Button
+                        type="button"
+                        className="tienda-btn-card-agregar"
+                        disabled={!producto.disponible || estaAgregando}
+                        loading={estaAgregando}
+                        loadingLabel="Agregando…"
+                        icon={exito ? Check : ShoppingCart}
+                        onClick={(e) => agregarRapido(e, producto)}
+                      >
+                        {exito ? '¡Agregado!' : producto.disponible ? 'Agregar' : 'Sin stock'}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="tienda-btn-card-ver"
+                        icon={Eye}
+                        aria-label={`Ver detalles de ${producto.nombre}`}
+                        onClick={() => onVerProducto?.(producto.id)}
+                      >
+                        Detalle
+                      </Button>
+                    </div>
+                  </article>
+                </li>
+              )
+            })}
           </ul>
-          <nav aria-label="Paginación" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12, marginTop: 24 }}>
-            <Button type="button" variant="ghost" icon={ChevronLeft} disabled={cargando || pagina <= 1} onClick={() => setPagina((p) => p - 1)}>
+
+          <nav aria-label="Paginación" className="tienda-paginacion">
+            <Button
+              type="button"
+              variant="ghost"
+              icon={ChevronLeft}
+              disabled={cargando || pagina <= 1}
+              onClick={() => setPagina((p) => p - 1)}
+            >
               Anterior
             </Button>
-            <span>Página {pagina} de {totalPaginas}</span>
-            <Button type="button" variant="ghost" icon={ChevronRight} disabled={cargando || pagina >= totalPaginas} onClick={() => setPagina((p) => p + 1)}>
+            <span className="tienda-paginacion-info">
+              Página {pagina} de {totalPaginas}
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              icon={ChevronRight}
+              disabled={cargando || pagina >= totalPaginas}
+              onClick={() => setPagina((p) => p + 1)}
+            >
               Siguiente
             </Button>
           </nav>

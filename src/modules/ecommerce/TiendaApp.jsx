@@ -1,5 +1,15 @@
 import { useEffect, useState } from 'react'
-import { ShoppingCart, Store } from 'lucide-react'
+import {
+  Building2,
+  Clock,
+  LogOut,
+  Package,
+  Phone,
+  ShoppingCart,
+  Store,
+  Truck,
+  User,
+} from 'lucide-react'
 import { CarritoProvider, useCarrito } from './context/CarritoContext'
 import { ClienteWebProvider, useClienteWeb } from './context/ClienteWebContext'
 import CatalogoPage from './pages/CatalogoPage'
@@ -12,82 +22,236 @@ import RegistroPage from './pages/RegistroPage'
 import IngresarPage from './pages/IngresarPage'
 import MisDatosPage from './pages/MisDatosPage'
 import MisPedidosPage from './pages/MisPedidosPage'
+import TiendaFooter from './components/TiendaFooter'
+import TiendaToast from './components/TiendaToast'
 import { iniciarPago } from './api/checkoutApi'
 import './tienda.css'
 
-const RUTAS = [
-  { id: 'catalogo', label: 'Catálogo' },
-  { id: 'carrito', label: 'Carrito' },
-  { id: 'checkout', label: 'Checkout' },
-  { id: 'ingresar', label: 'Ingresar / Registrarme' },
-  { id: 'mis-pedidos', label: 'Mis pedidos' },
-  { id: 'mis-datos', label: 'Mis datos' },
-]
+const monedaHeader = new Intl.NumberFormat('es-AR', {
+  style: 'currency',
+  currency: 'ARS',
+  maximumFractionDigits: 0,
+})
 
 function TiendaHeader({ pagina, onNavigate }) {
-  const { cantidadTotal } = useCarrito()
-  const { cliente } = useClienteWeb()
+  const { cantidadTotal, total } = useCarrito()
+  const { cliente, salir } = useClienteWeb()
 
   return (
-    <header className="tienda-header">
-      <div className="tienda-brand">
-        <Store size={20} aria-hidden="true" />
-        <strong>Corralón — Tienda online</strong>
+    <header className="tienda-header-container">
+      {/* Top bar de servicios y atención */}
+      <div className="tienda-topbar">
+        <div className="tienda-topbar-inner">
+          <div className="tienda-topbar-left">
+            <span className="tienda-topbar-item">
+              <Truck size={14} aria-hidden="true" />
+              <span>Envíos a obra en 24/48hs · Retiro en corralón sin cargo</span>
+            </span>
+          </div>
+          <div className="tienda-topbar-right">
+            <span className="tienda-topbar-item">
+              <Phone size={14} aria-hidden="true" />
+              <span>(387) 456-7890</span>
+            </span>
+            <span className="tienda-topbar-sep">•</span>
+            <span className="tienda-topbar-item">
+              <Clock size={14} aria-hidden="true" />
+              <span>Lun a Vie 8-18 · Sáb 8-13</span>
+            </span>
+          </div>
+        </div>
       </div>
-      <nav className="tienda-nav">
-        {RUTAS.map((ruta) => {
-          if (ruta.id === 'ingresar' && cliente) return null
-          if ((ruta.id === 'mis-pedidos' || ruta.id === 'mis-datos') && !cliente) return null
-          return (
+
+      {/* Header Principal */}
+      <div className="tienda-header-main">
+        <div
+          className="tienda-brand"
+          role="button"
+          tabIndex={0}
+          onClick={() => onNavigate('catalogo')}
+          onKeyDown={(e) => e.key === 'Enter' && onNavigate('catalogo')}
+        >
+          <div className="tienda-brand-logo">
+            <Building2 size={24} aria-hidden="true" />
+          </div>
+          <div className="tienda-brand-text">
+            <strong>Corralón del Sur</strong>
+            <span className="tienda-brand-sub">Tienda de Materiales</span>
+          </div>
+        </div>
+
+        <nav className="tienda-nav" aria-label="Navegación de la tienda">
+          <button
+            type="button"
+            className={`tienda-nav-link ${pagina === 'catalogo' ? 'is-active' : ''}`}
+            onClick={() => onNavigate('catalogo')}
+          >
+            <Store size={16} aria-hidden="true" />
+            <span>Catálogo</span>
+          </button>
+
+          {cliente ? (
+            <div className="tienda-user-group">
+              <button
+                type="button"
+                className={`tienda-nav-link ${pagina === 'mis-pedidos' ? 'is-active' : ''}`}
+                onClick={() => onNavigate('mis-pedidos')}
+              >
+                <Package size={16} aria-hidden="true" />
+                <span>Mis Pedidos</span>
+              </button>
+
+              <button
+                type="button"
+                className={`tienda-nav-link ${pagina === 'mis-datos' ? 'is-active' : ''}`}
+                onClick={() => onNavigate('mis-datos')}
+              >
+                <User size={16} aria-hidden="true" />
+                <span>Mis Datos</span>
+              </button>
+
+              <div className="tienda-user-badge">
+                <span className="tienda-user-avatar">
+                  {(cliente.nombre?.[0] || cliente.razon_social?.[0] || 'C').toUpperCase()}
+                </span>
+                <span className="tienda-user-name" title={cliente.nombre || cliente.razon_social}>
+                  {cliente.nombre
+                    ? `${cliente.nombre} ${cliente.apellido || ''}`.trim()
+                    : cliente.razon_social}
+                </span>
+              </div>
+
+              <button
+                type="button"
+                className="tienda-nav-btn-logout"
+                title="Cerrar sesión"
+                onClick={async () => {
+                  await salir()
+                  onNavigate('catalogo')
+                }}
+              >
+                <LogOut size={16} aria-hidden="true" />
+                <span>Salir</span>
+              </button>
+            </div>
+          ) : (
             <button
-              key={ruta.id}
               type="button"
-              className={pagina === ruta.id ? 'is-active' : ''}
-              onClick={() => onNavigate(ruta.id)}
+              className={`tienda-nav-link tienda-nav-btn-login ${
+                pagina === 'ingresar' || pagina === 'registrarme' ? 'is-active' : ''
+              }`}
+              onClick={() => onNavigate('ingresar')}
             >
-              {ruta.id === 'carrito' && <ShoppingCart size={16} aria-hidden="true" />}
-              {ruta.label}
-              {ruta.id === 'carrito' && cantidadTotal > 0 && (
-                <span className="tienda-cart-badge">{cantidadTotal}</span>
-              )}
+              <User size={16} aria-hidden="true" />
+              <span>Ingresar / Registrarme</span>
             </button>
-          )
-        })}
-        {cliente && (
-          <span className="tienda-cliente">Hola, {cliente.nombre || cliente.razon_social}</span>
-        )}
-      </nav>
+          )}
+
+          <button
+            type="button"
+            className={`tienda-cart-btn ${pagina === 'carrito' ? 'is-active' : ''}`}
+            onClick={() => onNavigate('carrito')}
+            aria-label={`Carrito de compras, ${cantidadTotal} productos`}
+          >
+            <div className="tienda-cart-icon-wrap">
+              <ShoppingCart size={18} aria-hidden="true" />
+              {cantidadTotal > 0 && <span className="tienda-cart-badge">{cantidadTotal}</span>}
+            </div>
+            <div className="tienda-cart-info">
+              <span className="tienda-cart-label">Carrito</span>
+              {cantidadTotal > 0 && (
+                <span className="tienda-cart-total">{monedaHeader.format(total)}</span>
+              )}
+            </div>
+          </button>
+        </nav>
+      </div>
     </header>
   )
 }
 
-function TiendaRoutes({ pagina, productoId, onNavigate, onVerProducto, onIngresarDesdeCarrito, pago, onPasarelaSimulada, onResultadoPago, onReintentarPago }) {
-  if (pagina === 'catalogo') return <CatalogoPage onVerProducto={onVerProducto} />
-  if (pagina === 'producto') return <ProductoDetallePage productoId={productoId} onVolver={() => onNavigate('catalogo')} />
-  if (pagina === 'carrito') return <CarritoPage onFinalizar={() => onNavigate('checkout')} onIngresar={onIngresarDesdeCarrito} />
-  if (pagina === 'checkout') return <CheckoutPage onPasarelaSimulada={onPasarelaSimulada} onVolverCarrito={() => onNavigate('carrito')} />
-  if (pagina === 'pago-resultado') return <PagoResultadoPage pedidoId={pago.pedidoId} resultado={pago.resultado} onReintentar={onReintentarPago} onIrCatalogo={() => onNavigate('catalogo')} />
-  if (pagina === 'pasarela-simulada') return <PasarelaSimuladaPage pedidoId={pago.pedidoId} onResultado={onResultadoPago} />
+function TiendaRoutes({
+  pagina,
+  productoId,
+  onNavigate,
+  onVerProducto,
+  onIngresarDesdeCarrito,
+  pago,
+  onPasarelaSimulada,
+  onResultadoPago,
+  onReintentarPago,
+  onNotificar,
+}) {
+  if (pagina === 'catalogo') {
+    return <CatalogoPage onVerProducto={onVerProducto} onNotificar={onNotificar} />
+  }
+  if (pagina === 'producto') {
+    return (
+      <ProductoDetallePage
+        productoId={productoId}
+        onVolver={() => onNavigate('catalogo')}
+      />
+    )
+  }
+  if (pagina === 'carrito') {
+    return (
+      <CarritoPage
+        onFinalizar={() => onNavigate('checkout')}
+        onIngresar={onIngresarDesdeCarrito}
+      />
+    )
+  }
+  if (pagina === 'checkout') {
+    return (
+      <CheckoutPage
+        onPasarelaSimulada={onPasarelaSimulada}
+        onVolverCarrito={() => onNavigate('carrito')}
+      />
+    )
+  }
+  if (pagina === 'pago-resultado') {
+    return (
+      <PagoResultadoPage
+        pedidoId={pago.pedidoId}
+        resultado={pago.resultado}
+        onReintentar={onReintentarPago}
+        onIrCatalogo={() => onNavigate('catalogo')}
+      />
+    )
+  }
+  if (pagina === 'pasarela-simulada') {
+    return (
+      <PasarelaSimuladaPage
+        pedidoId={pago.pedidoId}
+        onResultado={onResultadoPago}
+      />
+    )
+  }
   if (pagina === 'registrarme') return <RegistroPage onNavigate={onNavigate} />
   if (pagina === 'ingresar') return <IngresarPage onNavigate={onNavigate} />
   if (pagina === 'mis-datos') return <MisDatosPage onNavigate={onNavigate} />
   if (pagina === 'mis-pedidos') return <MisPedidosPage />
-  return <CatalogoPage onVerProducto={onVerProducto} />
+  return <CatalogoPage onVerProducto={onVerProducto} onNotificar={onNotificar} />
 }
 
 function TiendaShell() {
   const parametros = new URLSearchParams(window.location.search)
   const retornoPago = parametros.get('pago')
   const pedidoRetornado = parametros.get('pedido') || parametros.get('external_reference')
-  const [pagina, setPagina] = useState(retornoPago && pedidoRetornado ? 'pago-resultado' : 'catalogo')
-  const [pago, setPago] = useState({ pedidoId: pedidoRetornado || '', resultado: retornoPago || '' })
+  const [pagina, setPagina] = useState(
+    retornoPago && pedidoRetornado ? 'pago-resultado' : 'catalogo',
+  )
+  const [pago, setPago] = useState({
+    pedidoId: pedidoRetornado || '',
+    resultado: retornoPago || '',
+  })
   const [volverAlCarrito, setVolverAlCarrito] = useState(false)
   const [productoId, setProductoId] = useState(null)
+  const [toast, setToast] = useState(null)
   const { cliente } = useClienteWeb()
 
   useEffect(() => {
     if (cliente && volverAlCarrito) {
-      // Después de fusionar, el cliente revisa cantidades y total antes de pagar.
       setPagina('carrito')
       setVolverAlCarrito(false)
     }
@@ -95,8 +259,11 @@ function TiendaShell() {
 
   function navegar(destino) {
     setVolverAlCarrito(false)
-    if (destino !== 'pago-resultado') window.history.replaceState({}, '', window.location.pathname)
+    if (destino !== 'pago-resultado') {
+      window.history.replaceState({}, '', window.location.pathname)
+    }
     setPagina(destino === 'checkout' && !cliente ? 'ingresar' : destino)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   function verProducto(id) {
@@ -117,7 +284,11 @@ function TiendaShell() {
   function mostrarResultado(pedidoId, resultado) {
     const etiqueta = resultado === 'approved' ? 'aprobado' : 'rechazado'
     setPago({ pedidoId, resultado: etiqueta })
-    window.history.replaceState({}, '', `${window.location.pathname}?pago=${etiqueta}&pedido=${pedidoId}`)
+    window.history.replaceState(
+      {},
+      '',
+      `${window.location.pathname}?pago=${etiqueta}&pedido=${pedidoId}`,
+    )
     setPagina('pago-resultado')
   }
 
@@ -128,6 +299,10 @@ function TiendaShell() {
     }
     const preferencia = await iniciarPago(pedidoId)
     window.location.assign(preferencia.init_point)
+  }
+
+  function notificar({ mensaje, productoNombre }) {
+    setToast({ mensaje, productoNombre })
   }
 
   return (
@@ -145,8 +320,22 @@ function TiendaShell() {
             onPasarelaSimulada={abrirPasarelaSimulada}
             onResultadoPago={mostrarResultado}
             onReintentarPago={reintentarPago}
+            onNotificar={notificar}
           />
         </main>
+        <TiendaFooter onNavigate={navegar} />
+
+        {toast && (
+          <TiendaToast
+            mensaje={toast.mensaje}
+            productoNombre={toast.productoNombre}
+            onVerCarrito={() => {
+              setToast(null)
+              navegar('carrito')
+            }}
+            onCerrar={() => setToast(null)}
+          />
+        )}
       </div>
     </CarritoProvider>
   )
