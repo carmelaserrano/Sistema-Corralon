@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { AlertTriangle, ClipboardList, Package, Warehouse } from 'lucide-react'
 import { getDepositos } from '../api/depositosApi'
 import {
   aprobarInventarioFisico,
@@ -9,6 +10,9 @@ import {
   aplicarAjustesInventarioFisico,
   puedeAjustarInventario,
 } from '../api/inventarioFisicoApi'
+import PageHeader from '../../../components/ui/PageHeader'
+import KpiCard from '../../../components/ui/KpiCard'
+import { useToast } from '../../../components/ui/ToastContext'
 
 function descripcionDiferencia(diferencia) {
   if (diferencia === null || diferencia === undefined) {
@@ -37,6 +41,7 @@ function nombreEstado(estado) {
 }
 
 function InventarioFisicoPage() {
+  const toast = useToast()
   const [depositos, setDepositos] = useState([])
   const [depositoId, setDepositoId] = useState('')
 
@@ -99,6 +104,7 @@ function InventarioFisicoPage() {
         setAviso(
           'Ya existía una toma abierta para este depósito. Se recuperó para continuarla.',
         )
+        toast.info('Toma de inventario abierta recuperada')
 
         return
       }
@@ -111,6 +117,7 @@ function InventarioFisicoPage() {
       setAviso(
         'Toma de inventario iniciada. El stock teórico quedó congelado.',
       )
+      toast.success('Toma de inventario iniciada')
     } catch (err) {
       setError(err.message || 'No se pudo iniciar la toma de inventario')
     } finally {
@@ -153,6 +160,7 @@ function InventarioFisicoPage() {
       setAviso(
         'Conteo registrado. Revisá las diferencias antes de enviarlo a aprobación.',
       )
+      toast.success('Conteo físico registrado')
     } catch (err) {
       setError(err.message || 'No se pudo registrar el conteo físico')
     } finally {
@@ -178,6 +186,7 @@ function InventarioFisicoPage() {
       setAviso(
         'La toma fue enviada a aprobación. Los conteos ya no pueden modificarse.',
       )
+      toast.success('Toma enviada a aprobación')
     } catch (err) {
       setError(err.message || 'No se pudo enviar la toma a aprobación')
     } finally {
@@ -203,12 +212,12 @@ function InventarioFisicoPage() {
       setAviso(
         'Inventario aprobado. El stock todavía no fue modificado; el ajuste corresponde a US-STK-12.',
       )
+      toast.success('Toma de inventario aprobada')
     } catch (err) {
       setError(err.message || 'No se pudo aprobar la toma de inventario')
     } finally {
       setLoading(false)
     }
-
   }
 
   async function aplicarAjustes() {
@@ -234,6 +243,7 @@ function InventarioFisicoPage() {
       setAviso(
         `${total} ajuste${total === 1 ? '' : 's'} aplicado${total === 1 ? '' : 's'} al stock. Quedaron registrados con usuario y fecha.`,
       )
+      toast.success(`${total} ajuste${total === 1 ? '' : 's'} aplicado${total === 1 ? '' : 's'} al stock`)
     } catch (err) {
       setError(err.message || 'No se pudieron aplicar los ajustes')
     } finally {
@@ -259,7 +269,50 @@ function InventarioFisicoPage() {
 
   return (
     <main>
-      <h1>Inventario físico y conciliación</h1>
+      <PageHeader
+        breadcrumbs={[{ label: 'Stock', to: '/#/stock' }, { label: 'Inventario Físico' }]}
+        kicker="Control y Auditoría"
+        title="Inventario físico y conciliación"
+        description="Toma física periódica, comparación con stock teórico congelado y conciliación mediante ajustes trazables."
+      />
+
+      <div className="kpi-grid">
+        <KpiCard
+          label="Depósito"
+          value={
+            inventario?.deposito?.nombre ||
+            (depositoId ? (depositos.find((d) => d.id === depositoId)?.nombre ?? 'Seleccionado') : 'Sin seleccionar')
+          }
+          icon={Warehouse}
+          tone="brand"
+          helperText={inventario ? 'Toma en curso' : 'Elegí un depósito'}
+        />
+        <KpiCard
+          label="Estado de la toma"
+          value={inventario ? nombreEstado(inventario.estado) : 'Sin toma activa'}
+          icon={ClipboardList}
+          tone={inventario?.estado === 'aprobado' ? 'success' : inventario ? 'info' : 'neutral'}
+          helperText="Ciclo de conciliación"
+        />
+        <KpiCard
+          label="Artículos a relevar"
+          value={inventario?.detalle ? inventario.detalle.length : '—'}
+          icon={Package}
+          tone="neutral"
+          helperText="Ítems en congelamiento"
+        />
+        <KpiCard
+          label="Con diferencias"
+          value={
+            inventario?.detalle
+              ? inventario.detalle.filter((i) => i.diferencia !== null && i.diferencia !== undefined && Number(i.diferencia) !== 0).length
+              : '—'
+          }
+          icon={AlertTriangle}
+          tone="warning"
+          helperText="Faltantes o sobrantes"
+        />
+      </div>
 
       <p>
         La diferencia se calcula como: cantidad contada - stock teórico.
@@ -319,7 +372,7 @@ function InventarioFisicoPage() {
             <p>
               <strong>Fecha de inicio:</strong>{' '}
               {inventario.created_at
-                ? new Date(inventario.created_at).toLocaleString()
+                 ? new Date(inventario.created_at).toLocaleString()
                 : '-'}
             </p>
           </section>
@@ -328,61 +381,65 @@ function InventarioFisicoPage() {
             <h2>Conteo físico</h2>
 
             <form onSubmit={guardarConteo}>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Artículo</th>
-                    <th>Stock teórico</th>
-                    <th>Cantidad contada</th>
-                    <th>Diferencia</th>
-                    <th>Resultado</th>
-                  </tr>
-                </thead>
+              <div className="data-table-card">
+                <div className="data-table-scroll-container">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Artículo</th>
+                        <th>Stock teórico</th>
+                        <th>Cantidad contada</th>
+                        <th>Diferencia</th>
+                        <th>Resultado</th>
+                      </tr>
+                    </thead>
 
-                <tbody>
-                  {(inventario.detalle ?? []).map((item) => (
-                    <tr key={item.id}>
-                      <td>
-                        {item.producto?.sku
-                          ? `${item.producto.sku} - ${item.producto.nombre}`
-                          : item.producto?.nombre || '-'}
-                      </td>
+                    <tbody>
+                      {(inventario.detalle ?? []).map((item) => (
+                        <tr key={item.id}>
+                          <td>
+                            {item.producto?.sku
+                              ? `${item.producto.sku} - ${item.producto.nombre}`
+                              : item.producto?.nombre || '-'}
+                          </td>
 
-                      <td>{item.stock_teorico}</td>
+                          <td>{item.stock_teorico}</td>
 
-                      <td>
-                        <input
-                          type="number"
-                          min="0"
-                          step="any"
-                          value={conteos[item.producto_id] ?? ''}
-                          onChange={(event) =>
-                            cambiarConteo(
-                              item.producto_id,
-                              event.target.value,
-                            )
-                          }
-                          disabled={inventario.estado !== 'en_carga'}
-                          required
-                        />
-                      </td>
+                          <td>
+                            <input
+                              type="number"
+                              min="0"
+                              step="any"
+                              value={conteos[item.producto_id] ?? ''}
+                              onChange={(event) =>
+                                cambiarConteo(
+                                  item.producto_id,
+                                  event.target.value,
+                                )
+                              }
+                              disabled={inventario.estado !== 'en_carga'}
+                              required
+                            />
+                          </td>
 
-                      <td>
-                        {item.diferencia === null ||
-                        item.diferencia === undefined
-                          ? '-'
-                          : Number(item.diferencia) > 0
-                            ? `+${item.diferencia}`
-                            : item.diferencia}
-                      </td>
+                          <td>
+                            {item.diferencia === null ||
+                            item.diferencia === undefined
+                              ? '-'
+                              : Number(item.diferencia) > 0
+                                ? `+${item.diferencia}`
+                                : item.diferencia}
+                          </td>
 
-                      <td>
-                        {descripcionDiferencia(item.diferencia)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                          <td>
+                            {descripcionDiferencia(item.diferencia)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
 
               {inventario.estado === 'en_carga' && (
                 <button type="submit" disabled={loading || !conteoCompleto}>

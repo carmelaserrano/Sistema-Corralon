@@ -1,5 +1,22 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronLeft, ChevronRight, ImageUp } from 'lucide-react'
+import {
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  Eye,
+  Globe,
+  Image as ImageIcon,
+  ImageUp,
+  RotateCcw,
+  Store,
+} from 'lucide-react'
+import Papa from 'papaparse'
+import Button from '../../../components/ui/Button'
+import EmptyState from '../../../components/ui/EmptyState'
+import Feedback from '../../../components/ui/Feedback'
+import PageHeader from '../../../components/ui/PageHeader'
+import KpiCard from '../../../components/ui/KpiCard'
+import { useToast } from '../../../components/ui/ToastContext'
 import {
   listarPublicacion,
   publicarProducto,
@@ -9,9 +26,6 @@ import {
   POR_PAGINA,
   TIPOS_IMAGEN,
 } from '../api/catalogoApi'
-import Button from '../../../components/ui/Button'
-import EmptyState from '../../../components/ui/EmptyState'
-import Feedback from '../../../components/ui/Feedback'
 import { ImagenProducto } from './CatalogoPage'
 
 const ESPERA_BUSQUEDA_MS = 350
@@ -23,6 +37,7 @@ function motivoNoVisible(producto) {
 }
 
 function FilaProducto({ producto, onCambio, onAviso }) {
+  const toast = useToast()
   const [guardando, setGuardando] = useState(false)
   const [subiendo, setSubiendo] = useState(false)
   const entrada = useRef(null)
@@ -34,9 +49,12 @@ function FilaProducto({ producto, onCambio, onAviso }) {
     try {
       const guardado = await publicarProducto(producto.id, publicado)
       onCambio()
-      onAviso({ tone: 'success', texto: `${producto.nombre} ${guardado.publicado_web ? 'quedó publicado' : 'se quitó de la tienda'}.` })
+      const msg = `${producto.nombre} ${guardado.publicado_web ? 'quedó publicado' : 'se quitó de la tienda'}.`
+      onAviso({ tone: 'success', texto: msg })
+      toast?.success?.(msg)
     } catch (err) {
       onAviso({ tone: 'error', texto: err.message })
+      toast?.error?.(err.message)
     } finally {
       setGuardando(false)
     }
@@ -50,16 +68,21 @@ function FilaProducto({ producto, onCambio, onAviso }) {
     try {
       validarImagen(archivo)
     } catch (err) {
-      onAviso({ tone: 'error', texto: `${producto.nombre}: ${err.message}` })
+      const msg = `${producto.nombre}: ${err.message}`
+      onAviso({ tone: 'error', texto: msg })
+      toast?.error?.(msg)
       return
     }
     setSubiendo(true)
     try {
       await subirImagen(producto.id, archivo)
       onCambio()
-      onAviso({ tone: 'success', texto: `Actualizamos la imagen de ${producto.nombre}.` })
+      const msg = `Actualizamos la imagen de ${producto.nombre}.`
+      onAviso({ tone: 'success', texto: msg })
+      toast?.success?.(msg)
     } catch (err) {
       onAviso({ tone: 'error', texto: err.message })
+      toast?.error?.(err.message)
     } finally {
       setSubiendo(false)
     }
@@ -97,6 +120,7 @@ function FilaProducto({ producto, onCambio, onAviso }) {
 }
 
 export default function PublicacionWebPage() {
+  const toast = useToast()
   const [tienePermiso, setTienePermiso] = useState(null)
   const [errorPermiso, setErrorPermiso] = useState('')
   const [texto, setTexto] = useState('')
@@ -165,18 +189,108 @@ export default function PublicacionWebPage() {
   const totalPaginas = Math.max(1, Math.ceil(resultado.total / POR_PAGINA))
   const recargar = () => setVersion((n) => n + 1)
 
-  return (
-    <main aria-busy={cargando}>
-      <h1>Publicación web</h1>
-      <p>
-        Elegí qué artículos se ven en la tienda online y cargá su imagen (JPG, PNG o WebP, hasta 2 MB).
-        Un artículo aparece en la tienda si está publicado, activo y tiene precio en la lista General.
-      </p>
+  function exportarCsv() {
+    if (!resultado.items || resultado.items.length === 0) {
+      toast?.info?.('No hay artículos para exportar')
+      return
+    }
 
-      <label style={{ display: 'grid', gap: 4, maxWidth: 420 }}>
-        Buscar por nombre o SKU
-        <input type="search" value={texto} onChange={(event) => setTexto(event.target.value)} />
-      </label>
+    const filas = resultado.items.map((p) => ({
+      Nombre: p.nombre || '',
+      SKU: p.sku || '',
+      Marca: p.marca?.nombre || '',
+      Categoria: p.categoria?.nombre || '',
+      PublicadoWeb: p.publicado_web ? 'Sí' : 'No',
+      VisibleEnTienda: p.visibleEnTienda ? 'Sí' : 'No',
+      TieneImagen: p.imagen_url ? 'Sí' : 'No',
+      MotivoNoVisible: motivoNoVisible(p),
+    }))
+
+    const csv = Papa.unparse(filas)
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute(
+      'download',
+      `publicacion_web_${new Date().toISOString().slice(0, 10)}.csv`,
+    )
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    toast?.success?.('Catálogo de publicación web exportado a CSV')
+  }
+
+  return (
+    <main aria-busy={cargando} className="page-canvas">
+      <PageHeader
+        title="Publicación web"
+        breadcrumbs={[
+          { label: 'E-commerce', to: '/#/pedidos-web' },
+          { label: 'Publicación Web' },
+        ]}
+        description="Elegí qué artículos se ven en la tienda online y cargá su imagen (JPG, PNG o WebP, hasta 2 MB). Un artículo aparece en la tienda si está publicado, activo y tiene precio en la lista General."
+        actions={
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <Button
+              type="button"
+              variant="outline"
+              icon={Download}
+              onClick={exportarCsv}
+              disabled={resultado.items.length === 0}
+            >
+              Exportar CSV
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              icon={RotateCcw}
+              onClick={recargar}
+              disabled={cargando}
+            >
+              Recargar
+            </Button>
+          </div>
+        }
+      />
+
+      <div className="kpi-grid" style={{ marginBottom: '24px' }}>
+        <KpiCard
+          label="Total en Catálogo"
+          value={resultado.total}
+          icon={Store}
+          tone="brand"
+          helperText="Productos registrados para web"
+        />
+        <KpiCard
+          label="Publicados Web"
+          value={resultado.items.filter((p) => p.publicado_web).length}
+          icon={Globe}
+          tone="info"
+          helperText="Activados para la tienda"
+        />
+        <KpiCard
+          label="Visibles en Tienda"
+          value={resultado.items.filter((p) => p.visibleEnTienda).length}
+          icon={Eye}
+          tone="success"
+          helperText="Cumplen stock y precio activo"
+        />
+        <KpiCard
+          label="Con Imagen Oficial"
+          value={resultado.items.filter((p) => Boolean(p.imagen_url)).length}
+          icon={ImageIcon}
+          tone="neutral"
+          helperText="Foto para el escaparate digital"
+        />
+      </div>
+
+      <div style={{ marginBottom: '20px' }}>
+        <label style={{ display: 'grid', gap: 4, maxWidth: 420 }}>
+          Buscar por nombre o SKU
+          <input type="search" value={texto} onChange={(event) => setTexto(event.target.value)} />
+        </label>
+      </div>
 
       {aviso && <Feedback tone={aviso.tone}>{aviso.texto}</Feedback>}
       {error && <Feedback tone="error">{error} <button type="button" onClick={recargar}>Reintentar</button></Feedback>}
@@ -188,24 +302,28 @@ export default function PublicacionWebPage() {
 
       {resultado.items.length > 0 && (
         <>
-          <table>
-            <caption style={{ textAlign: 'left' }}>{resultado.total} artículos</caption>
-            <thead>
-              <tr>
-                <th scope="col">Imagen</th>
-                <th scope="col">Artículo</th>
-                <th scope="col">Publicación</th>
-                <th scope="col">Tienda</th>
-                <th scope="col">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {resultado.items.map((producto) => (
-                <FilaProducto key={producto.id} producto={producto} onCambio={recargar} onAviso={setAviso} />
-              ))}
-            </tbody>
-          </table>
-          <nav aria-label="Paginación" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div className="data-table-card">
+            <div className="data-table-scroll-container">
+              <table>
+                <caption style={{ textAlign: 'left' }}>{resultado.total} artículos</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Imagen</th>
+                    <th scope="col">Artículo</th>
+                    <th scope="col">Publicación</th>
+                    <th scope="col">Tienda</th>
+                    <th scope="col">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {resultado.items.map((producto) => (
+                    <FilaProducto key={producto.id} producto={producto} onCambio={recargar} onAviso={setAviso} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <nav aria-label="Paginación" style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: '16px' }}>
             <Button type="button" variant="ghost" icon={ChevronLeft} disabled={cargando || pagina <= 1} onClick={() => setPagina((p) => p - 1)}>
               Anterior
             </Button>

@@ -1,6 +1,14 @@
 import { useEffect, useState } from 'react'
 import Papa from 'papaparse'
 import {
+  AlertCircle,
+  CheckCircle2,
+  Copy,
+  FileSpreadsheet,
+  FileText,
+  ShieldCheck,
+} from 'lucide-react'
+import {
   COLUMNAS_INFO,
   cargarReferencias,
   esArchivoCsv,
@@ -18,6 +26,9 @@ import { generarPlantillaExcel } from '../api/plantillaExcel'
 import Button from '../../../components/ui/Button'
 import EmptyState from '../../../components/ui/EmptyState'
 import Feedback from '../../../components/ui/Feedback'
+import PageHeader from '../../../components/ui/PageHeader'
+import KpiCard from '../../../components/ui/KpiCard'
+import { useToast } from '../../../components/ui/ToastContext'
 
 // La vista previa dibuja como máximo estas filas: con una base legacy de miles
 // de clientes, renderizarlas todas congelaría la pantalla. El conteo y la
@@ -72,6 +83,7 @@ function nombreDelCliente(datos) {
 }
 
 function ImportarClientesPage() {
+  const toast = useToast()
   // null = todavía verificando, true/false = resultado del permiso.
   const [tienePermiso, setTienePermiso] = useState(null)
   const [errorPermiso, setErrorPermiso] = useState('')
@@ -135,22 +147,27 @@ function ImportarClientesPage() {
 
   function descargarPlantillaExcel() {
     descargarArchivo('plantilla_clientes.xlsx', generarPlantillaExcel(catalogos))
+    toast.success('Descargando plantilla Excel')
   }
 
   function descargarPlantillaCsv() {
     descargarCsv('plantilla_clientes.csv', generarPlantillaCsv())
+    toast.success('Descargando plantilla CSV')
   }
 
   function descargarRechazadas() {
     descargarCsv('clientes_rechazados.csv', generarCsvRechazadas(resultados))
+    toast.success('Descargando filas rechazadas')
   }
 
   async function procesarArchivo(filas) {
     try {
       const referencias = await cargarReferencias(filas)
-      setResultados(validarFilas(filas, referencias))
+      const validadas = validarFilas(filas, referencias)
+      setResultados(validadas)
       setFiltroEstado('todas')
       setPaso('vista-previa')
+      toast.info(`Archivo procesado (${validadas.length} filas)`)
     } catch (err) {
       setError(err.message || 'No se pudo preparar la vista previa')
     } finally {
@@ -222,6 +239,7 @@ function ImportarClientesPage() {
         conError: conError.length + respuesta.conError,
       })
       setPaso('resultado')
+      toast.success(`Se importaron ${respuesta.importadas} clientes`)
     } catch (err) {
       // CA-05: la importación es todo o nada, así que acá no se cargó nada.
       setError(err.message || 'No se pudo completar la importación. No se importó ninguna fila.')
@@ -264,7 +282,95 @@ function ImportarClientesPage() {
 
   return (
     <main>
-      <h1>Importar clientes</h1>
+      <PageHeader
+        breadcrumbs={[{ label: 'Clientes', to: '/#/clientes' }, { label: 'Importar' }]}
+        kicker="Clientes y Cuentas"
+        title="Importar clientes"
+        description="Carga masiva de clientes desde archivo Excel o CSV con validación de campos y prevención de duplicados."
+      />
+
+      <div className="kpi-grid">
+        {paso === 'vista-previa' ? (
+          <>
+            <KpiCard
+              label="Filas en archivo"
+              value={resultados.length}
+              icon={FileSpreadsheet}
+              tone="brand"
+              helperText="Total leídas"
+            />
+            <KpiCard
+              label="Nuevas a importar"
+              value={nuevas.length}
+              icon={CheckCircle2}
+              tone="success"
+              helperText="Sin duplicados"
+            />
+            <KpiCard
+              label="Duplicadas"
+              value={duplicadas.length}
+              icon={Copy}
+              tone="warning"
+              helperText="Documento ya registrado"
+            />
+            <KpiCard
+              label="Con error"
+              value={conError.length}
+              icon={AlertCircle}
+              tone="danger"
+              helperText="Revisar motivo"
+            />
+          </>
+        ) : paso === 'resultado' && resumen ? (
+          <>
+            <KpiCard
+              label="Importadas"
+              value={resumen.importadas}
+              icon={CheckCircle2}
+              tone="success"
+              helperText="Cargadas en la base"
+            />
+            <KpiCard
+              label="Duplicadas omitidas"
+              value={resumen.duplicadas}
+              icon={Copy}
+              tone="warning"
+              helperText="Ya existentes"
+            />
+            <KpiCard
+              label="Rechazadas"
+              value={resumen.conError}
+              icon={AlertCircle}
+              tone="danger"
+              helperText="Con errores"
+            />
+          </>
+        ) : (
+          <>
+            <KpiCard
+              label="Formato preferido"
+              value="Excel (.xlsx)"
+              icon={FileSpreadsheet}
+              tone="brand"
+              helperText="Con listas desplegables"
+            />
+            <KpiCard
+              label="Formato alternativo"
+              value="CSV UTF-8"
+              icon={FileText}
+              tone="neutral"
+              helperText="Delimitado por comas / ';'"
+            />
+            <KpiCard
+              label="Modo de carga"
+              value="Atómica"
+              icon={ShieldCheck}
+              tone="info"
+              helperText="Todo o nada para seguridad"
+            />
+          </>
+        )}
+      </div>
 
       {error && <Feedback tone="error">{error}</Feedback>}
 
@@ -311,36 +417,40 @@ function ImportarClientesPage() {
           <section>
             <h2>2. Completala</h2>
             <p>Una fila por cliente. Qué poner en cada columna:</p>
-            <table>
-              <thead>
-                <tr>
-                  <th style={ancho(ANCHOS_AYUDA, 0)}>Columna</th>
-                  <th style={ancho(ANCHOS_AYUDA, 1)}>Cuándo se completa</th>
-                  <th style={ancho(ANCHOS_AYUDA, 2)}>Qué poner</th>
-                  <th style={ancho(ANCHOS_AYUDA, 3)}>Ejemplo</th>
-                </tr>
-              </thead>
-              <tbody>
-                {COLUMNAS_INFO.map((info) => (
-                  <tr key={info.nombre}>
-                    <td style={celdaAjustada(ANCHOS_AYUDA, 0)}>
-                      <strong>{info.nombre}</strong>
-                    </td>
-                    <td style={celdaAjustada(ANCHOS_AYUDA, 1)}>{CUANDO_SE_COMPLETA[info.tipo]}</td>
-                    <td style={celdaAjustada(ANCHOS_AYUDA, 2)}>
-                      {info.ayuda}
-                      {info.lista === 'condicion_iva' && catalogos && (
-                        <> Opciones: {catalogos.condicionesIva.join(', ')}.</>
-                      )}
-                      {info.lista === 'tipo_cliente' && catalogos && (
-                        <> Opciones: {catalogos.tiposCliente.join(', ')}.</>
-                      )}
-                    </td>
-                    <td style={celdaAjustada(ANCHOS_AYUDA, 3)}>{info.ejemplo}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="data-table-card">
+              <div className="data-table-scroll-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th style={ancho(ANCHOS_AYUDA, 0)}>Columna</th>
+                      <th style={ancho(ANCHOS_AYUDA, 1)}>Cuándo se completa</th>
+                      <th style={ancho(ANCHOS_AYUDA, 2)}>Qué poner</th>
+                      <th style={ancho(ANCHOS_AYUDA, 3)}>Ejemplo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {COLUMNAS_INFO.map((info) => (
+                      <tr key={info.nombre}>
+                        <td style={celdaAjustada(ANCHOS_AYUDA, 0)}>
+                          <strong>{info.nombre}</strong>
+                        </td>
+                        <td style={celdaAjustada(ANCHOS_AYUDA, 1)}>{CUANDO_SE_COMPLETA[info.tipo]}</td>
+                        <td style={celdaAjustada(ANCHOS_AYUDA, 2)}>
+                          {info.ayuda}
+                          {info.lista === 'condicion_iva' && catalogos && (
+                            <> Opciones: {catalogos.condicionesIva.join(', ')}.</>
+                          )}
+                          {info.lista === 'tipo_cliente' && catalogos && (
+                            <> Opciones: {catalogos.tiposCliente.join(', ')}.</>
+                          )}
+                        </td>
+                        <td style={celdaAjustada(ANCHOS_AYUDA, 3)}>{info.ejemplo}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </section>
 
           <section>
@@ -403,32 +513,36 @@ function ImportarClientesPage() {
               description="Ninguna fila tiene ese estado."
             />
           ) : (
-            <table>
-              <thead>
-                <tr>
-                  <th style={ancho(ANCHOS_PREVIA, 0)}>Fila</th>
-                  <th style={ancho(ANCHOS_PREVIA, 1)}>Estado</th>
-                  <th style={ancho(ANCHOS_PREVIA, 2)}>Documento</th>
-                  <th style={ancho(ANCHOS_PREVIA, 3)}>Cliente</th>
-                  <th style={ancho(ANCHOS_PREVIA, 4)}>Motivo</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filasVisibles.map((r) => (
-                  <tr key={r.numeroFila}>
-                    <td style={celdaAjustada(ANCHOS_PREVIA, 0)}>{r.numeroFila}</td>
-                    <td style={celdaAjustada(ANCHOS_PREVIA, 1)}>
-                      <strong>{ETIQUETAS_ESTADO[r.estado]}</strong>
-                    </td>
-                    <td style={celdaAjustada(ANCHOS_PREVIA, 2)}>
-                      {r.datos.tipo_documento} {r.datos.numero_documento}
-                    </td>
-                    <td style={celdaAjustada(ANCHOS_PREVIA, 3)}>{nombreDelCliente(r.datos)}</td>
-                    <td style={celdaAjustada(ANCHOS_PREVIA, 4)}>{r.motivo ?? ''}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="data-table-card">
+              <div className="data-table-scroll-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th style={ancho(ANCHOS_PREVIA, 0)}>Fila</th>
+                      <th style={ancho(ANCHOS_PREVIA, 1)}>Estado</th>
+                      <th style={ancho(ANCHOS_PREVIA, 2)}>Documento</th>
+                      <th style={ancho(ANCHOS_PREVIA, 3)}>Cliente</th>
+                      <th style={ancho(ANCHOS_PREVIA, 4)}>Motivo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filasVisibles.map((r) => (
+                      <tr key={r.numeroFila}>
+                        <td style={celdaAjustada(ANCHOS_PREVIA, 0)}>{r.numeroFila}</td>
+                        <td style={celdaAjustada(ANCHOS_PREVIA, 1)}>
+                          <strong>{ETIQUETAS_ESTADO[r.estado]}</strong>
+                        </td>
+                        <td style={celdaAjustada(ANCHOS_PREVIA, 2)}>
+                          {r.datos.tipo_documento} {r.datos.numero_documento}
+                        </td>
+                        <td style={celdaAjustada(ANCHOS_PREVIA, 3)}>{nombreDelCliente(r.datos)}</td>
+                        <td style={celdaAjustada(ANCHOS_PREVIA, 4)}>{r.motivo ?? ''}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           )}
 
           {filasFiltradas.length > MAX_FILAS_VISIBLES && (

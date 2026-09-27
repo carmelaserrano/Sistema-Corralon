@@ -22,9 +22,15 @@ import {
 import { getDepositos } from '../../stock/api/depositosApi'
 import { getArticulos } from '../../stock/api/articulosApi'
 import ContactosProveedor from '../../proveedores/components/ContactosProveedor'
+import { CheckCircle2, Clock, DollarSign, Download, ShoppingBag } from 'lucide-react'
+import Papa from 'papaparse'
 import Button from '../../../components/ui/Button'
 import EmptyState from '../../../components/ui/EmptyState'
 import Feedback from '../../../components/ui/Feedback'
+import PageHeader from '../../../components/ui/PageHeader'
+import KpiCard from '../../../components/ui/KpiCard'
+import { useToast } from '../../../components/ui/ToastContext'
+
 
 function formatearFecha(iso) {
   if (!iso) return '—'
@@ -88,6 +94,39 @@ export default function OrdenesCompraPage() {
   const [puedeModificar, setPuedeModificar] = useState(false)
   const [puedeCancelar, setPuedeCancelar] = useState(false)
   const [puedeModificarProv, setPuedeModificarProv] = useState(false)
+  const toast = useToast()
+
+  function exportarCsv() {
+    if (!ordenes || ordenes.length === 0) {
+      toast?.info?.('No hay órdenes de compra en pantalla para exportar.')
+      return
+    }
+
+    try {
+      const data = ordenes.map((o) => ({
+        NumeroOC: o.numero,
+        FechaCreacion: o.created_at || '',
+        Proveedor: o.proveedor?.razon_social || '',
+        Deposito: o.deposito_destino?.nombre || '',
+        Estado: o.estado,
+        Recepciones: o.cantidad_recepciones ?? 0,
+        Total: o.total,
+      }))
+
+      const csv = Papa.unparse(data)
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.setAttribute('href', url)
+      link.setAttribute('download', `ordenes_compra_${new Date().toISOString().slice(0, 10)}.csv`)
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      toast?.success?.('Órdenes de compra exportadas con éxito a CSV.')
+    } catch {
+      toast?.error?.('Ocurrió un error al exportar las órdenes de compra.')
+    }
+  }
 
   // Datos maestros
   const [proveedores, setProveedores] = useState([])
@@ -807,16 +846,76 @@ export default function OrdenesCompraPage() {
   }
 
   // --- VISTA LISTADO ---
+  const ordenesPendientes = ordenes.filter(
+    (o) => o.estado === 'pendiente' || o.estado === 'parcialmente_recibida',
+  ).length
+  const ordenesRecibidas = ordenes.filter((o) => o.estado === 'recibida').length
+
   return (
     <main>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-        <h1>Órdenes de Compra</h1>
-        {puedeCrear && (
-          <Button type="button" style={{ padding: '12px 20px', fontSize: '1rem' }} onClick={() => { setVista('nueva'); setError(''); setAviso('') }}>
-            Nueva Orden de Compra
-          </Button>
-        )}
-      </header>
+      <PageHeader
+        kicker="Módulo Compras"
+        title="Órdenes de Compra"
+        description="Gestión de compras mayoristas a proveedores, recepción de mercadería y seguimiento de estados."
+        actions={
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <Button
+              type="button"
+              variant="ghost"
+              icon={Download}
+              onClick={exportarCsv}
+              disabled={loadingListado || ordenes.length === 0}
+              title="Exportar órdenes a CSV"
+            >
+              Exportar CSV
+            </Button>
+            {puedeCrear && (
+              <Button
+                type="button"
+                style={{ padding: '12px 20px', fontSize: '1rem' }}
+                onClick={() => {
+                  setVista('nueva')
+                  setError('')
+                  setAviso('')
+                }}
+              >
+                Nueva Orden de Compra
+              </Button>
+            )}
+          </div>
+        }
+      />
+
+      <div className="kpi-grid">
+        <KpiCard
+          label="Órdenes registradas"
+          value={resumen.total}
+          icon={ShoppingBag}
+          tone="brand"
+          helperText="Historial del período filtrado"
+        />
+        <KpiCard
+          label="Importe total"
+          value={formatearMoneda(resumen.importeTotal)}
+          icon={DollarSign}
+          tone="success"
+          helperText="Excluye órdenes canceladas"
+        />
+        <KpiCard
+          label="Pendientes / En curso"
+          value={ordenesPendientes}
+          icon={Clock}
+          tone={ordenesPendientes > 0 ? 'warning' : 'default'}
+          helperText="Pendientes o parcialmente recibidas"
+        />
+        <KpiCard
+          label="Recibidas completas"
+          value={ordenesRecibidas}
+          icon={CheckCircle2}
+          tone="info"
+          helperText="Mercadería ingresada a depósito"
+        />
+      </div>
 
       {error && <Feedback tone="error">{error}</Feedback>}
       {aviso && <Feedback tone="success">{aviso}</Feedback>}
@@ -852,36 +951,40 @@ export default function OrdenesCompraPage() {
         )}
 
         {!loadingListado && !error && ordenes.length > 0 && (
-          <table>
-            <thead>
-              <tr>
-                <th>Nº Orden</th>
-                <th>Fecha de creación</th>
-                <th>Proveedor</th>
-                <th>Depósito</th>
-                <th>Estado</th>
-                <th>Recepciones</th>
-                <th style={{ textAlign: 'right' }}>Total</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {ordenes?.map(orden => (
-                <tr key={orden.id} onClick={() => verDetalle(orden.id)} style={{ cursor: 'pointer' }}>
-                  <td><strong>#{orden.numero}</strong></td>
-                  <td>{orden.created_at ? new Date(orden.created_at).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }) : '—'}</td>
-                  <td>{orden.proveedor?.razon_social}</td>
-                  <td>{orden.deposito_destino?.nombre}</td>
-                  <td><EstadoBadge estado={orden.estado} /></td>
-                  <td>{orden.cantidad_recepciones ?? 0}</td>
-                  <td style={{ textAlign: 'right' }}>{formatearMoneda(orden.total)}</td>
-                  <td style={{ textAlign: 'right' }}>
-                    <Button type="button" variant="ghost" onClick={e => { e.stopPropagation(); verDetalle(orden.id) }}>Ver detalle</Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="data-table-card">
+            <div className="data-table-scroll-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Nº Orden</th>
+                    <th>Fecha de creación</th>
+                    <th>Proveedor</th>
+                    <th>Depósito</th>
+                    <th>Estado</th>
+                    <th>Recepciones</th>
+                    <th style={{ textAlign: 'right' }}>Total</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ordenes?.map(orden => (
+                    <tr key={orden.id} onClick={() => verDetalle(orden.id)} style={{ cursor: 'pointer' }}>
+                      <td><strong>#{orden.numero}</strong></td>
+                      <td>{orden.created_at ? new Date(orden.created_at).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }) : '—'}</td>
+                      <td>{orden.proveedor?.razon_social}</td>
+                      <td>{orden.deposito_destino?.nombre}</td>
+                      <td><EstadoBadge estado={orden.estado} /></td>
+                      <td>{orden.cantidad_recepciones ?? 0}</td>
+                      <td style={{ textAlign: 'right' }}>{formatearMoneda(orden.total)}</td>
+                      <td style={{ textAlign: 'right' }}>
+                        <Button type="button" variant="ghost" onClick={e => { e.stopPropagation(); verDetalle(orden.id) }}>Ver detalle</Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
         {!loadingListado && !error && totalPaginas > 1 && (
           <nav aria-label="Paginación de órdenes" style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>

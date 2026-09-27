@@ -1,9 +1,15 @@
 import { useEffect, useState } from 'react'
+import { CheckCircle2, Clock, DollarSign, Download, ShoppingBag } from 'lucide-react'
+import Papa from 'papaparse'
 import { listarVentas } from '../api/consultaVentasApi'
 import VentaDetalle from './VentaDetalle'
 import Button from '../../../components/ui/Button'
 import EmptyState from '../../../components/ui/EmptyState'
 import Feedback from '../../../components/ui/Feedback'
+import PageHeader from '../../../components/ui/PageHeader'
+import KpiCard from '../../../components/ui/KpiCard'
+import { useToast } from '../../../components/ui/ToastContext'
+
 
 const ESTADOS_VENTA = ['Pendiente', 'Facturada', 'Entregada', 'Anulada']
 
@@ -55,6 +61,40 @@ export default function VentasPage() {
   const [filtroDesde, setFiltroDesde] = useState('')
   const [filtroHasta, setFiltroHasta] = useState('')
   const [busqueda, setBusqueda] = useState('')
+  const toast = useToast()
+
+  function exportarCsv() {
+    if (!ventasFiltradas || ventasFiltradas.length === 0) {
+      toast?.info?.('No hay comprobantes para exportar con los filtros actuales.')
+      return
+    }
+
+    try {
+      const data = ventasFiltradas.map((v) => ({
+        NumeroVenta: v.numero,
+        Fecha: formatearFecha(v.created_at),
+        Cliente: nombreCliente(v.cliente),
+        Documento: v.cliente?.numero_documento || '',
+        CondicionIVA: v.cliente?.condicion_iva?.nombre || 'Consumidor Final',
+        Estado: v.estado,
+        Total: v.total,
+      }))
+
+      const csv = Papa.unparse(data)
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.setAttribute('href', url)
+      link.setAttribute('download', `ventas_${new Date().toISOString().slice(0, 10)}.csv`)
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      toast?.success?.('Listado de ventas exportado con éxito a CSV.')
+    } catch {
+      toast?.error?.('Ocurrió un error al exportar las ventas.')
+    }
+  }
+
 
   // Modal de detalle
   const [ventaSeleccionadaId, setVentaSeleccionadaId] = useState(null)
@@ -107,12 +147,65 @@ export default function VentasPage() {
     return numVenta.includes(q) || nomCli.includes(q) || docCli.includes(q)
   })
 
+  const totalFacturado = ventas.reduce(
+    (acc, v) => acc + Number(v.total || 0),
+    0,
+  )
+  const ventasFacturadas = ventas.filter(
+    (v) => v.estado === 'Facturada' || v.estado === 'Entregada',
+  ).length
+  const ventasPendientes = ventas.filter((v) => v.estado === 'Pendiente').length
+
   return (
     <main>
-      <h1>Ventas y Facturación</h1>
-      <p style={{ color: 'var(--text-secondary)', margin: '0 0 20px' }}>
-        Emisión de facturas A y B, notas de crédito y exportación de comprobantes PDF.
-      </p>
+      <PageHeader
+        kicker="Módulo Ventas"
+        title="Ventas y Facturación"
+        description="Emisión de facturas A y B, notas de crédito y exportación de comprobantes PDF."
+        actions={
+          <Button
+            type="button"
+            variant="ghost"
+            icon={Download}
+            onClick={exportarCsv}
+            disabled={loading || ventasFiltradas.length === 0}
+            title="Exportar ventas en pantalla a CSV"
+          >
+            Exportar CSV
+          </Button>
+        }
+      />
+
+      <div className="kpi-grid">
+        <KpiCard
+          label="Comprobantes emitidos"
+          value={ventas.length}
+          icon={ShoppingBag}
+          tone="brand"
+          helperText="Total en el período seleccionado"
+        />
+        <KpiCard
+          label="Total facturado"
+          value={formatearMoneda(totalFacturado)}
+          icon={DollarSign}
+          tone="success"
+          helperText="Monto bruto acumulado"
+        />
+        <KpiCard
+          label="Facturadas / Entregadas"
+          value={ventasFacturadas}
+          icon={CheckCircle2}
+          tone="info"
+          helperText="Ventas procesadas con éxito"
+        />
+        <KpiCard
+          label="Pendientes de cobro"
+          value={ventasPendientes}
+          icon={Clock}
+          tone={ventasPendientes > 0 ? 'warning' : 'default'}
+          helperText="Aguardando cobro o facturación"
+        />
+      </div>
 
       {error && <Feedback tone="error">{error}</Feedback>}
 
@@ -198,86 +291,88 @@ export default function VentasPage() {
       )}
 
       {!loading && ventasFiltradas.length > 0 && (
-        <div style={{ overflowX: 'auto' }}>
-          <table>
-            <thead>
-              <tr>
-                <th>Nº Venta</th>
-                <th>Fecha</th>
-                <th>Cliente</th>
-                <th>Condición IVA</th>
-                <th>Estado</th>
-                <th>Cobro</th>
-                <th>Comprobantes</th>
-                <th>Total</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ventasFiltradas.map((venta) => {
-                const totalCobrado = (venta.cobros ?? []).reduce(
-                  (acc, c) => acc + Number(c.total || 0),
-                  0,
-                )
-                const tieneCtaCte = (venta.cobros ?? []).some((c) =>
-                  (c.detalle ?? []).some((d) => d.medio_pago?.nombre === 'Cuenta corriente'),
-                )
-                const cobrada = totalCobrado >= Number(venta.total || 0)
+        <div className="data-table-card">
+          <div className="data-table-scroll-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Nº Venta</th>
+                  <th>Fecha</th>
+                  <th>Cliente</th>
+                  <th>Condición IVA</th>
+                  <th>Estado</th>
+                  <th>Cobro</th>
+                  <th>Comprobantes</th>
+                  <th>Total</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ventasFiltradas.map((venta) => {
+                  const totalCobrado = (venta.cobros ?? []).reduce(
+                    (acc, c) => acc + Number(c.total || 0),
+                    0,
+                  )
+                  const tieneCtaCte = (venta.cobros ?? []).some((c) =>
+                    (c.detalle ?? []).some((d) => d.medio_pago?.nombre === 'Cuenta corriente'),
+                  )
+                  const cobrada = totalCobrado >= Number(venta.total || 0)
 
-                return (
-                  <tr key={venta.id}>
-                    <td><strong>#{venta.numero}</strong></td>
-                    <td>{formatearFecha(venta.created_at)}</td>
-                    <td>
-                      <div>{nombreCliente(venta.cliente)}</div>
-                      <small style={{ color: 'var(--text-secondary)' }}>
-                        {venta.cliente?.tipo_documento || 'Doc'}: {venta.cliente?.numero_documento || '—'}
-                      </small>
-                    </td>
-                    <td>{venta.cliente?.condicion_iva?.nombre || 'Consumidor Final'}</td>
-                    <td><EstadoVentaBadge estado={venta.estado} /></td>
-                    <td>
-                      {cobrada ? (
-                        <span style={{ color: 'var(--color-success, #2e7d32)', fontSize: '13px' }}>Cobrada</span>
-                      ) : tieneCtaCte ? (
-                        <span style={{ color: 'var(--color-info, #1565c0)', fontSize: '13px' }}>Cuenta corriente</span>
-                      ) : (
-                        <span style={{ color: 'var(--color-warning, #d84315)', fontSize: '13px' }}>Pendiente</span>
-                      )}
-                    </td>
-                    <td>
-                      {(venta.comprobantes ?? []).length === 0 ? (
-                        <span style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>Sin emitir</span>
-                      ) : (
-                        <div>
-                          {(venta.comprobantes ?? []).map((c) => (
-                            <div key={c.id} style={{ fontSize: '12px' }}>
-                              {c.tipo_comprobante === 'factura'
-                                ? 'Factura'
-                                : c.tipo_comprobante === 'nota_credito'
-                                  ? 'NC'
-                                  : 'ND'}{' '}
-                              {c.letra} {formatearComprobanteNumero(c.punto_venta, c.numero)}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </td>
-                    <td><strong>{formatearMoneda(venta.total)}</strong></td>
-                    <td>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => setVentaSeleccionadaId(venta.id)}
-                      >
-                        Ver detalle
-                      </Button>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+                  return (
+                    <tr key={venta.id}>
+                      <td><strong>#{venta.numero}</strong></td>
+                      <td>{formatearFecha(venta.created_at)}</td>
+                      <td>
+                        <div>{nombreCliente(venta.cliente)}</div>
+                        <small style={{ color: 'var(--text-secondary)' }}>
+                          {venta.cliente?.tipo_documento || 'Doc'}: {venta.cliente?.numero_documento || '—'}
+                        </small>
+                      </td>
+                      <td>{venta.cliente?.condicion_iva?.nombre || 'Consumidor Final'}</td>
+                      <td><EstadoVentaBadge estado={venta.estado} /></td>
+                      <td>
+                        {cobrada ? (
+                          <span style={{ color: 'var(--color-success, #2e7d32)', fontSize: '13px' }}>Cobrada</span>
+                        ) : tieneCtaCte ? (
+                          <span style={{ color: 'var(--color-info, #1565c0)', fontSize: '13px' }}>Cuenta corriente</span>
+                        ) : (
+                          <span style={{ color: 'var(--color-warning, #d84315)', fontSize: '13px' }}>Pendiente</span>
+                        )}
+                      </td>
+                      <td>
+                        {(venta.comprobantes ?? []).length === 0 ? (
+                          <span style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>Sin emitir</span>
+                        ) : (
+                          <div>
+                            {(venta.comprobantes ?? []).map((c) => (
+                              <div key={c.id} style={{ fontSize: '12px' }}>
+                                {c.tipo_comprobante === 'factura'
+                                  ? 'Factura'
+                                  : c.tipo_comprobante === 'nota_credito'
+                                    ? 'NC'
+                                    : 'ND'}{' '}
+                                {c.letra} {formatearComprobanteNumero(c.punto_venta, c.numero)}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                      <td><strong>{formatearMoneda(venta.total)}</strong></td>
+                      <td>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => setVentaSeleccionadaId(venta.id)}
+                        >
+                          Ver detalle
+                        </Button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { X } from 'lucide-react'
+import Papa from 'papaparse'
+import { CheckCircle2, Clock, Download, FileText, ShoppingCart, X } from 'lucide-react'
 import {
   anularVenta,
   getHistorialEstadoVenta,
@@ -11,6 +12,9 @@ import {
 import Button from '../../../components/ui/Button'
 import EmptyState from '../../../components/ui/EmptyState'
 import Feedback from '../../../components/ui/Feedback'
+import PageHeader from '../../../components/ui/PageHeader'
+import KpiCard from '../../../components/ui/KpiCard'
+import { useToast } from '../../../components/ui/ToastContext'
 
 const ESTADOS_VENTA = ['Pendiente', 'Facturada', 'Entregada', 'Anulada']
 
@@ -51,6 +55,7 @@ function formatearMoneda(valor) {
 // anulación ni el error de la venta anterior (misma lección del panel de
 // domicilios de Clientes).
 function ModalDetalleVenta({ venta, puedeEntregar, puedeAnular, onCambio, onCerrar }) {
+  const toast = useToast()
   const [historial, setHistorial] = useState([])
   const [cargandoHistorial, setCargandoHistorial] = useState(true)
   const [mostrarFormAnular, setMostrarFormAnular] = useState(false)
@@ -93,6 +98,7 @@ function ModalDetalleVenta({ venta, puedeEntregar, puedeAnular, onCambio, onCerr
       setAviso('')
       const actualizada = await marcarEntregada(venta.id)
       setAviso('Venta marcada como entregada')
+      toast.success('Venta marcada como entregada')
       onCambio(actualizada)
       await cargarHistorial()
     } catch (err) {
@@ -116,6 +122,7 @@ function ModalDetalleVenta({ venta, puedeEntregar, puedeAnular, onCambio, onCerr
       setAviso('')
       const actualizada = await anularVenta(venta.id, motivo)
       setAviso('Venta anulada')
+      toast.success('Venta anulada')
       setMostrarFormAnular(false)
       setMotivo('')
       onCambio(actualizada)
@@ -237,26 +244,30 @@ function ModalDetalleVenta({ venta, puedeEntregar, puedeAnular, onCambio, onCerr
         )}
 
         {!cargandoHistorial && historial.length > 0 && (
-          <table>
-            <thead>
-              <tr>
-                <th>Fecha y hora</th>
-                <th>Anterior</th>
-                <th>Nuevo</th>
-                <th>Motivo</th>
-              </tr>
-            </thead>
-            <tbody>
-              {historial.map((cambio) => (
-                <tr key={cambio.id}>
-                  <td>{formatearFecha(cambio.created_at)}</td>
-                  <td>{cambio.estado_anterior ?? '—'}</td>
-                  <td>{cambio.estado_nuevo}</td>
-                  <td>{cambio.motivo || '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="data-table-card">
+            <div className="data-table-scroll-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Fecha y hora</th>
+                    <th>Anterior</th>
+                    <th>Nuevo</th>
+                    <th>Motivo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {historial.map((cambio) => (
+                    <tr key={cambio.id}>
+                      <td>{formatearFecha(cambio.created_at)}</td>
+                      <td>{cambio.estado_anterior ?? '—'}</td>
+                      <td>{cambio.estado_nuevo}</td>
+                      <td>{cambio.motivo || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
       </section>
     </div>
@@ -264,6 +275,7 @@ function ModalDetalleVenta({ venta, puedeEntregar, puedeAnular, onCambio, onCerr
 }
 
 function SupervisionVentasPage() {
+  const toast = useToast()
   const [ventas, setVentas] = useState([])
 
   const [filtroEstado, setFiltroEstado] = useState('')
@@ -281,6 +293,27 @@ function SupervisionVentasPage() {
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+
+  function exportarCsv() {
+    if (!ventas.length) return
+    const filas = ventas.map((v) => ({
+      Numero: v.numero,
+      Fecha: formatearFecha(v.created_at),
+      Cliente: nombreCliente(v.cliente),
+      Total: v.total,
+      Estado: v.estado,
+    }))
+    const csv = Papa.unparse(filas)
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `supervision_ventas_${new Date().toISOString().slice(0, 10)}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    toast.success('Ventas exportadas a CSV')
+  }
 
   async function cargarVentas(filtros) {
     try {
@@ -345,7 +378,51 @@ function SupervisionVentasPage() {
 
   return (
     <main>
-      <h1>Supervisión de ventas</h1>
+      <PageHeader
+        breadcrumbs={[{ label: 'Ventas', to: '/#/ventas' }, { label: 'Supervisión' }]}
+        kicker="Ventas y Despacho"
+        title="Supervisión de ventas"
+        description="Auditoría de ventas registradas, confirmación de entregas y cancelaciones con justificación."
+        actions={
+          ventas.length > 0 ? (
+            <Button variant="secondary" onClick={exportarCsv}>
+              <Download size={16} />
+              Exportar CSV
+            </Button>
+          ) : null
+        }
+      />
+
+      <div className="kpi-grid">
+        <KpiCard
+          label="Total ventas"
+          value={ventas.length}
+          icon={ShoppingCart}
+          tone="brand"
+          helperText="En listado actual"
+        />
+        <KpiCard
+          label="Pendientes"
+          value={ventas.filter((v) => v.estado === 'Pendiente').length}
+          icon={Clock}
+          tone="warning"
+          helperText="Esperando facturación"
+        />
+        <KpiCard
+          label="Facturadas"
+          value={ventas.filter((v) => v.estado === 'Facturada').length}
+          icon={FileText}
+          tone="info"
+          helperText="Listas para entrega"
+        />
+        <KpiCard
+          label="Entregadas"
+          value={ventas.filter((v) => v.estado === 'Entregada').length}
+          icon={CheckCircle2}
+          tone="success"
+          helperText="Despachadas con éxito"
+        />
+      </div>
 
       {error && <Feedback tone="error">{error}</Feedback>}
 
@@ -418,40 +495,44 @@ function SupervisionVentasPage() {
         )}
 
         {!loading && !error && ventas.length > 0 && (
-          <table>
-            <thead>
-              <tr>
-                <th>Nº</th>
-                <th>Fecha</th>
-                <th>Cliente</th>
-                <th>Total</th>
-                <th>Estado</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ventas.map((venta) => (
-                <tr key={venta.id}>
-                  <td>{venta.numero}</td>
-                  <td>{formatearFecha(venta.created_at)}</td>
-                  <td>{nombreCliente(venta.cliente)}</td>
-                  <td>{formatearMoneda(venta.total)}</td>
-                  <td>
-                    <EstadoVentaBadge estado={venta.estado} />
-                  </td>
-                  <td>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={() => setVentaSeleccionadaId(venta.id)}
-                    >
-                      Ver detalle
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="data-table-card">
+            <div className="data-table-scroll-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Nº</th>
+                    <th>Fecha</th>
+                    <th>Cliente</th>
+                    <th>Total</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ventas.map((venta) => (
+                    <tr key={venta.id}>
+                      <td>{venta.numero}</td>
+                      <td>{formatearFecha(venta.created_at)}</td>
+                      <td>{nombreCliente(venta.cliente)}</td>
+                      <td>{formatearMoneda(venta.total)}</td>
+                      <td>
+                        <EstadoVentaBadge estado={venta.estado} />
+                      </td>
+                      <td>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => setVentaSeleccionadaId(venta.id)}
+                        >
+                          Ver detalle
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
       </section>
 

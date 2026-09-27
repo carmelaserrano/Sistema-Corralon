@@ -1,5 +1,11 @@
 import { useEffect, useState } from 'react'
 import {
+  BarChart3,
+  DollarSign,
+  FileSpreadsheet,
+  Warehouse,
+} from 'lucide-react'
+import {
   descargarCsv,
   getReporteQuiebres,
   getReporteStockActual,
@@ -8,6 +14,14 @@ import {
 import { getHistorialMovimientos } from '../api/movimientosApi'
 import { getDepositos } from '../api/depositosApi'
 import { getCategorias } from '../api/categoriasApi'
+import PageHeader from '../../../components/ui/PageHeader'
+import KpiCard from '../../../components/ui/KpiCard'
+import { useToast } from '../../../components/ui/ToastContext'
+
+const formatoMoneda = (val) =>
+  val == null
+    ? '—'
+    : new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(val)
 
 const TIPOS_REPORTE = {
   STOCK_ACTUAL: 'stock-actual',
@@ -76,6 +90,7 @@ const columnasMovimientos = [
 ]
 
 function ReportesPage() {
+  const toast = useToast()
   const [categorias, setCategorias] = useState([])
   const [depositos, setDepositos] = useState([])
   const [tipoReporte, setTipoReporte] = useState(TIPOS_REPORTE.STOCK_ACTUAL)
@@ -126,12 +141,14 @@ function ReportesPage() {
           deposito_id: filtros.deposito_id,
         })
         setFilas(data)
+        toast.success(`Reporte de "${etiquetaTipo[tipoReporte]}" generado (${data.length} registros)`)
       } else if (tipoReporte === TIPOS_REPORTE.QUIEBRES) {
         const data = await getReporteQuiebres({
           categoria_id: filtros.categoria_id,
           deposito_id: filtros.deposito_id,
         })
         setFilas(data)
+        toast.success(`Reporte de "${etiquetaTipo[tipoReporte]}" generado (${data.length} registros)`)
       } else if (tipoReporte === TIPOS_REPORTE.VALORIZACION) {
         const { filas: data, valorTotalGeneral: total } =
           await getReporteValorizacion({
@@ -140,6 +157,7 @@ function ReportesPage() {
           })
         setFilas(data)
         setValorTotalGeneral(total)
+        toast.success(`Reporte de "${etiquetaTipo[tipoReporte]}" generado (${data.length} registros)`)
       } else {
         const resultado = await getHistorialMovimientos({
           fechaDesde: filtros.fechaDesde,
@@ -147,6 +165,7 @@ function ReportesPage() {
           pageSize: 500,
         })
         setFilas(resultado.movimientos)
+        toast.success(`Reporte de "${etiquetaTipo[tipoReporte]}" generado (${resultado.movimientos.length} registros)`)
       }
 
       setSeGenero(true)
@@ -171,6 +190,7 @@ function ReportesPage() {
     } else {
       descargarCsv(nombreArchivo, columnasMovimientos, filas)
     }
+    toast.success('Reporte exportado a CSV')
   }
 
   const esReporteDeStock =
@@ -180,7 +200,50 @@ function ReportesPage() {
 
   return (
     <main>
-      <h1>Reportes de stock</h1>
+      <PageHeader
+        breadcrumbs={[{ label: 'Stock', to: '/#/stock' }, { label: 'Reportes' }]}
+        kicker="Stock e Inventario"
+        title="Reportes de stock"
+        description="Generación de informes de existencias, quiebres de reposición, valorización de inventario e historial de movimientos."
+      />
+
+      <div className="kpi-grid">
+        <KpiCard
+          label="Reporte activo"
+          value={etiquetaTipo[tipoReporte]}
+          icon={FileSpreadsheet}
+          tone="brand"
+          helperText="Configuración elegida"
+        />
+        <KpiCard
+          label="Registros obtenidos"
+          value={seGenero ? filas.length : '—'}
+          icon={BarChart3}
+          tone={seGenero ? 'success' : 'neutral'}
+          helperText={seGenero ? 'Filas procesadas' : 'Pendiente de generación'}
+        />
+        {tipoReporte === TIPOS_REPORTE.VALORIZACION ? (
+          <KpiCard
+            label="Valor total general"
+            value={valorTotalGeneral != null ? formatoMoneda(valorTotalGeneral) : '—'}
+            icon={DollarSign}
+            tone="success"
+            helperText="Valuación CMP consolidada"
+          />
+        ) : (
+          <KpiCard
+            label="Depósitos alcanzados"
+            value={
+              filtros.deposito_id
+                ? (depositos.find((d) => d.id === filtros.deposito_id)?.nombre ?? '1 depósito')
+                : `${depositos.length} depósitos`
+            }
+            icon={Warehouse}
+            tone="info"
+            helperText="Alcance del reporte"
+          />
+        )}
+      </div>
 
       {error && <p role="alert">{error}</p>}
 
@@ -287,82 +350,90 @@ function ReportesPage() {
         ) : filas.length === 0 ? (
           <p>No se encontraron datos para los filtros seleccionados.</p>
         ) : tipoReporte === TIPOS_REPORTE.MOVIMIENTOS ? (
-          <table>
-            <thead>
-              <tr>
-                <th>Fecha</th>
-                <th>Tipo</th>
-                <th>Artículo</th>
-                <th>Cantidad</th>
-                <th>Origen</th>
-                <th>Destino</th>
-                <th>Estado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filas.map((movimiento) => (
-                <tr key={movimiento.id}>
-                  <td>{new Date(movimiento.fecha).toLocaleString('es-AR')}</td>
-                  <td>{movimiento.tipo?.nombre || '-'}</td>
-                  <td>{movimiento.detalle?.[0]?.producto?.nombre || '-'}</td>
-                  <td>{movimiento.detalle?.[0]?.cantidad ?? '-'}</td>
-                  <td>{movimiento.origen?.nombre || '-'}</td>
-                  <td>{movimiento.destino?.nombre || '-'}</td>
-                  <td>{movimiento.estado_movimiento || '-'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="data-table-card">
+            <div className="data-table-scroll-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Tipo</th>
+                    <th>Artículo</th>
+                    <th>Cantidad</th>
+                    <th>Origen</th>
+                    <th>Destino</th>
+                    <th>Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filas.map((movimiento) => (
+                    <tr key={movimiento.id}>
+                      <td>{new Date(movimiento.fecha).toLocaleString('es-AR')}</td>
+                      <td>{movimiento.tipo?.nombre || '-'}</td>
+                      <td>{movimiento.detalle?.[0]?.producto?.nombre || '-'}</td>
+                      <td>{movimiento.detalle?.[0]?.cantidad ?? '-'}</td>
+                      <td>{movimiento.origen?.nombre || '-'}</td>
+                      <td>{movimiento.destino?.nombre || '-'}</td>
+                      <td>{movimiento.estado_movimiento || '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         ) : (
           <>
-            <table>
-              <thead>
-                <tr>
-                  <th>SKU</th>
-                  <th>Artículo</th>
-                  <th>Categoría</th>
-                  <th>Depósito</th>
-                  <th>Cantidad</th>
-                  {tipoReporte === TIPOS_REPORTE.VALORIZACION ? (
-                    <>
-                      <th>Costo unitario (CMP)</th>
-                      <th>Valor total</th>
-                    </>
-                  ) : (
-                    <>
-                      <th>Comprometido</th>
-                      {tipoReporte === TIPOS_REPORTE.STOCK_ACTUAL && (
-                        <th>Disponible</th>
+            <div className="data-table-card">
+              <div className="data-table-scroll-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>SKU</th>
+                      <th>Artículo</th>
+                      <th>Categoría</th>
+                      <th>Depósito</th>
+                      <th>Cantidad</th>
+                      {tipoReporte === TIPOS_REPORTE.VALORIZACION ? (
+                        <>
+                          <th>Costo unitario (CMP)</th>
+                          <th>Valor total</th>
+                        </>
+                      ) : (
+                        <>
+                          <th>Comprometido</th>
+                          {tipoReporte === TIPOS_REPORTE.STOCK_ACTUAL && (
+                            <th>Disponible</th>
+                          )}
+                        </>
                       )}
-                    </>
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {filas.map((fila) => (
-                  <tr key={fila.id}>
-                    <td>{fila.producto?.sku}</td>
-                    <td>{fila.producto?.nombre}</td>
-                    <td>{fila.producto?.categoria?.nombre || '-'}</td>
-                    <td>{fila.deposito?.nombre || '-'}</td>
-                    <td>{fila.cantidad}</td>
-                    {tipoReporte === TIPOS_REPORTE.VALORIZACION ? (
-                      <>
-                        <td>{fila.producto?.costo_medio_ponderado}</td>
-                        <td>{fila.valor_total}</td>
-                      </>
-                    ) : (
-                      <>
-                        <td>{fila.comprometido}</td>
-                        {tipoReporte === TIPOS_REPORTE.STOCK_ACTUAL && (
-                          <td>{fila.disponible}</td>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filas.map((fila) => (
+                      <tr key={fila.id}>
+                        <td>{fila.producto?.sku}</td>
+                        <td>{fila.producto?.nombre}</td>
+                        <td>{fila.producto?.categoria?.nombre || '-'}</td>
+                        <td>{fila.deposito?.nombre || '-'}</td>
+                        <td>{fila.cantidad}</td>
+                        {tipoReporte === TIPOS_REPORTE.VALORIZACION ? (
+                          <>
+                            <td>{fila.producto?.costo_medio_ponderado}</td>
+                            <td>{fila.valor_total}</td>
+                          </>
+                        ) : (
+                          <>
+                            <td>{fila.comprometido}</td>
+                            {tipoReporte === TIPOS_REPORTE.STOCK_ACTUAL && (
+                              <td>{fila.disponible}</td>
+                            )}
+                          </>
                         )}
-                      </>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
 
             {tipoReporte === TIPOS_REPORTE.VALORIZACION && (
               <p>

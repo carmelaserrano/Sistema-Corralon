@@ -1,13 +1,35 @@
-import { Boxes, X } from 'lucide-react'
+import { useState } from 'react'
+import { Boxes, ChevronDown, Search, X } from 'lucide-react'
 import { navigationGroups } from './navigation'
 
-export default function Sidebar({ activePage, isOpen, onClose, onNavigate }) {
+const BADGES = {
+  'alertas-stock': { label: 'Alerta', tone: 'warning' },
+  'pedidos-web': { label: 'Web', tone: 'info' },
+  'nueva-venta': { label: 'POS', tone: 'info' },
+}
+
+export default function Sidebar({
+  activePage,
+  isOpen,
+  onClose,
+  onNavigate,
+  onOpenPalette,
+}) {
+  const [collapsed, setCollapsed] = useState({})
+
   const activeNavigationPage =
     activePage === 'historial-movimientos' ? 'movimientos' : activePage
 
   function navigate(pageId) {
     onNavigate(pageId)
     onClose()
+  }
+
+  function toggleGroup(label) {
+    setCollapsed((prev) => ({
+      ...prev,
+      [label]: !prev[label],
+    }))
   }
 
   return (
@@ -37,27 +59,79 @@ export default function Sidebar({ activePage, isOpen, onClose, onNavigate }) {
           </button>
         </div>
 
+        {onOpenPalette && (
+          <div style={{ padding: '12px 4px 4px' }}>
+            <button
+              type="button"
+              className="topbar-search-trigger"
+              style={{ width: '100%', justifyContent: 'space-between', minHeight: '34px' }}
+              onClick={onOpenPalette}
+            >
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                <Search size={14} />
+                <span>Buscar módulo…</span>
+              </span>
+              <kbd>⌘K</kbd>
+            </button>
+          </div>
+        )}
+
         <nav className="sidebar-nav">
-          {navigationGroups.map((group) => (
-            <div className="nav-group" key={group.label}>
-              <p className="nav-group-label">{group.label}</p>
-              {group.items.map(({ id, label, icon: Icon }) => {
-                const active = activeNavigationPage === id
-                return (
-                  <button
-                    className={`nav-item ${active ? 'is-active' : ''}`}
-                    type="button"
-                    key={id}
-                    aria-current={active ? 'page' : undefined}
-                    onClick={() => navigate(id)}
-                  >
-                    <Icon size={18} aria-hidden="true" />
-                    <span>{label}</span>
-                  </button>
-                )
-              })}
-            </div>
-          ))}
+          {navigationGroups.map((group) => {
+            const hasActiveItem = group.items.some((item) => item.id === activeNavigationPage)
+            const isGroupCollapsed = Boolean(collapsed[group.label]) && !hasActiveItem
+
+            return (
+              <div className="nav-group" key={group.label}>
+                <p
+                  className="nav-group-label"
+                  style={{
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    userSelect: 'none',
+                  }}
+                  onClick={() => toggleGroup(group.label)}
+                  title="Haz clic para contraer o expandir este grupo"
+                >
+                  <span>{group.label}</span>
+                  <ChevronDown
+                    size={12}
+                    style={{
+                      transform: isGroupCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
+                      transition: 'transform 150ms ease',
+                    }}
+                    aria-hidden="true"
+                  />
+                </p>
+
+                {!isGroupCollapsed &&
+                  group.items.map(({ id, label, icon: Icon }) => {
+                    const active = activeNavigationPage === id
+                    const badge = BADGES[id]
+
+                    return (
+                      <button
+                        className={`nav-item ${active ? 'is-active' : ''}`}
+                        type="button"
+                        key={id}
+                        aria-current={active ? 'page' : undefined}
+                        onClick={() => navigate(id)}
+                      >
+                        <Icon size={18} aria-hidden="true" />
+                        <span>{label}</span>
+                        {badge && (
+                          <span className={`nav-badge nav-badge-${badge.tone}`}>
+                            {badge.label}
+                          </span>
+                        )}
+                      </button>
+                    )
+                  })}
+              </div>
+            )
+          })}
         </nav>
 
         <div className="sidebar-footer">
@@ -68,4 +142,3 @@ export default function Sidebar({ activePage, isOpen, onClose, onNavigate }) {
     </>
   )
 }
-

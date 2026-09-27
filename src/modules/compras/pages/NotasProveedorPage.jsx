@@ -26,6 +26,11 @@ import { getProveedores } from '../../proveedores/api/proveedoresApi'
 import Button from '../../../components/ui/Button'
 import EmptyState from '../../../components/ui/EmptyState'
 import Feedback from '../../../components/ui/Feedback'
+import PageHeader from '../../../components/ui/PageHeader'
+import KpiCard from '../../../components/ui/KpiCard'
+import { useToast } from '../../../components/ui/ToastContext'
+import Papa from 'papaparse'
+import { FileStack, DollarSign, CheckCircle2, AlertCircle, Download, Plus } from 'lucide-react'
 
 function formatearFechaCorta(isoDateString) {
   if (!isoDateString) return '—'
@@ -83,6 +88,7 @@ const filtrosIniciales = {
 const vinculoInicial = { factura_id: '', importe: '' }
 
 export default function NotasProveedorPage() {
+  const { showToast } = useToast()
   const [vista, setVista] = useState('listado') // 'listado', 'nueva', 'detalle'
 
   // Listado
@@ -570,15 +576,92 @@ export default function NotasProveedorPage() {
     )
   }
 
+  function exportarCsv() {
+    if (!notas || notas.length === 0) {
+      showToast({ message: 'No hay notas para exportar', tone: 'warning' })
+      return
+    }
+    const datosCsv = notas.map((n) => ({
+      Tipo: ETIQUETAS_TIPO[n.tipo] || n.tipo,
+      Comprobante: `${n.letra} ${n.sucursal}-${n.numero}`,
+      Proveedor: n.proveedor?.razon_social || '',
+      Fecha: n.fecha || '',
+      Importe: n.importe || 0,
+      Estado: ETIQUETAS_ESTADO[n.estado] || n.estado || '',
+    }))
+    const csv = Papa.unparse(datosCsv)
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const enlace = document.createElement('a')
+    enlace.href = url
+    enlace.setAttribute('download', `notas_proveedor_${new Date().toISOString().slice(0, 10)}.csv`)
+    document.body.appendChild(enlace)
+    enlace.click()
+    document.body.removeChild(enlace)
+    URL.revokeObjectURL(url)
+    showToast({ message: 'Notas exportadas en CSV', tone: 'success' })
+  }
+
+  const totalImporte = notas?.reduce((acc, n) => acc + (Number(n.importe) || 0), 0) || 0
+  const disponiblesCount = notas?.filter((n) => n.estado === 'disponible').length || 0
+  const aplicadasCount = notas?.filter((n) => ['aplicada', 'parcialmente_aplicada'].includes(n.estado)).length || 0
+
+  const accionesHeader = [
+    puedeRegistrar && {
+      label: 'Nueva Nota',
+      icon: Plus,
+      onClick: irANueva,
+      variant: 'primary',
+    },
+    {
+      label: 'Exportar CSV',
+      icon: Download,
+      onClick: exportarCsv,
+      variant: 'secondary',
+      disabled: !notas || notas.length === 0,
+    },
+  ].filter(Boolean)
+
   // --- RENDER: LISTADO ---
   return (
     <main>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-        <h1>Notas de Crédito/Débito</h1>
-        {puedeRegistrar && (
-          <Button type="button" onClick={irANueva}>Nueva Nota</Button>
-        )}
-      </header>
+      <PageHeader
+        title="Notas de Crédito/Débito"
+        kicker="Módulo Compras"
+        description="Gestión y conciliación de notas de crédito y débito de proveedores e imputaciones."
+        actions={accionesHeader}
+      />
+
+      <div className="kpi-grid">
+        <KpiCard
+          label="Total comprobantes"
+          value={notas?.length || 0}
+          icon={FileStack}
+          tone="brand"
+          helperText="Notas en el período"
+        />
+        <KpiCard
+          label="Importe global"
+          value={formatearMoneda(totalImporte)}
+          icon={DollarSign}
+          tone="neutral"
+          helperText="Monto total acumulado"
+        />
+        <KpiCard
+          label="Disponibles"
+          value={disponiblesCount}
+          icon={CheckCircle2}
+          tone="success"
+          helperText="Listas para imputar"
+        />
+        <KpiCard
+          label="Aplicadas / Parciales"
+          value={aplicadasCount}
+          icon={AlertCircle}
+          tone="info"
+          helperText="Imputadas a facturas"
+        />
+      </div>
 
       {error && <Feedback tone="error">{error}</Feedback>}
       {aviso && <Feedback tone="success">{aviso}</Feedback>}
@@ -625,52 +708,56 @@ export default function NotasProveedorPage() {
         )}
 
         {!loadingListado && notas?.length > 0 && (
-          <table>
-            <thead>
-              <tr>
-                <th>Tipo</th>
-                <th>Comprobante</th>
-                <th>Proveedor</th>
-                <th>Fecha</th>
-                <th style={{ textAlign: 'right' }}>Importe</th>
-                <th>Factura vinculada</th>
-                <th>Estado</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {notas?.map((nota) => (
-                <tr key={nota.id}>
-                  <td>{ETIQUETAS_TIPO[nota.tipo]}</td>
-                  <td><strong>{nota.letra} {nota.sucursal}-{nota.numero}</strong></td>
-                  <td>{nota.proveedor?.razon_social}</td>
-                  <td>{formatearFechaCorta(nota.fecha)}</td>
-                  <td style={{ textAlign: 'right' }}>{formatearMoneda(nota.importe)}</td>
-                  <td>
-                    {nota.imputaciones?.length
-                      ? nota.imputaciones.map((imp) => comprobanteFactura(imp.factura)).join(', ')
-                      : '—'}
-                  </td>
-                  <td><EstadoBadge estado={nota.estado} /></td>
-                  <td style={{ textAlign: 'right' }}>
-                    <Button type="button" variant="ghost" onClick={() => verDetalle(nota.id)}>
-                      Ver detalle
-                    </Button>
-                    {puedeRegistrar && nota.estado === 'disponible' && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        loading={eliminandoId === nota.id}
-                        onClick={() => eliminar(nota)}
-                      >
-                        Eliminar
-                      </Button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="data-table-card">
+            <div className="data-table-scroll-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Tipo</th>
+                    <th>Comprobante</th>
+                    <th>Proveedor</th>
+                    <th>Fecha</th>
+                    <th style={{ textAlign: 'right' }}>Importe</th>
+                    <th>Factura vinculada</th>
+                    <th>Estado</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {notas?.map((nota) => (
+                    <tr key={nota.id}>
+                      <td>{ETIQUETAS_TIPO[nota.tipo]}</td>
+                      <td><strong>{nota.letra} {nota.sucursal}-{nota.numero}</strong></td>
+                      <td>{nota.proveedor?.razon_social}</td>
+                      <td>{formatearFechaCorta(nota.fecha)}</td>
+                      <td style={{ textAlign: 'right' }}>{formatearMoneda(nota.importe)}</td>
+                      <td>
+                        {nota.imputaciones?.length
+                          ? nota.imputaciones.map((imp) => comprobanteFactura(imp.factura)).join(', ')
+                          : '—'}
+                      </td>
+                      <td><EstadoBadge estado={nota.estado} /></td>
+                      <td style={{ textAlign: 'right' }}>
+                        <Button type="button" variant="ghost" onClick={() => verDetalle(nota.id)}>
+                          Ver detalle
+                        </Button>
+                        {puedeRegistrar && nota.estado === 'disponible' && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            loading={eliminandoId === nota.id}
+                            onClick={() => eliminar(nota)}
+                          >
+                            Eliminar
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
       </section>
     </main>
