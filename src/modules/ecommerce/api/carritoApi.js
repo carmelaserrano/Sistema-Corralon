@@ -1,6 +1,14 @@
 import { supabase } from '../../../lib/supabaseClient'
 
-/** Normaliza y acumula cantidades; cero elimina una línea al guardar.
+/** Indica si una cantidad cumple la regla única del e-commerce.
+ * @param {unknown} cantidad
+ * @returns {boolean}
+ */
+export function esCantidadEnteraPositiva(cantidad) {
+  return typeof cantidad === 'number' && Number.isFinite(cantidad) && Number.isInteger(cantidad) && cantidad > 0
+}
+
+/** Normaliza y acumula cantidades enteras mayores a cero.
  * @param {Array<{productoId: string, cantidad: number}>} items
  * @returns {Array<{producto_id: string, cantidad: number}>}
  */
@@ -11,30 +19,35 @@ export function normalizarItems(items) {
     if (!item || typeof item.productoId !== 'string' || !item.productoId.trim()) {
       throw new Error('Cada producto necesita un identificador')
     }
-    if (typeof item.cantidad !== 'number' || !Number.isFinite(item.cantidad) || item.cantidad < 0) {
-      throw new Error('La cantidad debe ser un número mayor o igual a cero')
+    if (!esCantidadEnteraPositiva(item.cantidad)) {
+      throw new Error('La cantidad debe ser un número entero mayor a cero')
     }
     const cantidad = (cantidades.get(item.productoId) ?? 0) + item.cantidad
     if (!Number.isFinite(cantidad)) throw new Error('La cantidad es demasiado grande')
     cantidades.set(item.productoId, cantidad)
   }
-  return [...cantidades].filter(([, cantidad]) => cantidad > 0)
-    .map(([producto_id, cantidad]) => ({ producto_id, cantidad }))
+  return [...cantidades].map(([producto_id, cantidad]) => ({ producto_id, cantidad }))
 }
 
 function convertirItems(data) {
   if (!Array.isArray(data)) throw new Error('No se pudo leer la respuesta del carrito')
-  return data.map((item) => ({
-    productoId: item.producto_id,
-    cantidad: Number(item.cantidad),
-    nombre: item.nombre,
-    imagenUrl: item.imagen_url,
-    precioUnitario: item.precio === null ? null : Number(item.precio),
-    disponible: item.disponible,
-    motivo: item.motivo,
-    ajustado: item.ajustado,
-    subtotal: item.disponible ? Math.round(Number(item.precio) * Number(item.cantidad) * 100) / 100 : 0,
-  }))
+  return data.map((item) => {
+    const cantidad = Number(item.cantidad)
+    if (!esCantidadEnteraPositiva(cantidad)) {
+      throw new Error('El servidor devolvió una cantidad inválida para el carrito')
+    }
+    return {
+      productoId: item.producto_id,
+      cantidad,
+      nombre: item.nombre,
+      imagenUrl: item.imagen_url,
+      precioUnitario: item.precio === null ? null : Number(item.precio),
+      disponible: item.disponible,
+      motivo: item.motivo,
+      ajustado: item.ajustado,
+      subtotal: item.disponible ? Math.round(Number(item.precio) * cantidad * 100) / 100 : 0,
+    }
+  })
 }
 
 /** Consulta precios y ajusta las cantidades al stock web sin reservarlo.

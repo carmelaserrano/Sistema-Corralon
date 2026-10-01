@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { useClienteWeb } from './ClienteWebContext'
-import { fusionarCarrito, guardarItems, obtenerCarrito, validarItems } from '../api/carritoApi'
+import { esCantidadEnteraPositiva, fusionarCarrito, guardarItems, obtenerCarrito, validarItems } from '../api/carritoApi'
 import Feedback from '../../../components/ui/Feedback'
 
 const CarritoContext = createContext(undefined)
@@ -130,8 +130,8 @@ function CarritoSesion({ children, clienteId, esperandoSesion, visitante }) {
 
   function agregar(productoId, cantidad) {
     return modificar((prev) => {
-      if (typeof cantidad !== 'number' || !Number.isFinite(cantidad) || cantidad <= 0) {
-        throw new Error('Ingresá una cantidad mayor a cero')
+      if (!esCantidadEnteraPositiva(cantidad)) {
+        throw new Error('Ingresá una cantidad entera mayor a cero')
       }
       const encontrado = prev.find((item) => item.productoId === productoId)
       return encontrado
@@ -142,11 +142,10 @@ function CarritoSesion({ children, clienteId, esperandoSesion, visitante }) {
 
   function actualizar(productoId, cantidad) {
     return modificar((prev) => {
-      if (typeof cantidad !== 'number' || !Number.isFinite(cantidad) || cantidad < 0) {
-        throw new Error('Ingresá una cantidad mayor o igual a cero')
+      if (!esCantidadEnteraPositiva(cantidad)) {
+        throw new Error('Ingresá una cantidad entera mayor a cero')
       }
-      return cantidad === 0 ? prev.filter((item) => item.productoId !== productoId)
-        : prev.map((item) => item.productoId === productoId ? { ...item, cantidad } : item)
+      return prev.map((item) => item.productoId === productoId ? { ...item, cantidad } : item)
     })
   }
 
