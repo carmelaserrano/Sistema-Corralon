@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import {
   avanzarEstadoPedido,
@@ -7,6 +7,7 @@ import {
   obtenerDetallePedidoBackoffice,
   puedeGestionarPedidos,
   siguientesEstados,
+  suscribirPedidosWeb,
 } from '../api/pedidosWebApi'
 import Button from '../../../components/ui/Button'
 import EmptyState from '../../../components/ui/EmptyState'
@@ -94,7 +95,14 @@ function ModalDetallePedido({ pedido, puedeGestionar, onCambio, onCerrar }) {
   }
 
   // CA-03: solo el siguiente estado válido. Cancelar va aparte porque pide motivo.
-  const pedidoCompleto = detalle?.pedido ? { ...pedido, ...detalle.pedido } : pedido
+  const pedidoCompleto = detalle?.pedido
+    ? {
+        ...detalle.pedido,
+        ...pedido,
+        cliente: detalle.pedido.cliente ?? pedido.cliente,
+        domicilio: detalle.pedido.domicilio ?? pedido.domicilio,
+      }
+    : pedido
   const items = detalle?.items ?? []
   const historial = detalle?.historial ?? []
   const cliente = pedidoCompleto.cliente
@@ -313,19 +321,29 @@ export default function PedidosWebPage() {
     puedeGestionarPedidos().then(setPuedeGestionar).catch(() => setPuedeGestionar(true))
   }, [])
 
-  useEffect(() => {
+  const cargarPedidos = useCallback(async ({ silenciosa = false } = {}) => {
     const consulta = ++ultimaConsulta.current
-    setCargando(true)
+    if (!silenciosa) setCargando(true)
     setError('')
-    listarPedidosWeb({ estado: filtroEstado || undefined })
-      .then((data) => { if (consulta === ultimaConsulta.current) setPedidos(data) })
-      .catch((err) => {
-        if (consulta !== ultimaConsulta.current) return
-        setPedidos([])
-        setError(err.message || 'No se pudieron cargar los pedidos')
-      })
-      .finally(() => { if (consulta === ultimaConsulta.current) setCargando(false) })
+    try {
+      const data = await listarPedidosWeb({ estado: filtroEstado || undefined })
+      if (consulta === ultimaConsulta.current) setPedidos(data)
+    } catch (err) {
+      if (consulta !== ultimaConsulta.current) return
+      if (!silenciosa) setPedidos([])
+      setError(err.message || 'No se pudieron cargar los pedidos')
+    } finally {
+      if (consulta === ultimaConsulta.current && !silenciosa) setCargando(false)
+    }
   }, [filtroEstado])
+
+  useEffect(() => {
+    void cargarPedidos()
+  }, [cargarPedidos])
+
+  useEffect(() => suscribirPedidosWeb(() => {
+    void cargarPedidos({ silenciosa: true })
+  }), [cargarPedidos])
 
   // La base ya confirmó el cambio: se actualiza la fila sin recargar todo y
   // el modal (que recibe este mismo pedido) refleja el nuevo estado solo.

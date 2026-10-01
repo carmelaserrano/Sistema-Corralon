@@ -8,10 +8,18 @@ import {
   obtenerSeguimientoPedido,
   puedeGestionarPedidos,
   siguientesEstados,
+  suscribirPedidosWeb,
 } from './pedidosWebApi'
 import { supabase } from '../../../lib/supabaseClient'
 
-vi.mock('../../../lib/supabaseClient', () => ({ supabase: { rpc: vi.fn(), from: vi.fn() } }))
+vi.mock('../../../lib/supabaseClient', () => ({
+  supabase: {
+    rpc: vi.fn(),
+    from: vi.fn(),
+    channel: vi.fn(),
+    removeChannel: vi.fn(),
+  },
+}))
 
 function builder(resultado) {
   const consulta = { then: (ok, fail) => Promise.resolve(resultado).then(ok, fail) }
@@ -20,6 +28,35 @@ function builder(resultado) {
 }
 
 beforeEach(() => vi.resetAllMocks())
+
+describe('suscribirPedidosWeb', () => {
+  it('escucha cambios de pedidos y elimina el canal al limpiar', () => {
+    const on = vi.fn()
+    const canal = { on, subscribe: vi.fn() }
+    on.mockReturnValue(canal)
+    canal.subscribe.mockReturnValue(canal)
+    supabase.channel.mockReturnValue(canal)
+    supabase.removeChannel.mockResolvedValue('ok')
+    const manejarCambio = vi.fn()
+
+    const limpiar = suscribirPedidosWeb(manejarCambio)
+
+    expect(supabase.channel).toHaveBeenCalledWith('backoffice-pedidos-web')
+    expect(on).toHaveBeenCalledWith('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'pedidos_web',
+    }, manejarCambio)
+    expect(canal.subscribe).toHaveBeenCalledOnce()
+
+    limpiar()
+    expect(supabase.removeChannel).toHaveBeenCalledWith(canal)
+  })
+
+  it('exige un manejador de cambios', () => {
+    expect(() => suscribirPedidosWeb()).toThrow('Falta el manejador')
+  })
+})
 
 describe('siguientesEstados (matriz de transiciones)', () => {
   it.each([

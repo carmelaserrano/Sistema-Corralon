@@ -225,6 +225,31 @@ export async function listarPedidosWeb({ estado } = {}) {
 }
 
 /**
+ * Notifica altas y cambios de pedidos visibles para el usuario interno.
+ * El consumidor vuelve a consultar la lista para conservar filtros, joins y
+ * orden autoritativos en lugar de mezclar payloads parciales de Realtime.
+ *
+ * @param {(payload: Object) => void} onCambio
+ * @returns {() => void} Limpieza de la suscripción.
+ */
+export function suscribirPedidosWeb(onCambio) {
+  if (typeof onCambio !== 'function') throw new TypeError('Falta el manejador de cambios de pedidos')
+
+  const canal = supabase
+    .channel('backoffice-pedidos-web')
+    .on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'pedidos_web',
+    }, onCambio)
+    .subscribe()
+
+  return () => {
+    void supabase.removeChannel(canal)
+  }
+}
+
+/**
  * Detalle operativo de un pedido para el backoffice. La consulta queda
  * protegida por las policies de lectura interna de pedido, cliente, domicilio,
  * detalle, productos e historial.

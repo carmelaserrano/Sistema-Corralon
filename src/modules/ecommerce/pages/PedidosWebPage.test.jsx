@@ -8,6 +8,7 @@ import {
   obtenerDetallePedidoBackoffice,
   puedeGestionarPedidos,
   siguientesEstados,
+  suscribirPedidosWeb,
 } from '../api/pedidosWebApi'
 
 vi.mock('../api/pedidosWebApi', () => ({
@@ -28,6 +29,7 @@ vi.mock('../api/pedidosWebApi', () => ({
   obtenerSeguimientoPedido: vi.fn(),
   puedeGestionarPedidos: vi.fn(),
   siguientesEstados: vi.fn(),
+  suscribirPedidosWeb: vi.fn(),
 }))
 
 const pedidoLista = {
@@ -90,8 +92,16 @@ async function abrirDetalle() {
 }
 
 describe('PedidosWebPage', () => {
+  let notificarCambio
+  let limpiarSuscripcion
+
   beforeEach(() => {
     vi.clearAllMocks()
+    limpiarSuscripcion = vi.fn()
+    suscribirPedidosWeb.mockImplementation((callback) => {
+      notificarCambio = callback
+      return limpiarSuscripcion
+    })
     listarPedidosWeb.mockResolvedValue([pedidoLista])
     obtenerDetallePedidoBackoffice.mockResolvedValue(detalleEnvio)
     puedeGestionarPedidos.mockResolvedValue(false)
@@ -149,5 +159,62 @@ describe('PedidosWebPage', () => {
     expect(within(modal).getAllByText('Retiro').length).toBeGreaterThan(0)
     expect(within(modal).queryByRole('heading', { name: 'Domicilio de entrega' })).not.toBeInTheDocument()
     expect(within(modal).queryByText(/Dirección que no debe mostrarse/)).not.toBeInTheDocument()
+  })
+
+  it('refresca la lista cuando entra un pedido nuevo', async () => {
+    const nuevo = {
+      ...pedidoLista,
+      id: 'pedido-2',
+      numero: 43,
+      cliente: { ...pedidoLista.cliente, nombre: 'Berta' },
+    }
+    listarPedidosWeb
+      .mockResolvedValueOnce([pedidoLista])
+      .mockResolvedValueOnce([nuevo, pedidoLista])
+
+    render(<PedidosWebPage />)
+    await screen.findByText('42')
+    notificarCambio({ eventType: 'INSERT', new: nuevo })
+
+    await waitFor(() => expect(listarPedidosWeb).toHaveBeenCalledTimes(2))
+    expect(await screen.findByText('43')).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Ver detalle' })).toHaveLength(2)
+  })
+
+  it('refresca la fila cuando cambia el estado de un pedido', async () => {
+    const actualizado = { ...pedidoLista, estado: 'En preparación' }
+    listarPedidosWeb
+      .mockResolvedValueOnce([pedidoLista])
+      .mockResolvedValueOnce([actualizado])
+
+    render(<PedidosWebPage />)
+    await screen.findByText('Pagado')
+    fireEvent.click(screen.getByRole('button', { name: 'Ver detalle' }))
+    const modal = await screen.findByRole('dialog')
+    notificarCambio({ eventType: 'UPDATE', new: actualizado })
+
+    await waitFor(() => expect(within(modal).getAllByText('En preparación').length).toBeGreaterThan(0))
+    expect(listarPedidosWeb).toHaveBeenLastCalledWith({ estado: undefined })
+  })
+
+  it('elimina la suscripción al desmontar', async () => {
+    const { unmount } = render(<PedidosWebPage />)
+    await screen.findByText('42')
+
+    unmount()
+
+    expect(limpiarSuscripcion).toHaveBeenCalledOnce()
+  })
+
+  it('no duplica pedidos ante eventos repetidos', async () => {
+    render(<PedidosWebPage />)
+    await screen.findByText('42')
+
+    notificarCambio({ eventType: 'INSERT', new: pedidoLista })
+    await waitFor(() => expect(listarPedidosWeb).toHaveBeenCalledTimes(2))
+    notificarCambio({ eventType: 'INSERT', new: pedidoLista })
+    await waitFor(() => expect(listarPedidosWeb).toHaveBeenCalledTimes(3))
+
+    expect(screen.getAllByRole('button', { name: 'Ver detalle' })).toHaveLength(1)
   })
 })
