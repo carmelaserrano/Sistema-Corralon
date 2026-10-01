@@ -75,7 +75,7 @@ export function siguientesEstados(pedido) {
     case 'Pendiente de pago':
       return ['Cancelado']
     case 'Pagado':
-      return ['En preparación', 'Cancelado']
+      return ['En preparación']
     case 'En preparación':
       return [pedido.tipo_entrega === 'envio' ? 'Enviado' : 'Listo para retirar']
     case 'Listo para retirar':

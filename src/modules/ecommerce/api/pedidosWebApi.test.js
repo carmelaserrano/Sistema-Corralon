@@ -24,7 +24,7 @@ beforeEach(() => vi.resetAllMocks())
 describe('siguientesEstados (matriz de transiciones)', () => {
   it.each([
     [{ estado: 'Pendiente de pago', tipo_entrega: 'retiro' }, ['Cancelado']],
-    [{ estado: 'Pagado', tipo_entrega: 'retiro' }, ['En preparación', 'Cancelado']],
+    [{ estado: 'Pagado', tipo_entrega: 'retiro' }, ['En preparación']],
     [{ estado: 'En preparación', tipo_entrega: 'retiro' }, ['Listo para retirar']],
     [{ estado: 'En preparación', tipo_entrega: 'envio' }, ['Enviado']],
     [{ estado: 'Listo para retirar', tipo_entrega: 'retiro' }, ['Entregado']],
@@ -40,7 +40,7 @@ describe('siguientesEstados (matriz de transiciones)', () => {
   })
 
   it('no permite cancelar después de empezar la preparación', () => {
-    for (const estado of ['En preparación', 'Listo para retirar', 'Enviado']) {
+    for (const estado of ['Pagado', 'En preparación', 'Listo para retirar', 'Enviado']) {
       expect(siguientesEstados({ estado, tipo_entrega: 'envio' })).not.toContain('Cancelado')
     }
   })
