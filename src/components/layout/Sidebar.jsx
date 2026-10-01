@@ -41,8 +41,24 @@ export default function Sidebar({ activePage, isOpen, onClose, onNavigate }) {
           {navigationGroups.map((group) => (
             <div className="nav-group" key={group.label}>
               <p className="nav-group-label">{group.label}</p>
-              {group.items.map(({ id, label, icon: Icon }) => {
+              {group.items.map(({ id, label, icon: Icon, href, newTab }) => {
                 const active = activeNavigationPage === id
+                if (href) {
+                  return (
+                    <a
+                      className="nav-item"
+                      href={href}
+                      key={id}
+                      style={{ textDecoration: 'none' }}
+                      target={newTab ? '_blank' : undefined}
+                      rel={newTab ? 'noopener noreferrer' : undefined}
+                      onClick={onClose}
+                    >
+                      <Icon size={18} aria-hidden="true" />
+                      <span>{label}</span>
+                    </a>
+                  )
+                }
                 return (
                   <button
                     className={`nav-item ${active ? 'is-active' : ''}`}

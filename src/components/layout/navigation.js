@@ -113,6 +113,7 @@ export const navigationGroups = [
     label: 'E-commerce',
     module: 'E-commerce',
     items: [
+      { id: 'ver-tienda', label: 'Ver tienda', icon: Store, href: '/tienda', newTab: true },
       { id: 'publicacion-web', label: 'Publicación web', icon: Store },
       { id: 'pedidos-web', label: 'Pedidos web', icon: PackageSearch },
     ],

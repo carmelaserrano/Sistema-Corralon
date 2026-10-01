@@ -52,6 +52,27 @@ describe('Sidebar', () => {
     expect(props.onClose).toHaveBeenCalled()
   })
 
+  it('abre la tienda en una pestaña nueva sin reemplazar la navegación del backoffice', () => {
+    const { props } = renderSidebar({ isOpen: true })
+    const grupoEcommerce = screen.getByText('E-commerce').closest('.nav-group')
+    const opciones = Array.from(grupoEcommerce.querySelectorAll('.nav-item'))
+    const enlaceTienda = screen.getByRole('link', { name: 'Ver tienda' })
+
+    expect(opciones.map((opcion) => opcion.textContent)).toEqual([
+      'Ver tienda',
+      'Publicación web',
+      'Pedidos web',
+    ])
+    expect(enlaceTienda).toHaveAttribute('href', '/tienda')
+    expect(enlaceTienda).toHaveAttribute('target', '_blank')
+    expect(enlaceTienda).toHaveAttribute('rel', 'noopener noreferrer')
+
+    fireEvent.click(enlaceTienda)
+
+    expect(props.onNavigate).not.toHaveBeenCalled()
+    expect(props.onClose).toHaveBeenCalled()
+  })
+
   it('expone la apertura móvil y permite cerrarla', () => {
     const { props, container } = renderSidebar({ isOpen: true })
 
