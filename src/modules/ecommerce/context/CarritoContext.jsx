@@ -144,7 +144,9 @@ function CarritoSesion({ children, clienteId, esperandoSesion, visitante }) {
     return modificar((prev) => {
       let resultado = [...prev]
       for (const { productoId, cantidad } of nuevosItems) {
-        if (typeof cantidad !== 'number' || !Number.isFinite(cantidad) || cantidad <= 0) continue
+        if (!esCantidadEnteraPositiva(cantidad)) {
+          throw new Error('Ingresá una cantidad entera mayor a cero')
+        }
         const idx = resultado.findIndex((item) => item.productoId === productoId)
         if (idx >= 0) {
           resultado[idx] = { ...resultado[idx], cantidad: resultado[idx].cantidad + cantidad }
