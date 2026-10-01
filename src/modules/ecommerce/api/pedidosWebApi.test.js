@@ -4,6 +4,7 @@ import {
   avanzarEstadoPedido,
   listarMisPedidos,
   listarPedidosWeb,
+  obtenerDetallePedidoBackoffice,
   obtenerSeguimientoPedido,
   puedeGestionarPedidos,
   siguientesEstados,
@@ -195,6 +196,55 @@ describe('consultas', () => {
     consulta.eq.mockClear()
     await listarPedidosWeb()
     expect(consulta.eq).not.toHaveBeenCalled()
+  })
+
+  it('trae el detalle operativo completo para el backoffice', async () => {
+    const pedido = {
+      id: 'p1',
+      numero: 42,
+      cliente: { numero_documento: '30111222', telefono: '3874000000' },
+      domicilio: { calle: 'Caseros', numero: '850' },
+    }
+    const items = [{ id: 'i1', cantidad: 2, producto: { nombre: 'Cemento' } }]
+    const historial = [{ id: 'h1', estado_nuevo: 'Pagado' }]
+    const consultaPedido = builder({ data: pedido, error: null })
+    const consultaItems = builder({ data: items, error: null })
+    const consultaHistorial = builder({ data: historial, error: null })
+    supabase.from
+      .mockReturnValueOnce(consultaPedido)
+      .mockReturnValueOnce(consultaItems)
+      .mockReturnValueOnce(consultaHistorial)
+
+    await expect(obtenerDetallePedidoBackoffice('p1')).resolves.toEqual({
+      pedido,
+      items,
+      historial,
+    })
+    expect(supabase.from).toHaveBeenNthCalledWith(1, 'pedidos_web')
+    expect(supabase.from).toHaveBeenNthCalledWith(2, 'detalle_pedido_web')
+    expect(supabase.from).toHaveBeenNthCalledWith(3, 'historial_estado_pedido')
+    expect(consultaPedido.select).toHaveBeenCalledWith(expect.stringContaining('numero_documento'))
+    expect(consultaPedido.select).toHaveBeenCalledWith(expect.stringContaining('domicilio:domicilios_cliente'))
+    expect(consultaItems.select).toHaveBeenCalledWith(expect.stringContaining('producto:productos'))
+  })
+
+  it('no consulta relaciones si el pedido de backoffice no existe o falta el id', async () => {
+    supabase.from.mockReturnValue(builder({ data: null, error: null }))
+
+    await expect(obtenerDetallePedidoBackoffice('inexistente')).resolves.toBeNull()
+    expect(supabase.from).toHaveBeenCalledTimes(1)
+    await expect(obtenerDetallePedidoBackoffice('')).resolves.toBeNull()
+    expect(supabase.from).toHaveBeenCalledTimes(1)
+  })
+
+  it('propaga errores al cargar los artículos del detalle de backoffice', async () => {
+    const error = new Error('falló el detalle')
+    supabase.from
+      .mockReturnValueOnce(builder({ data: { id: 'p1' }, error: null }))
+      .mockReturnValueOnce(builder({ data: null, error }))
+      .mockReturnValueOnce(builder({ data: [], error: null }))
+
+    await expect(obtenerDetallePedidoBackoffice('p1')).rejects.toBe(error)
   })
 
   it('propaga errores de las listas', async () => {

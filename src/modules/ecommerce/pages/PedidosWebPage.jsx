@@ -3,8 +3,8 @@ import { X } from 'lucide-react'
 import {
   avanzarEstadoPedido,
   ESTADOS_PEDIDO,
-  listarHistorialPedido,
   listarPedidosWeb,
+  obtenerDetallePedidoBackoffice,
   puedeGestionarPedidos,
   siguientesEstados,
 } from '../api/pedidosWebApi'
@@ -30,8 +30,8 @@ function nombreCliente(cliente) {
 // montaje nuevo, sin arrastrar el motivo ni el error del anterior (misma
 // lección que ModalDetalleVenta).
 function ModalDetallePedido({ pedido, puedeGestionar, onCambio, onCerrar }) {
-  const [historial, setHistorial] = useState([])
-  const [cargandoHistorial, setCargandoHistorial] = useState(true)
+  const [detalle, setDetalle] = useState(null)
+  const [cargandoDetalle, setCargandoDetalle] = useState(true)
   const [mostrarFormCancelar, setMostrarFormCancelar] = useState(false)
   const [motivo, setMotivo] = useState('')
   const [error, setError] = useState('')
@@ -39,20 +39,22 @@ function ModalDetallePedido({ pedido, puedeGestionar, onCambio, onCerrar }) {
   const [procesando, setProcesando] = useState(false)
   const cerrarRef = useRef(null)
 
-  async function cargarHistorial() {
+  async function cargarDetalle() {
     try {
-      setCargandoHistorial(true)
-      setHistorial(await listarHistorialPedido(pedido.id))
+      setCargandoDetalle(true)
+      const resultado = await obtenerDetallePedidoBackoffice(pedido.id)
+      if (!resultado) throw new Error('El pedido ya no está disponible')
+      setDetalle(resultado)
     } catch (err) {
-      setError(err.message || 'No se pudo cargar el historial')
+      setError(err.message || 'No se pudo cargar el detalle del pedido')
     } finally {
-      setCargandoHistorial(false)
+      setCargandoDetalle(false)
     }
   }
 
   useEffect(() => {
     cerrarRef.current?.focus()
-    cargarHistorial()
+    cargarDetalle()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -74,7 +76,7 @@ function ModalDetallePedido({ pedido, puedeGestionar, onCambio, onCerrar }) {
       setMostrarFormCancelar(false)
       setMotivo('')
       onCambio(actualizado)
-      await cargarHistorial()
+      await cargarDetalle()
     } catch (err) {
       setError(err.message || 'No se pudo cambiar el estado del pedido')
     } finally {
@@ -92,7 +94,12 @@ function ModalDetallePedido({ pedido, puedeGestionar, onCambio, onCerrar }) {
   }
 
   // CA-03: solo el siguiente estado válido. Cancelar va aparte porque pide motivo.
-  const siguientes = puedeGestionar ? siguientesEstados(pedido) : []
+  const pedidoCompleto = detalle?.pedido ? { ...pedido, ...detalle.pedido } : pedido
+  const items = detalle?.items ?? []
+  const historial = detalle?.historial ?? []
+  const cliente = pedidoCompleto.cliente
+  const domicilio = pedidoCompleto.domicilio
+  const siguientes = puedeGestionar ? siguientesEstados(pedidoCompleto) : []
   const avances = siguientes.filter((estado) => estado !== 'Cancelado')
   const puedeCancelar = siguientes.includes('Cancelado')
 
@@ -103,10 +110,10 @@ function ModalDetallePedido({ pedido, puedeGestionar, onCambio, onCerrar }) {
         <header className="modal-header">
           <div>
             <p className="eyebrow">Pedido web</p>
-            <h2 id="detalle-pedido-title">Nº {pedido.numero} — {nombreCliente(pedido.cliente)}</h2>
+            <h2 id="detalle-pedido-title">Nº {pedidoCompleto.numero} — {nombreCliente(pedidoCompleto.cliente)}</h2>
             <p>
-              {formatearMoneda(pedido.total)} · {pedido.tipo_entrega === 'envio' ? 'Envío' : 'Retiro'} ·{' '}
-              <EstadoPedidoBadge estado={pedido.estado} />
+              {formatearMoneda(pedidoCompleto.total)} · {pedidoCompleto.tipo_entrega === 'envio' ? 'Envío' : 'Retiro'} ·{' '}
+              <EstadoPedidoBadge estado={pedidoCompleto.estado} />
             </p>
           </div>
           {/* padding 0 inline: `.page-canvas button[type="button"]` es más
@@ -121,8 +128,106 @@ function ModalDetallePedido({ pedido, puedeGestionar, onCambio, onCerrar }) {
         {error && <Feedback tone="error">{error}</Feedback>}
         {aviso && <Feedback tone="success">{aviso}</Feedback>}
 
-        {pedido.estado === 'Pendiente de pago' && puedeGestionar && (
+        {pedidoCompleto.estado === 'Pendiente de pago' && puedeGestionar && (
           <Feedback>El paso a «Pagado» lo confirma la pasarela de pago; no se hace a mano.</Feedback>
+        )}
+
+        {cargandoDetalle && <p className="loading-state" role="status">Cargando detalle del pedido…</p>}
+
+        {!cargandoDetalle && detalle && (
+          <>
+            <section aria-labelledby="datos-pedido-title">
+              <h3 id="datos-pedido-title">Datos del pedido</h3>
+              <dl style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, margin: 0 }}>
+                <div>
+                  <dt style={{ color: 'var(--text-muted)' }}>ID</dt>
+                  <dd style={{ margin: 0, overflowWrap: 'anywhere' }}>{pedidoCompleto.id}</dd>
+                </div>
+                <div>
+                  <dt style={{ color: 'var(--text-muted)' }}>Fecha</dt>
+                  <dd style={{ margin: 0 }}>{formatearFecha(pedidoCompleto.created_at)}</dd>
+                </div>
+                <div>
+                  <dt style={{ color: 'var(--text-muted)' }}>Modalidad de entrega</dt>
+                  <dd style={{ margin: 0 }}>{pedidoCompleto.tipo_entrega === 'envio' ? 'Envío' : 'Retiro'}</dd>
+                </div>
+                <div>
+                  <dt style={{ color: 'var(--text-muted)' }}>Estado</dt>
+                  <dd style={{ margin: 0 }}><EstadoPedidoBadge estado={pedidoCompleto.estado} /></dd>
+                </div>
+              </dl>
+            </section>
+
+            <section aria-labelledby="cliente-pedido-title">
+              <h3 id="cliente-pedido-title">Cliente</h3>
+              <p style={{ marginBottom: 4 }}><strong>{nombreCliente(cliente)}</strong></p>
+              {cliente?.numero_documento && (
+                <p style={{ margin: '4px 0' }}>
+                  Documento: {[cliente.tipo_documento, cliente.numero_documento].filter(Boolean).join(' ')}
+                </p>
+              )}
+              {cliente?.telefono && <p style={{ margin: '4px 0' }}>Teléfono: {cliente.telefono}</p>}
+              {cliente?.email && <p style={{ margin: '4px 0' }}>Email: {cliente.email}</p>}
+            </section>
+
+            {pedidoCompleto.tipo_entrega === 'envio' && (
+              <section aria-labelledby="domicilio-pedido-title">
+                <h3 id="domicilio-pedido-title">Domicilio de entrega</h3>
+                {domicilio ? (
+                  <address style={{ fontStyle: 'normal' }}>
+                    {domicilio.alias && <strong style={{ display: 'block' }}>{domicilio.alias}</strong>}
+                    <span style={{ display: 'block' }}>{domicilio.calle} {domicilio.numero}</span>
+                    <span style={{ display: 'block' }}>
+                      {domicilio.localidad}, {domicilio.provincia}
+                      {domicilio.codigo_postal ? ` · CP ${domicilio.codigo_postal}` : ''}
+                    </span>
+                    {domicilio.referencias && <span style={{ display: 'block' }}>Referencias: {domicilio.referencias}</span>}
+                  </address>
+                ) : (
+                  <Feedback tone="error">El pedido con envío no tiene un domicilio disponible.</Feedback>
+                )}
+              </section>
+            )}
+
+            <section aria-labelledby="articulos-pedido-title">
+              <h3 id="articulos-pedido-title">Artículos</h3>
+              {items.length === 0 ? (
+                <p>El pedido no tiene artículos visibles.</p>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th scope="col">Artículo</th>
+                        <th scope="col">Cantidad</th>
+                        <th scope="col">Precio unitario</th>
+                        <th scope="col">Subtotal</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {items.map((item) => (
+                        <tr key={item.id}>
+                          <td>
+                            <strong>{item.producto?.nombre ?? 'Producto no disponible'}</strong>
+                            {item.producto?.sku && <small style={{ display: 'block' }}>SKU: {item.producto.sku}</small>}
+                          </td>
+                          <td>{item.cantidad}</td>
+                          <td>{formatearMoneda(item.precio_unitario)}</td>
+                          <td>{formatearMoneda(item.subtotal)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr>
+                        <th colSpan="3" scope="row">Total del pedido</th>
+                        <td><strong>{formatearMoneda(pedidoCompleto.total)}</strong></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+            </section>
+          </>
         )}
 
         {(avances.length > 0 || puedeCancelar) && !mostrarFormCancelar && (
@@ -162,16 +267,18 @@ function ModalDetallePedido({ pedido, puedeGestionar, onCambio, onCerrar }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 24, alignItems: 'start' }}>
           <section>
             <h3>Seguimiento</h3>
-            {cargandoHistorial
+            {cargandoDetalle
               ? <p className="loading-state" role="status">Cargando historial…</p>
-              : <LineaDeTiempoPedido pedido={pedido} historial={historial} />}
+              : detalle
+                ? <LineaDeTiempoPedido pedido={pedidoCompleto} historial={historial} />
+                : <p>El seguimiento no está disponible.</p>}
           </section>
           <section>
             <h3>Historial de cambios</h3>
-            {!cargandoHistorial && historial.length === 0 && <p>Este pedido no registra cambios de estado.</p>}
+            {!cargandoDetalle && detalle && historial.length === 0 && <p>Este pedido no registra cambios de estado.</p>}
             {/* Lista y no tabla: las tablas de .page-canvas tienen min-width
                 de 760px y en media columna del modal obligaban a scrollear. */}
-            {historial.length > 0 && (
+            {detalle && historial.length > 0 && (
               <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
                 {[...historial].reverse().map((cambio) => (
                   <li key={cambio.id} style={{ padding: '10px 0', borderBottom: '1px solid var(--border-default)' }}>
