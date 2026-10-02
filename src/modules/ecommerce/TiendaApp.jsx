@@ -76,7 +76,7 @@ function TiendaHeader({ pagina, onNavigate, onAbrirCarrito }) {
             <Building2 size={24} aria-hidden="true" />
           </div>
           <div className="tienda-brand-text">
-            <strong>Corralón del Sur</strong>
+            <strong>Corralón del Norte</strong>
             <span className="tienda-brand-sub">Tienda de Materiales</span>
           </div>
         </div>

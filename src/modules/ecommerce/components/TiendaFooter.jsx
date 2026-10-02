@@ -73,7 +73,7 @@ export default function TiendaFooter({ onNavigate }) {
       </div>
 
       <div className="tienda-footer-bottom">
-        <p>© {new Date().getFullYear()} Corralón del Sur. Todos los derechos reservados.</p>
+        <p>© {new Date().getFullYear()} Corralón del Norte. Todos los derechos reservados.</p>
         <p>Sistema de Gestión Comercial y E-commerce Integrado.</p>
       </div>
     </footer>
