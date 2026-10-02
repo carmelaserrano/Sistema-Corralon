@@ -32,6 +32,14 @@ vi.mock('../api/pedidosWebApi', () => ({
   suscribirPedidosWeb: vi.fn(),
 }))
 
+vi.mock('./MisPedidosPage', async () => {
+  const React = await import('react')
+  return {
+    EstadoPedidoBadge: ({ estado }) => React.createElement('span', null, estado),
+    LineaDeTiempoPedido: ({ pedido }) => React.createElement('div', null, pedido.estado),
+  }
+})
+
 const pedidoLista = {
   id: 'pedido-1',
   numero: 42,

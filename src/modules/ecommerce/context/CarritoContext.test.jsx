@@ -6,16 +6,18 @@ import { useClienteWeb } from './ClienteWebContext'
 import { validarItems } from '../api/carritoApi'
 
 vi.mock('./ClienteWebContext', () => ({ useClienteWeb: vi.fn() }))
-vi.mock('../api/carritoApi', async (importOriginal) => {
-  const original = await importOriginal()
-  return {
-    ...original,
-    fusionarCarrito: vi.fn(),
-    guardarItems: vi.fn(),
-    obtenerCarrito: vi.fn(),
-    validarItems: vi.fn(),
-  }
-})
+vi.mock('../api/carritoApi', () => ({
+  esCantidadEnteraPositiva: (cantidad) => (
+    typeof cantidad === 'number'
+    && Number.isFinite(cantidad)
+    && Number.isInteger(cantidad)
+    && cantidad > 0
+  ),
+  fusionarCarrito: vi.fn(),
+  guardarItems: vi.fn(),
+  obtenerCarrito: vi.fn(),
+  validarItems: vi.fn(),
+}))
 
 let carritoActual
 
