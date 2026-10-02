@@ -76,7 +76,12 @@ export async function obtenerCarrito(clienteId) {
   const { data, error: errorItems } = await supabase.from('items_carrito')
     .select('producto_id, cantidad').eq('carrito_id', carrito.id).order('created_at')
   if (errorItems) throw errorItems
-  return validarItems(data.map((item) => ({ productoId: item.producto_id, cantidad: Number(item.cantidad) })))
+  // Filas guardadas antes de exigir cantidades enteras: se redondean (mínimo
+  // 1) y las inválidas se descartan, para que el carrito no quede bloqueado.
+  const saneados = data
+    .map((item) => ({ productoId: item.producto_id, cantidad: Math.round(Number(item.cantidad)) }))
+    .filter((item) => esCantidadEnteraPositiva(item.cantidad))
+  return validarItems(saneados)
 }
 
 async function persistir(clienteId, items, fusionId) {

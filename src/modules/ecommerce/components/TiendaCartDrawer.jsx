@@ -28,6 +28,11 @@ export default function TiendaCartDrawer({ abierto, onCerrar, onIrCheckout, onIr
     }
   }
 
+  // Un error de una operación anterior no debe reaparecer al reabrir el drawer.
+  useEffect(() => {
+    if (!abierto) setErrorOperacion('')
+  }, [abierto])
+
   // Cerrar con Escape
   useEffect(() => {
     function manejarTecla(e) {
@@ -94,7 +99,7 @@ export default function TiendaCartDrawer({ abierto, onCerrar, onIrCheckout, onIr
                       {item.nombre}
                     </h5>
                     <div className="tienda-cart-item-precio-unit">
-                      {moneda.format(item.precioUnitario)} c/u
+                      {item.precioUnitario == null ? 'Sin precio disponible' : `${moneda.format(item.precioUnitario)} c/u`}
                     </div>
 
                     <div className="tienda-cart-item-actions">

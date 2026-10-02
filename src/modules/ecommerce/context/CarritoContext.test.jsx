@@ -68,6 +68,20 @@ describe('CarritoContext agregarVarios', () => {
     },
   )
 
+  it('omite las líneas inválidas y agrega las válidas al reordenar', async () => {
+    await montarCarrito()
+    validarItems.mockClear()
+
+    await act(async () => {
+      await carritoActual.agregarVarios([
+        { productoId: 'p1', cantidad: 1.5 },
+        { productoId: 'p2', cantidad: 2 },
+      ])
+    })
+
+    expect(validarItems).toHaveBeenCalledWith([{ productoId: 'p2', cantidad: 2 }])
+  })
+
   it.each([1, 2, 3])('acepta la cantidad entera positiva %s', async (cantidad) => {
     await montarCarrito()
     validarItems.mockClear()

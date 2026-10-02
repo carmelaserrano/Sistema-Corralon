@@ -5,9 +5,19 @@
 
 begin;
 
--- Las constraints protegen también las escrituras directas. NOT VALID evita
--- bloquear el despliegue si existiera un carrito o pedido histórico decimal;
--- PostgreSQL igualmente las aplica a todas las filas nuevas o modificadas.
+-- Carritos guardados antes de esta regla: se descartan las líneas sin
+-- cantidad positiva y se redondean las decimales (mínimo 1) para que ningún
+-- carrito existente quede bloqueado por la validación.
+delete from public.items_carrito
+ where cantidad::text in ('NaN', 'Infinity', '-Infinity') or cantidad <= 0;
+update public.items_carrito
+   set cantidad = greatest(round(cantidad), 1)
+ where cantidad <> trunc(cantidad);
+
+-- Las constraints protegen también las escrituras directas. En items_carrito
+-- ya no quedan filas inválidas, así que se valida. detalle_pedido_web es
+-- historial contable y no se modifica: queda NOT VALID, que igualmente se
+-- aplica a todas las filas nuevas o modificadas.
 alter table public.items_carrito
   drop constraint if exists items_carrito_cantidad_entera;
 alter table public.items_carrito
@@ -15,7 +25,7 @@ alter table public.items_carrito
   check (
     cantidad::text not in ('NaN', 'Infinity', '-Infinity')
     and cantidad = trunc(cantidad)
-  ) not valid;
+  );
 
 alter table public.detalle_pedido_web
   drop constraint if exists detalle_pedido_web_cantidad_entera;
@@ -25,6 +35,42 @@ alter table public.detalle_pedido_web
     cantidad::text not in ('NaN', 'Infinity', '-Infinity')
     and cantidad = trunc(cantidad)
   ) not valid;
+
+-- El catálogo ofrece "Disponible" solo si hay al menos una unidad completa,
+-- el mismo criterio que validar_carrito_web y crear_pedido_web.
+create or replace view public.v_catalogo_web as
+select
+  p.id,
+  p.sku,
+  p.nombre,
+  p.descripcion,
+  p.imagen_url,
+  p.categoria_id,
+  p.marca_id,
+  pl.precio as precio,
+  trunc(coalesce((
+    select sum(greatest(sd.cantidad - sd.comprometido, 0))
+      from public.stock_x_deposito sd
+     where sd.producto_id = p.id
+       and sd.deposito_id = (
+         select (pv.valor ->> 'deposito_id')::uuid
+           from public.parametros_ventas pv
+          where pv.clave = 'deposito_ecommerce'
+       )
+  ), 0)) >= 1 as disponible,
+  c.nombre as categoria_nombre,
+  m.nombre as marca_nombre,
+  u.nombre as unidad_medida,
+  u.abreviatura as unidad_abreviatura
+from public.productos p
+left join public.precios_lista pl
+  on pl.producto_id = p.id
+ and pl.lista_precio_id = (select id from public.listas_precio where nombre = 'General')
+left join public.categorias c on c.id = p.categoria_id
+left join public.marcas m on m.id = p.marca_id
+left join public.unidades_medida u on u.id = p.unidad_medida_id
+where p.estado_producto = 'activo'
+  and p.publicado_web;
 
 -- Devuelve el carrito enriquecido y ajustado al stock del depósito web.
 -- [] sigue siendo válido para permitir vaciar el carrito; cada línea presente

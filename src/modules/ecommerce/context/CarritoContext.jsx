@@ -10,7 +10,14 @@ const CLAVE = 'corralon.carrito.visitante.v1'
 function leerVisitante() {
   try {
     const guardado = JSON.parse(sessionStorage.getItem(CLAVE) || 'null')
-    if (guardado && Array.isArray(guardado.items) && typeof guardado.fusionId === 'string') return guardado
+    if (guardado && Array.isArray(guardado.items) && typeof guardado.fusionId === 'string') {
+      // Un carrito de visitante guardado antes de exigir cantidades enteras
+      // se redondea en lugar de dejar el carrito bloqueado.
+      const items = guardado.items
+        .map((item) => ({ ...item, cantidad: Math.round(Number(item?.cantidad)) }))
+        .filter((item) => typeof item.productoId === 'string' && Number.isFinite(item.cantidad) && item.cantidad > 0)
+      return { ...guardado, items }
+    }
   } catch { /* Un navegador sin almacenamiento sigue funcionando en memoria. */ }
   return { items: [], fusionId: crypto.randomUUID() }
 }
@@ -143,16 +150,21 @@ function CarritoSesion({ children, clienteId, esperandoSesion, visitante }) {
   function agregarVarios(nuevosItems) {
     return modificar((prev) => {
       let resultado = [...prev]
+      let agregados = 0
       for (const { productoId, cantidad } of nuevosItems) {
-        if (!esCantidadEnteraPositiva(cantidad)) {
-          throw new Error('Ingresá una cantidad entera mayor a cero')
-        }
+        // Reordenar un pedido histórico: las líneas con cantidad inválida se
+        // omiten para no perder las líneas válidas.
+        if (!esCantidadEnteraPositiva(cantidad)) continue
+        agregados += 1
         const idx = resultado.findIndex((item) => item.productoId === productoId)
         if (idx >= 0) {
           resultado[idx] = { ...resultado[idx], cantidad: resultado[idx].cantidad + cantidad }
         } else {
           resultado.push({ productoId, cantidad })
         }
+      }
+      if (nuevosItems.length > 0 && agregados === 0) {
+        throw new Error('Ingresá una cantidad entera mayor a cero')
       }
       return resultado
     })

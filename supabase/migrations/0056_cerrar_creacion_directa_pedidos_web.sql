@@ -22,10 +22,10 @@ revoke insert on table public.detalle_pedido_web from anon, authenticated, servi
 
 -- Se explicitan los permisos que el e-commerce y el backoffice sí necesitan.
 -- Las policies existentes siguen limitando SELECT al cliente dueño o a un
--- usuario interno, y UPDATE a quien gestiona pedidos en el backoffice.
+-- usuario interno. authenticated no recibe UPDATE: los cambios de estado
+-- pasan solo por avanzar_estado_pedido (ver 0057).
 grant select on table public.pedidos_web to authenticated;
 grant select on table public.detalle_pedido_web to authenticated;
-grant update on table public.pedidos_web to authenticated;
 grant select, update on table public.pedidos_web to service_role;
 grant select on table public.detalle_pedido_web to service_role;
 

@@ -232,11 +232,15 @@ export async function listarPedidosWeb({ estado } = {}) {
  * @param {(payload: Object) => void} onCambio
  * @returns {() => void} Limpieza de la suscripción.
  */
+let suscripcionesPedidos = 0
+
 export function suscribirPedidosWeb(onCambio) {
   if (typeof onCambio !== 'function') throw new TypeError('Falta el manejador de cambios de pedidos')
 
+  // Nombre único: removeChannel es asíncrono y supabase-js reutiliza un canal
+  // ya suscrito con el mismo topic, lo que haría fallar el .on() siguiente.
   const canal = supabase
-    .channel('backoffice-pedidos-web')
+    .channel(`backoffice-pedidos-web-${++suscripcionesPedidos}`)
     .on('postgres_changes', {
       event: '*',
       schema: 'public',

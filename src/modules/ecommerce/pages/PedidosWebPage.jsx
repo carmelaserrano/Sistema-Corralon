@@ -40,24 +40,29 @@ function ModalDetallePedido({ pedido, puedeGestionar, onCambio, onCerrar }) {
   const [procesando, setProcesando] = useState(false)
   const cerrarRef = useRef(null)
 
-  async function cargarDetalle() {
-    try {
-      setCargandoDetalle(true)
-      const resultado = await obtenerDetallePedidoBackoffice(pedido.id)
-      if (!resultado) throw new Error('El pedido ya no está disponible')
-      setDetalle(resultado)
-    } catch (err) {
-      setError(err.message || 'No se pudo cargar el detalle del pedido')
-    } finally {
-      setCargandoDetalle(false)
-    }
-  }
-
   useEffect(() => {
     cerrarRef.current?.focus()
-    cargarDetalle()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // El detalle (ítems e historial) se vuelve a pedir cada vez que cambia el
+  // estado del pedido, ya sea por una acción propia o por otro operador.
+  useEffect(() => {
+    let vigente = true
+    setCargandoDetalle(true)
+    obtenerDetallePedidoBackoffice(pedido.id)
+      .then((resultado) => {
+        if (!vigente) return
+        if (!resultado) throw new Error('El pedido ya no está disponible')
+        setDetalle(resultado)
+      })
+      .catch((err) => {
+        if (vigente) setError(err.message || 'No se pudo cargar el detalle del pedido')
+      })
+      .finally(() => {
+        if (vigente) setCargandoDetalle(false)
+      })
+    return () => { vigente = false }
+  }, [pedido.id, pedido.estado])
 
   useEffect(() => {
     function manejarTecla(event) {
@@ -77,7 +82,6 @@ function ModalDetallePedido({ pedido, puedeGestionar, onCambio, onCerrar }) {
       setMostrarFormCancelar(false)
       setMotivo('')
       onCambio(actualizado)
-      await cargarDetalle()
     } catch (err) {
       setError(err.message || 'No se pudo cambiar el estado del pedido')
     } finally {
@@ -309,13 +313,16 @@ function ModalDetallePedido({ pedido, puedeGestionar, onCambio, onCerrar }) {
 export default function PedidosWebPage() {
   const [pedidos, setPedidos] = useState([])
   const [filtroEstado, setFiltroEstado] = useState('')
-  const [pedidoSeleccionadoId, setPedidoSeleccionadoId] = useState(null)
+  // Se guarda el pedido abierto (no solo su id) para que el modal no
+  // desaparezca si un refresco deja de incluirlo en la lista filtrada.
+  const [pedidoAbierto, setPedidoAbierto] = useState(null)
   // Arranca en true: si falla la consulta del permiso se muestran las
   // acciones y decide la base (mismo criterio que Supervisión de ventas).
   const [puedeGestionar, setPuedeGestionar] = useState(true)
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
   const ultimaConsulta = useRef(0)
+  const cargarPedidosRef = useRef(null)
 
   useEffect(() => {
     puedeGestionarPedidos().then(setPuedeGestionar).catch(() => setPuedeGestionar(true))
@@ -341,17 +348,38 @@ export default function PedidosWebPage() {
     void cargarPedidos()
   }, [cargarPedidos])
 
-  useEffect(() => suscribirPedidosWeb(() => {
-    void cargarPedidos({ silenciosa: true })
-  }), [cargarPedidos])
+  useEffect(() => {
+    cargarPedidosRef.current = cargarPedidos
+  }, [cargarPedidos])
+
+  // Una única suscripción por montaje: lee el filtro vigente desde el ref y
+  // agrupa ráfagas de eventos en una sola consulta.
+  useEffect(() => {
+    let temporizador = null
+    const cancelar = suscribirPedidosWeb(() => {
+      clearTimeout(temporizador)
+      temporizador = setTimeout(() => {
+        void cargarPedidosRef.current?.({ silenciosa: true })
+      }, 300)
+    })
+    return () => {
+      clearTimeout(temporizador)
+      cancelar()
+    }
+  }, [])
 
   // La base ya confirmó el cambio: se actualiza la fila sin recargar todo y
   // el modal (que recibe este mismo pedido) refleja el nuevo estado solo.
   function manejarCambio(actualizado) {
     setPedidos((actual) => actual.map((p) => (p.id === actualizado.id ? { ...p, ...actualizado } : p)))
+    setPedidoAbierto((actual) => (actual?.id === actualizado.id ? { ...actual, ...actualizado } : actual))
   }
 
-  const pedidoSeleccionado = pedidoSeleccionadoId ? (pedidos.find((p) => p.id === pedidoSeleccionadoId) ?? null) : null
+  // Si la lista trae una versión más nueva del pedido abierto (cambio de otro
+  // operador) se usa esa; si ya no cumple el filtro se conserva la última.
+  const pedidoSeleccionado = pedidoAbierto
+    ? { ...pedidoAbierto, ...(pedidos.find((p) => p.id === pedidoAbierto.id) ?? {}) }
+    : null
 
   return (
     <main aria-busy={cargando}>
@@ -401,7 +429,7 @@ export default function PedidosWebPage() {
                 <td>{formatearMoneda(pedido.total)}</td>
                 <td><EstadoPedidoBadge estado={pedido.estado} /></td>
                 <td>
-                  <Button type="button" variant="ghost" onClick={() => setPedidoSeleccionadoId(pedido.id)}>Ver detalle</Button>
+                  <Button type="button" variant="ghost" onClick={() => setPedidoAbierto(pedido)}>Ver detalle</Button>
                 </td>
               </tr>
             ))}
@@ -414,7 +442,7 @@ export default function PedidosWebPage() {
           pedido={pedidoSeleccionado}
           puedeGestionar={puedeGestionar}
           onCambio={manejarCambio}
-          onCerrar={() => setPedidoSeleccionadoId(null)}
+          onCerrar={() => setPedidoAbierto(null)}
         />
       )}
     </main>

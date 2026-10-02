@@ -41,7 +41,7 @@ describe('suscribirPedidosWeb', () => {
 
     const limpiar = suscribirPedidosWeb(manejarCambio)
 
-    expect(supabase.channel).toHaveBeenCalledWith('backoffice-pedidos-web')
+    expect(supabase.channel).toHaveBeenCalledWith(expect.stringMatching(/^backoffice-pedidos-web-\d+$/))
     expect(on).toHaveBeenCalledWith('postgres_changes', {
       event: '*',
       schema: 'public',
