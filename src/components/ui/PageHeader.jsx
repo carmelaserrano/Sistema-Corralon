@@ -1,3 +1,21 @@
+import { isValidElement } from 'react'
+import Button from './Button'
+
+// `actions` acepta un nodo de React o una lista de descriptores
+// { label, icon, onClick, variant, disabled } que se muestran como botones.
+function renderAcciones(actions) {
+  if (!Array.isArray(actions)) return actions
+  return actions.map((accion, idx) => {
+    if (isValidElement(accion) || accion === null || typeof accion !== 'object') return accion
+    const { label, ...props } = accion
+    return (
+      <Button key={label ?? idx} type="button" variant="secondary" {...props}>
+        {label}
+      </Button>
+    )
+  })
+}
+
 export default function PageHeader({
   actions,
   breadcrumbs,
@@ -39,7 +57,7 @@ export default function PageHeader({
           {description && <p className="page-header-description">{description}</p>}
         </div>
 
-        {actions && <div className="page-header-actions">{actions}</div>}
+        {actions && <div className="page-header-actions">{renderAcciones(actions)}</div>}
       </div>
 
       {children && <div className="page-header-extra">{children}</div>}

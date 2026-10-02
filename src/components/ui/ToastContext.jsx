@@ -10,6 +10,7 @@ export function useToast() {
       success: () => {},
       error: () => {},
       warning: () => {},
+      showToast: () => {},
       dismiss: () => {},
     }
   }

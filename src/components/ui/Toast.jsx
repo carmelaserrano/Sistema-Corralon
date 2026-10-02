@@ -28,6 +28,12 @@ export function ToastProvider({ children }) {
       success: (msg, opts) => addToast(msg, { ...opts, tone: 'success' }),
       error: (msg, opts) => addToast(msg, { ...opts, tone: 'error' }),
       warning: (msg, opts) => addToast(msg, { ...opts, tone: 'warning' }),
+      // API por objeto usada por las páginas: showToast({ message, tone, duration }).
+      // «danger» es el nombre de tono de las páginas; el toast lo llama «error».
+      showToast: ({ message, tone = 'info', duration } = {}) => addToast(message, {
+        tone: tone === 'danger' ? 'error' : tone,
+        ...(duration === undefined ? {} : { duration }),
+      }),
       dismiss: removeToast,
     }),
     [addToast, removeToast],

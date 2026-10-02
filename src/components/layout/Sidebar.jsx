@@ -107,9 +107,26 @@ export default function Sidebar({
                 </p>
 
                 {!isGroupCollapsed &&
-                  group.items.map(({ id, label, icon: Icon }) => {
+                  group.items.map(({ id, label, icon: Icon, href, newTab }) => {
                     const active = activeNavigationPage === id
                     const badge = BADGES[id]
+
+                    if (href) {
+                      return (
+                        <a
+                          className="nav-item"
+                          href={href}
+                          key={id}
+                          style={{ textDecoration: 'none' }}
+                          target={newTab ? '_blank' : undefined}
+                          rel={newTab ? 'noopener noreferrer' : undefined}
+                          onClick={onClose}
+                        >
+                          <Icon size={18} aria-hidden="true" />
+                          <span>{label}</span>
+                        </a>
+                      )
+                    }
 
                     return (
                       <button

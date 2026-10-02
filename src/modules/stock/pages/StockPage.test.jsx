@@ -82,7 +82,7 @@ describe('StockPage', () => {
     render(<StockPage />)
 
     await screen.findByText('Producto de página 1')
-    expect(screen.getByText('Página 1 de 2 (51 productos)')).toBeTruthy()
+    expect(screen.getByText((_, el) => el?.tagName === 'SPAN' && el.textContent === 'Página 1 de 2 (51 productos)')).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
 
@@ -237,6 +237,6 @@ describe('StockPage', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.getByRole('searchbox').value).toBe('cemento')
     expect(screen.getByText('Producto página 2')).toBeTruthy()
-    expect(screen.getByText('Página 2 de 2 (51 productos)')).toBeTruthy()
+    expect(screen.getByText((_, el) => el?.tagName === 'SPAN' && el.textContent === 'Página 2 de 2 (51 productos)')).toBeTruthy()
   })
 })
