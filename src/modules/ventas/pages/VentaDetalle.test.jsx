@@ -9,9 +9,20 @@ import {
   puedeFacturarVentas,
   puedeAnularVentas,
 } from '../api/comprobantesApi'
+import { puedeRegistrarCobros, listarMediosPago, registrarCobro } from '../api/cobrosApi'
 
 vi.mock('../api/consultaVentasApi', () => ({
   getVentaById: vi.fn(),
+}))
+
+vi.mock('../api/cobrosApi', () => ({
+  puedeRegistrarCobros: vi.fn(),
+  listarMediosPago: vi.fn(),
+  registrarCobro: vi.fn(),
+  esEfectivo: vi.fn((m) => m?.nombre === 'Efectivo'),
+  esTarjeta: vi.fn(() => false),
+  esTransferencia: vi.fn(() => false),
+  esCuentaCorriente: vi.fn(() => false),
 }))
 
 vi.mock('../api/comprobantesApi', () => ({
@@ -54,9 +65,11 @@ const ventaBase = {
 
 describe('VentaDetalle', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    vi.resetAllMocks()
     puedeFacturarVentas.mockResolvedValue(true)
     puedeAnularVentas.mockResolvedValue(true)
+    puedeRegistrarCobros.mockResolvedValue(true)
+    listarMediosPago.mockResolvedValue([{ id: 'm-1', nombre: 'Efectivo', activo: true }])
   })
 
   afterEach(() => {
@@ -145,6 +158,104 @@ describe('VentaDetalle', () => {
         const btnFacturar = screen.getByRole('button', { name: /Facturar/i })
         expect(btnFacturar).not.toBeDisabled()
       })
+    })
+  })
+
+  describe('CA-04: Registro de cobro desde el detalle', () => {
+    it('muestra "Registrar cobro" en una venta Pendiente sin cobro y con permiso', async () => {
+      getVentaById.mockResolvedValue({ ...ventaBase })
+
+      render(<VentaDetalle ventaId="v-10" onCerrar={vi.fn()} />)
+
+      expect(await screen.findByRole('button', { name: 'Registrar cobro' })).toBeEnabled()
+    })
+
+    it('oculta el botón si la venta ya tiene cobro, no está Pendiente o falta el permiso', async () => {
+      getVentaById.mockResolvedValueOnce({
+        ...ventaBase,
+        cobros: [{ id: 'cb-1', numero: 1, total: 1000, detalle: [] }],
+        estaCobrada: true,
+      })
+      const { unmount } = render(<VentaDetalle ventaId="v-10" onCerrar={vi.fn()} />)
+      await screen.findByText(/Cobrada íntegramente/)
+      expect(screen.queryByRole('button', { name: 'Registrar cobro' })).not.toBeInTheDocument()
+      unmount()
+
+      getVentaById.mockResolvedValueOnce({ ...ventaBase, estado: 'Facturada' })
+      const segundo = render(<VentaDetalle ventaId="v-10" onCerrar={vi.fn()} />)
+      await screen.findByText(/Venta Nº 10/)
+      expect(screen.queryByRole('button', { name: 'Registrar cobro' })).not.toBeInTheDocument()
+      segundo.unmount()
+
+      puedeRegistrarCobros.mockResolvedValue(false)
+      getVentaById.mockResolvedValueOnce({ ...ventaBase })
+      render(<VentaDetalle ventaId="v-10" onCerrar={vi.fn()} />)
+      await screen.findByText(/Venta Nº 10/)
+      await waitFor(() => {
+        expect(screen.queryByRole('button', { name: 'Registrar cobro' })).not.toBeInTheDocument()
+      })
+    })
+
+    it('cobra el total, cierra el modal, recarga la venta y habilita Facturar', async () => {
+      getVentaById
+        .mockResolvedValueOnce({ ...ventaBase })
+        .mockResolvedValueOnce({
+          ...ventaBase,
+          cobros: [{ id: 'cb-1', numero: 7, total: 1000, created_at: '2026-03-20T10:05:00Z', detalle: [] }],
+          totalCobrado: 1000,
+          estaCobrada: true,
+        })
+      registrarCobro.mockResolvedValue({ numero: 7, total: 1000 })
+      const onComprobanteEmitido = vi.fn()
+
+      render(
+        <VentaDetalle ventaId="v-10" onCerrar={vi.fn()} onComprobanteEmitido={onComprobanteEmitido} />,
+      )
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Registrar cobro' }))
+      const medio = await screen.findByLabelText('Medio de pago 1')
+      await waitFor(() => expect(medio.querySelectorAll('option').length).toBeGreaterThan(1))
+      fireEvent.change(medio, { target: { value: 'm-1' } })
+      fireEvent.change(screen.getByLabelText('Importe 1'), { target: { value: '1000' } })
+      fireEvent.change(screen.getByLabelText('Monto recibido 1'), { target: { value: '1000' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Confirmar cobro' }))
+
+      await waitFor(() => expect(registrarCobro).toHaveBeenCalledWith('v-10', expect.any(Array)))
+      expect(await screen.findByText(/Cobro Nº 7 registrado/)).toBeInTheDocument()
+      expect(screen.queryByRole('dialog', { name: /Registrar cobro/i })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /Facturar \(Factura A\)/i })).toBeEnabled()
+      expect(onComprobanteEmitido).toHaveBeenCalled()
+    })
+
+    it('Escape con el cobro abierto cierra sólo el cobro, no el detalle', async () => {
+      getVentaById.mockResolvedValue({ ...ventaBase })
+      const onCerrar = vi.fn()
+      render(<VentaDetalle ventaId="v-10" onCerrar={onCerrar} />)
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Registrar cobro' }))
+      await screen.findByLabelText('Medio de pago 1')
+      fireEvent.keyDown(document, { key: 'Escape' })
+
+      await waitFor(() => {
+        expect(screen.queryByLabelText('Medio de pago 1')).not.toBeInTheDocument()
+      })
+      expect(onCerrar).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('H1: backorder visible en el detalle', () => {
+    it('muestra la cantidad en backorder y el aviso de que no se puede entregar', async () => {
+      getVentaById.mockResolvedValue({
+        ...ventaBase,
+        detalle: [
+          { id: 'd-1', cantidad: 5, cantidad_backorder: 3, precio_unitario: 200, descuento_pct: 0, subtotal: 1000, producto: { nombre: 'Cemento' } },
+        ],
+      })
+
+      render(<VentaDetalle ventaId="v-10" onCerrar={vi.fn()} />)
+
+      expect(await screen.findByText('3 en backorder')).toBeInTheDocument()
+      expect(screen.getByText(/no se puede marcar como entregada hasta reponerlos/i)).toBeInTheDocument()
     })
   })
 

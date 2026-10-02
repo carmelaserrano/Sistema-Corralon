@@ -19,7 +19,10 @@ import {
   listarDepositos,
   buscarClientes,
   registrarVenta,
+  calcularPrecioVenta,
   calcularTotalesVenta,
+  redondear,
+  CODIGO_PRECIO_DESACTUALIZADO,
 } from '../api/ventasApi'
 
 function formatearMoneda(valor) {
@@ -192,6 +195,29 @@ function handleNuevaVenta() {
     !recalculandoPrecios &&
     !guardando
 
+  // Tras un PRECIO_DESACTUALIZADO se vuelven a pedir los precios a la base
+  // para que el cajero vea los vigentes antes de confirmar de nuevo.
+  async function refrescarPreciosLineas() {
+    try {
+      const actualizadas = await Promise.all(
+        lineas.map(async (linea) => {
+          const precio = await calcularPrecioVenta(linea.producto_id, cliente.id, linea.cantidad)
+          if (precio === null) return linea
+          return {
+            ...linea,
+            precio_unitario: precio,
+            subtotal: redondear(
+              linea.cantidad * precio * (1 - (linea.descuento_pct || 0) / 100),
+            ),
+          }
+        }),
+      )
+      setLineas(actualizadas)
+    } catch {
+      // Si no se pudo consultar, el mensaje de error ya pide revisar la venta.
+    }
+  }
+
   // Confirmar venta transaccional (CA-06)
   async function handleConfirmarVenta(e) {
     e.preventDefault()
@@ -223,6 +249,9 @@ function handleNuevaVenta() {
     } catch (err) {
       if (err.code === 'STOCK_INSUFICIENTE') {
         setLineasStockError(err.details || [])
+      }
+      if (err.code === CODIGO_PRECIO_DESACTUALIZADO) {
+        await refrescarPreciosLineas()
       }
       const msg = err.message || 'Ocurrió un error al registrar la venta'
       setErrorEnvio(msg)

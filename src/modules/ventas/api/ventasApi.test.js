@@ -445,7 +445,7 @@ describe('ventasApi', () => {
       expect(errorCapturado.message).toBe('El descuento del 15% requiere una autorización válida y vigente')
     })
 
-    it('mapea error de PRECIO_DESACTUALIZADO a status 400 cuando el precio fue manipulado o cambió', async () => {
+    it('mapea PRECIO_DESACTUALIZADO a 409 con mensaje para el cajero (sin ids internos)', async () => {
       const rpcBuilder = {
         single: vi.fn(() =>
           Promise.resolve({
@@ -468,8 +468,10 @@ describe('ventasApi', () => {
       }
 
       expect(errorCapturado).toBeDefined()
-      expect(errorCapturado.status).toBe(400)
-      expect(errorCapturado.message).toContain('PRECIO_DESACTUALIZADO')
+      expect(errorCapturado.status).toBe(409)
+      expect(errorCapturado.code).toBe('PRECIO_DESACTUALIZADO')
+      expect(errorCapturado.message).toMatch(/precio de un artículo cambió/)
+      expect(errorCapturado.message).not.toContain('p1')
     })
 
     it('mapea error cuando un producto no tiene precio configurado a status 400', async () => {
@@ -495,7 +497,46 @@ describe('ventasApi', () => {
 
       expect(errorCapturado).toBeDefined()
       expect(errorCapturado.status).toBe(400)
-      expect(errorCapturado.message).toBe('El producto p1 no tiene un precio válido configurado')
+      expect(errorCapturado.message).toMatch(/artículo sin precio válido/)
+      expect(errorCapturado.message).not.toContain('p1')
+    })
+
+    it('traduce el 23505 por artículo repetido a un mensaje accionable', async () => {
+      supabase.rpc.mockReturnValue({
+        single: vi.fn(() =>
+          Promise.resolve({
+            data: null,
+            error: {
+              code: '23505',
+              message: 'duplicate key value violates unique constraint "uq_detalle_venta_producto"',
+            },
+          }),
+        ),
+      })
+
+      await expect(registrarVenta(cabeceraValida, itemsValidos)).rejects.toMatchObject({
+        status: 400,
+        message: expect.stringMatching(/artículos repetidos/),
+      })
+    })
+
+    it('deja pasar el mensaje de la base cuando la RPC rechaza artículos repetidos (22023)', async () => {
+      supabase.rpc.mockReturnValue({
+        single: vi.fn(() =>
+          Promise.resolve({
+            data: null,
+            error: {
+              code: '22023',
+              message: 'Hay artículos repetidos en la venta: unificá las cantidades en una sola línea',
+            },
+          }),
+        ),
+      })
+
+      await expect(registrarVenta(cabeceraValida, itemsValidos)).rejects.toMatchObject({
+        status: 400,
+        message: expect.stringMatching(/artículos repetidos/),
+      })
     })
   })
 
