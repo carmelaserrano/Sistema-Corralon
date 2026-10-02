@@ -2,6 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import Button from '../../../components/ui/Button'
 import EmptyState from '../../../components/ui/EmptyState'
 import Feedback from '../../../components/ui/Feedback'
+import PageHeader from '../../../components/ui/PageHeader'
+import KpiCard from '../../../components/ui/KpiCard'
+import { useToast } from '../../../components/ui/ToastContext'
+import Papa from 'papaparse'
+import { Tag, CheckCircle2, Users, Layers, Download } from 'lucide-react'
 import {
   asignarListaATipo,
   crearListaPrecio,
@@ -31,6 +36,7 @@ function fechaLegible(valor) {
 }
 
 function ListasPrecioPage() {
+  const { showToast } = useToast()
   const [listas, setListas] = useState([])
   const [tiposCliente, setTiposCliente] = useState([])
   const [listaSeleccionadaId, setListaSeleccionadaId] = useState('')
@@ -253,9 +259,77 @@ function ListasPrecioPage() {
     }
   }
 
+  function exportarCsv() {
+    if (!productos || productos.length === 0) {
+      showToast({ message: 'No hay productos para exportar en esta lista', tone: 'warning' })
+      return
+    }
+    const datosCsv = productos.map((p) => ({
+      Lista: listaSeleccionada?.nombre || 'General',
+      SKU: p.sku || '',
+      Producto: p.nombre || '',
+      Precio: p.precio != null ? p.precio : 'Sin precio',
+    }))
+    const csv = Papa.unparse(datosCsv)
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const enlace = document.createElement('a')
+    enlace.href = url
+    enlace.setAttribute('download', `precios_${(listaSeleccionada?.nombre || 'lista').toLowerCase().replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.csv`)
+    document.body.appendChild(enlace)
+    enlace.click()
+    document.body.removeChild(enlace)
+    URL.revokeObjectURL(url)
+    showToast({ message: 'Precios de la lista exportados en CSV', tone: 'success' })
+  }
+
   return (
     <main>
-      <h1>Listas de precios</h1>
+      <PageHeader
+        title="Listas de precios"
+        kicker="Módulo Ventas"
+        description="Gestión de listas de precios vigentes, esquemas comerciales y asignación por tipo de cliente."
+        actions={[
+          {
+            label: 'Exportar CSV',
+            icon: Download,
+            onClick: exportarCsv,
+            variant: 'secondary',
+            disabled: !productos || productos.length === 0,
+          },
+        ]}
+      />
+
+      <div className="kpi-grid">
+        <KpiCard
+          label="Listas registradas"
+          value={listas.length}
+          icon={Tag}
+          tone="brand"
+          helperText="Esquemas de precio"
+        />
+        <KpiCard
+          label="Listas activas"
+          value={listasActivas.length}
+          icon={CheckCircle2}
+          tone="success"
+          helperText="Disponibles para venta"
+        />
+        <KpiCard
+          label="Tipos de cliente"
+          value={tiposCliente.length}
+          icon={Users}
+          tone="info"
+          helperText="Segmentos comerciales"
+        />
+        <KpiCard
+          label="Productos con precio"
+          value={productos.filter((p) => p.precio != null).length}
+          icon={Layers}
+          tone="neutral"
+          helperText={listaSeleccionada ? `En "${listaSeleccionada.nombre}"` : 'Seleccioná una lista'}
+        />
+      </div>
 
       {error && <Feedback tone="error">{error}</Feedback>}
       {aviso && <Feedback tone="success">{aviso}</Feedback>}
@@ -311,53 +385,57 @@ function ListasPrecioPage() {
           />
         )}
         {!loading && listas.length > 0 && (
-          <table>
-            <thead>
-              <tr>
-                <th>Nombre</th>
-                <th>Vigencia</th>
-                <th>Estado</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {listas.map((lista) => (
-                <tr key={lista.id}>
-                  <td>{lista.nombre}</td>
-                  <td>Vigente desde {fechaLegible(lista.created_at)}</td>
-                  <td>{lista.activo ? 'Activa' : 'Inactiva'}</td>
-                  <td>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      aria-pressed={lista.id === listaSeleccionadaId}
-                      onClick={() => setListaSeleccionadaId(lista.id)}
-                    >
-                      Ver precios
-                    </Button>
-                    {puedeGestionar && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => comenzarEdicion(lista)}
-                      >
-                        Editar
-                      </Button>
-                    )}
-                    {puedeGestionar && lista.activo && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => desactivar(lista)}
-                      >
-                        Desactivar
-                      </Button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="data-table-card">
+            <div className="data-table-scroll-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Nombre</th>
+                    <th>Vigencia</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {listas.map((lista) => (
+                    <tr key={lista.id}>
+                      <td>{lista.nombre}</td>
+                      <td>Vigente desde {fechaLegible(lista.created_at)}</td>
+                      <td>{lista.activo ? 'Activa' : 'Inactiva'}</td>
+                      <td>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          aria-pressed={lista.id === listaSeleccionadaId}
+                          onClick={() => setListaSeleccionadaId(lista.id)}
+                        >
+                          Ver precios
+                        </Button>
+                        {puedeGestionar && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => comenzarEdicion(lista)}
+                          >
+                            Editar
+                          </Button>
+                        )}
+                        {puedeGestionar && lista.activo && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => desactivar(lista)}
+                          >
+                            Desactivar
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
       </section>
 
@@ -382,62 +460,66 @@ function ListasPrecioPage() {
             />
           )}
           {!loadingProductos && productos.length > 0 && (
-            <table>
-              <thead>
-                <tr>
-                  <th>SKU</th>
-                  <th>Producto</th>
-                  <th>Precio actual</th>
-                  {puedeGestionar && listaSeleccionada.activo && (
-                    <th>Nuevo precio</th>
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {productos.map((producto) => (
-                  <tr key={producto.id}>
-                    <td>{producto.sku}</td>
-                    <td>{producto.nombre}</td>
-                    <td>
-                      {producto.precio == null
-                        ? 'Sin precio'
-                        : formatoPrecio.format(Number(producto.precio))}
-                    </td>
-                    {puedeGestionar && listaSeleccionada.activo && (
-                      <td>
-                        <label htmlFor={`precio-${producto.id}`}>
-                          <span className="sr-only">
-                            Precio de {producto.nombre}
-                          </span>
-                          <input
-                            id={`precio-${producto.id}`}
-                            type="number"
-                            min="0.01"
-                            step="0.01"
-                            value={preciosEditados[producto.id] ?? ''}
-                            onChange={(event) =>
-                              setPreciosEditados((actuales) => ({
-                                ...actuales,
-                                [producto.id]: event.target.value,
-                              }))
-                            }
-                            placeholder="Sin precio"
-                          />
-                        </label>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          loading={guardandoPrecioId === producto.id}
-                          onClick={() => guardarPrecioProducto(producto)}
-                        >
-                          Guardar precio
-                        </Button>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="data-table-card">
+              <div className="data-table-scroll-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>SKU</th>
+                      <th>Producto</th>
+                      <th>Precio actual</th>
+                      {puedeGestionar && listaSeleccionada.activo && (
+                        <th>Nuevo precio</th>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {productos.map((producto) => (
+                      <tr key={producto.id}>
+                        <td>{producto.sku}</td>
+                        <td>{producto.nombre}</td>
+                        <td>
+                          {producto.precio == null
+                            ? 'Sin precio'
+                            : formatoPrecio.format(Number(producto.precio))}
+                        </td>
+                        {puedeGestionar && listaSeleccionada.activo && (
+                          <td>
+                            <label htmlFor={`precio-${producto.id}`}>
+                              <span className="sr-only">
+                                Precio de {producto.nombre}
+                              </span>
+                              <input
+                                id={`precio-${producto.id}`}
+                                type="number"
+                                min="0.01"
+                                step="0.01"
+                                value={preciosEditados[producto.id] ?? ''}
+                                onChange={(event) =>
+                                  setPreciosEditados((actuales) => ({
+                                    ...actuales,
+                                    [producto.id]: event.target.value,
+                                  }))
+                                }
+                                placeholder="Sin precio"
+                              />
+                            </label>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              loading={guardandoPrecioId === producto.id}
+                              onClick={() => guardarPrecioProducto(producto)}
+                            >
+                              Guardar precio
+                            </Button>
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           )}
         </section>
       )}
@@ -451,67 +533,71 @@ function ListasPrecioPage() {
           />
         )}
         {!loading && tiposCliente.length > 0 && (
-          <table>
-            <thead>
-              <tr>
-                <th>Tipo de cliente</th>
-                <th>Lista asignada</th>
-                {puedeGestionar && <th>Nueva asignación</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {tiposCliente.map((tipo) => {
-                const listaActual = listas.find(
-                  (lista) => lista.id === tipo.lista_precio_id,
-                )
-                return (
-                  <tr key={tipo.id}>
-                    <td>{tipo.nombre}</td>
-                    <td>
-                      {listaActual
-                        ? `${listaActual.nombre}${listaActual.activo ? '' : ' (inactiva)'}`
-                        : 'Sin lista asignada'}
-                    </td>
-                    {puedeGestionar && (
-                      <td>
-                        <label htmlFor={`lista-tipo-${tipo.id}`}>
-                          <span className="sr-only">
-                            Lista para {tipo.nombre}
-                          </span>
-                          <select
-                            id={`lista-tipo-${tipo.id}`}
-                            value={asignaciones[tipo.id] ?? ''}
-                            onChange={(event) =>
-                              setAsignaciones((actuales) => ({
-                                ...actuales,
-                                [tipo.id]: event.target.value,
-                              }))
-                            }
-                          >
-                            <option value="">Seleccioná una lista activa</option>
-                            {listasActivas.map((lista) => (
-                              <option key={lista.id} value={lista.id}>
-                                {lista.nombre}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          loading={guardandoTipoId === tipo.id}
-                          disabled={!asignaciones[tipo.id]}
-                          onClick={() => guardarAsignacion(tipo)}
-                        >
-                          Guardar asignación
-                        </Button>
-                      </td>
-                    )}
+          <div className="data-table-card">
+            <div className="data-table-scroll-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Tipo de cliente</th>
+                    <th>Lista asignada</th>
+                    {puedeGestionar && <th>Nueva asignación</th>}
                   </tr>
-                )
-              })}
-            </tbody>
-          </table>
+                </thead>
+                <tbody>
+                  {tiposCliente.map((tipo) => {
+                    const listaActual = listas.find(
+                      (lista) => lista.id === tipo.lista_precio_id,
+                    )
+                    return (
+                      <tr key={tipo.id}>
+                        <td>{tipo.nombre}</td>
+                        <td>
+                          {listaActual
+                            ? `${listaActual.nombre}${listaActual.activo ? '' : ' (inactiva)'}`
+                            : 'Sin lista asignada'}
+                        </td>
+                        {puedeGestionar && (
+                          <td>
+                            <label htmlFor={`lista-tipo-${tipo.id}`}>
+                              <span className="sr-only">
+                                Lista para {tipo.nombre}
+                              </span>
+                              <select
+                                id={`lista-tipo-${tipo.id}`}
+                                value={asignaciones[tipo.id] ?? ''}
+                                onChange={(event) =>
+                                  setAsignaciones((actuales) => ({
+                                    ...actuales,
+                                    [tipo.id]: event.target.value,
+                                  }))
+                                }
+                              >
+                                <option value="">Seleccioná una lista activa</option>
+                                {listasActivas.map((lista) => (
+                                  <option key={lista.id} value={lista.id}>
+                                    {lista.nombre}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              loading={guardandoTipoId === tipo.id}
+                              disabled={!asignaciones[tipo.id]}
+                              onClick={() => guardarAsignacion(tipo)}
+                            >
+                              Guardar asignación
+                            </Button>
+                          </td>
+                        )}
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
       </section>
     </main>

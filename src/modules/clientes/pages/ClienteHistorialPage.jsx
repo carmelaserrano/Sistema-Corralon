@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
+import Papa from 'papaparse'
+import { DollarSign, Download, FileText, Globe, ShoppingCart } from 'lucide-react'
 import Button from '../../../components/ui/Button'
 import EmptyState from '../../../components/ui/EmptyState'
 import Feedback from '../../../components/ui/Feedback'
+import PageHeader from '../../../components/ui/PageHeader'
+import KpiCard from '../../../components/ui/KpiCard'
+import { useToast } from '../../../components/ui/ToastContext'
 import {
   buscarClientes,
   getHistorialCliente,
@@ -82,112 +87,128 @@ function EstadoVacio({ tipo }) {
 function TablaVentas({ ventas, onVerDetalle }) {
   if (!ventas.length) return <EstadoVacio tipo="ventas" />
   return (
-    <table>
-      <thead>
-        <tr>
-          <th>Fecha</th>
-          <th>Número</th>
-          <th>Importe</th>
-          <th>Estado</th>
-          <th>Acción</th>
-        </tr>
-      </thead>
-      <tbody>
-        {ventas.map((venta) => (
-          <tr key={venta.id}>
-            <td>{formatearFecha(venta.created_at)}</td>
-            <td>#{venta.numero}</td>
-            <td>{formatearMoneda(venta.total)}</td>
-            <td><EstadoBadge estado={venta.estado} /></td>
-            <td>
-              <Button type="button" variant="ghost" onClick={() => onVerDetalle(venta)}>
-                Ver detalle
-              </Button>
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <div className="data-table-card">
+      <div className="data-table-scroll-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Número</th>
+              <th>Importe</th>
+              <th>Estado</th>
+              <th>Acción</th>
+            </tr>
+          </thead>
+          <tbody>
+            {ventas.map((venta) => (
+              <tr key={venta.id}>
+                <td>{formatearFecha(venta.created_at)}</td>
+                <td>#{venta.numero}</td>
+                <td>{formatearMoneda(venta.total)}</td>
+                <td><EstadoBadge estado={venta.estado} /></td>
+                <td>
+                  <Button type="button" variant="ghost" onClick={() => onVerDetalle(venta)}>
+                    Ver detalle
+                  </Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   )
 }
 
 function TablaComprobantes({ comprobantes }) {
   if (!comprobantes.length) return <EstadoVacio tipo="comprobantes" />
   return (
-    <table>
-      <thead>
-        <tr>
-          <th>Fecha</th>
-          <th>Número</th>
-          <th>Tipo</th>
-          <th>Importe</th>
-          <th>Estado</th>
-        </tr>
-      </thead>
-      <tbody>
-        {comprobantes.map((comprobante) => (
-          <tr key={comprobante.id}>
-            <td>{formatearFecha(comprobante.fecha_emision)}</td>
-            <td>{comprobante.letra} {comprobante.numero}</td>
-            <td>{nombreTipoComprobante(comprobante.tipo_comprobante)}</td>
-            <td>{formatearMoneda(comprobante.total)}</td>
-            <td><EstadoBadge estado={comprobante.estado} /></td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <div className="data-table-card">
+      <div className="data-table-scroll-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Número</th>
+              <th>Tipo</th>
+              <th>Importe</th>
+              <th>Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            {comprobantes.map((comprobante) => (
+              <tr key={comprobante.id}>
+                <td>{formatearFecha(comprobante.fecha_emision)}</td>
+                <td>{comprobante.letra} {comprobante.numero}</td>
+                <td>{nombreTipoComprobante(comprobante.tipo_comprobante)}</td>
+                <td>{formatearMoneda(comprobante.total)}</td>
+                <td><EstadoBadge estado={comprobante.estado} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   )
 }
 
 function TablaCobros({ cobros }) {
   if (!cobros.length) return <EstadoVacio tipo="cobros" />
   return (
-    <table>
-      <thead>
-        <tr>
-          <th>Fecha</th>
-          <th>Número</th>
-          <th>Importe</th>
-          <th>Estado</th>
-        </tr>
-      </thead>
-      <tbody>
-        {cobros.map((cobro) => (
-          <tr key={cobro.id}>
-            <td>{formatearFecha(cobro.created_at)}</td>
-            <td>#{cobro.numero}</td>
-            <td>{formatearMoneda(cobro.total)}</td>
-            <td><EstadoBadge estado="Registrado" /></td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <div className="data-table-card">
+      <div className="data-table-scroll-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Número</th>
+              <th>Importe</th>
+              <th>Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            {cobros.map((cobro) => (
+              <tr key={cobro.id}>
+                <td>{formatearFecha(cobro.created_at)}</td>
+                <td>#{cobro.numero}</td>
+                <td>{formatearMoneda(cobro.total)}</td>
+                <td><EstadoBadge estado="Registrado" /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   )
 }
 
 function TablaPedidosWeb({ pedidos }) {
   if (!pedidos.length) return <EstadoVacio tipo="pedidosWeb" />
   return (
-    <table>
-      <thead>
-        <tr>
-          <th>Fecha</th>
-          <th>Número</th>
-          <th>Importe</th>
-          <th>Estado</th>
-        </tr>
-      </thead>
-      <tbody>
-        {pedidos.map((pedido) => (
-          <tr key={pedido.id}>
-            <td>{formatearFecha(pedido.created_at)}</td>
-            <td>#{pedido.numero}</td>
-            <td>{formatearMoneda(pedido.total)}</td>
-            <td><EstadoBadge estado={pedido.estado} /></td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <div className="data-table-card">
+      <div className="data-table-scroll-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Número</th>
+              <th>Importe</th>
+              <th>Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pedidos.map((pedido) => (
+              <tr key={pedido.id}>
+                <td>{formatearFecha(pedido.created_at)}</td>
+                <td>#{pedido.numero}</td>
+                <td>{formatearMoneda(pedido.total)}</td>
+                <td><EstadoBadge estado={pedido.estado} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   )
 }
 
@@ -251,29 +272,33 @@ function ModalDetalleVenta({ venta, onCerrar }) {
           />
         )}
         {!cargando && !error && detalle.length > 0 && (
-          <table>
-            <thead>
-              <tr>
-                <th>Artículo</th>
-                <th>Cantidad</th>
-                <th>Precio unitario</th>
-                <th>Subtotal</th>
-              </tr>
-            </thead>
-            <tbody>
-              {detalle.map((item) => (
-                <tr key={item.id}>
-                  <td>
-                    <strong>{item.producto?.nombre ?? 'Artículo no disponible'}</strong>
-                    {item.producto?.sku ? ` · ${item.producto.sku}` : ''}
-                  </td>
-                  <td>{item.cantidad}</td>
-                  <td>{formatearMoneda(item.precio_unitario)}</td>
-                  <td>{formatearMoneda(item.subtotal)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="data-table-card">
+            <div className="data-table-scroll-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Artículo</th>
+                    <th>Cantidad</th>
+                    <th>Precio unitario</th>
+                    <th>Subtotal</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {detalle.map((item) => (
+                    <tr key={item.id}>
+                      <td>
+                        <strong>{item.producto?.nombre ?? 'Artículo no disponible'}</strong>
+                        {item.producto?.sku ? ` · ${item.producto.sku}` : ''}
+                      </td>
+                      <td>{item.cantidad}</td>
+                      <td>{formatearMoneda(item.precio_unitario)}</td>
+                      <td>{formatearMoneda(item.subtotal)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
       </section>
     </div>
@@ -281,6 +306,7 @@ function ModalDetalleVenta({ venta, onCerrar }) {
 }
 
 export default function ClienteHistorialPage() {
+  const toast = useToast()
   const [busqueda, setBusqueda] = useState('')
   const [clientes, setClientes] = useState([])
   const [buscando, setBuscando] = useState(true)
@@ -366,9 +392,101 @@ export default function ClienteHistorialPage() {
   const cliente = historial?.cliente
   const movimientos = Array.isArray(historial?.[solapa]) ? historial[solapa] : []
 
+  function exportarCsv() {
+    if (!movimientos.length) return
+    let dataParaCsv = []
+    if (solapa === 'ventas') {
+      dataParaCsv = movimientos.map((v) => ({
+        Fecha: formatearFecha(v.created_at),
+        Numero: v.numero,
+        Importe: v.total,
+        Estado: v.estado,
+      }))
+    } else if (solapa === 'comprobantes') {
+      dataParaCsv = movimientos.map((c) => ({
+        Fecha: formatearFecha(c.fecha_emision),
+        Numero: `${c.letra} ${c.numero}`,
+        Tipo: nombreTipoComprobante(c.tipo_comprobante),
+        Importe: c.total,
+        Estado: c.estado,
+      }))
+    } else if (solapa === 'cobros') {
+      dataParaCsv = movimientos.map((cb) => ({
+        Fecha: formatearFecha(cb.created_at),
+        Numero: cb.numero,
+        Importe: cb.total,
+        Estado: 'Registrado',
+      }))
+    } else if (solapa === 'pedidosWeb') {
+      dataParaCsv = movimientos.map((p) => ({
+        Fecha: formatearFecha(p.created_at),
+        Numero: p.numero,
+        Importe: p.total,
+        Estado: p.estado,
+      }))
+    }
+
+    if (!dataParaCsv.length) return
+
+    const csv = Papa.unparse(dataParaCsv)
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `historial_${cliente?.apellido || 'cliente'}_${solapa}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    toast.success(`Movimientos exportados a CSV`)
+  }
+
   return (
     <main>
-      <h1>Historial de cliente</h1>
+      <PageHeader
+        breadcrumbs={[{ label: 'Clientes', to: '/#/clientes' }, { label: 'Historial 360°' }]}
+        kicker="Clientes y Cuentas"
+        title="Historial de cliente"
+        description="Visión integral de compras, facturación, cobranzas y pedidos web por cliente."
+        actions={
+          movimientos.length > 0 ? (
+            <Button variant="secondary" onClick={exportarCsv}>
+              <Download size={16} />
+              Exportar CSV
+            </Button>
+          ) : null
+        }
+      />
+
+      <div className="kpi-grid">
+        <KpiCard
+          label="Total comprado"
+          value={cliente ? formatearMoneda(historial?.totalComprado ?? 0) : '—'}
+          icon={DollarSign}
+          tone="success"
+          helperText={cliente ? 'Histórico acumulado' : 'Seleccioná un cliente'}
+        />
+        <KpiCard
+          label="Ventas registradas"
+          value={cliente && historial?.ventas ? historial.ventas.length : '—'}
+          icon={ShoppingCart}
+          tone="brand"
+          helperText="En período consultado"
+        />
+        <KpiCard
+          label="Comprobantes"
+          value={cliente && historial?.comprobantes ? historial.comprobantes.length : '—'}
+          icon={FileText}
+          tone="info"
+          helperText="Facturas y notas"
+        />
+        <KpiCard
+          label="Pedidos web"
+          value={cliente && historial?.pedidosWeb ? historial.pedidosWeb.length : '—'}
+          icon={Globe}
+          tone="neutral"
+          helperText="Ecommerce vinculado"
+        />
+      </div>
 
       <section>
         <h2>Seleccionar cliente</h2>
@@ -422,34 +540,38 @@ export default function ClienteHistorialPage() {
         <>
           <section>
             <h2>{nombreCliente(cliente)}</h2>
-            <table>
-              <tbody>
-                <tr>
-                  <th>Número</th>
-                  <td>#{cliente.numero}</td>
-                  <th>Documento</th>
-                  <td>{documentoCliente(cliente)}</td>
-                </tr>
-                <tr>
-                  <th>Estado</th>
-                  <td><EstadoBadge estado={cliente.estado} /></td>
-                  <th>Tipo de cliente</th>
-                  <td>{cliente.tipo_cliente?.nombre ?? '—'}</td>
-                </tr>
-                <tr>
-                  <th>Lista de precios</th>
-                  <td>{cliente.tipo_cliente?.lista_precio?.nombre ?? 'Sin lista asignada'}</td>
-                  <th>Total comprado</th>
-                  <td><strong>{formatearMoneda(historial.totalComprado)}</strong></td>
-                </tr>
-                <tr>
-                  <th>Contacto</th>
-                  <td>{cliente.telefono || '—'}</td>
-                  <th>Email</th>
-                  <td>{cliente.email || '—'}</td>
-                </tr>
-              </tbody>
-            </table>
+            <div className="data-table-card">
+              <div className="data-table-scroll-container">
+                <table>
+                  <tbody>
+                    <tr>
+                      <th>Número</th>
+                      <td>#{cliente.numero}</td>
+                      <th>Documento</th>
+                      <td>{documentoCliente(cliente)}</td>
+                    </tr>
+                    <tr>
+                      <th>Estado</th>
+                      <td><EstadoBadge estado={cliente.estado} /></td>
+                      <th>Tipo de cliente</th>
+                      <td>{cliente.tipo_cliente?.nombre ?? '—'}</td>
+                    </tr>
+                    <tr>
+                      <th>Lista de precios</th>
+                      <td>{cliente.tipo_cliente?.lista_precio?.nombre ?? 'Sin lista asignada'}</td>
+                      <th>Total comprado</th>
+                      <td><strong>{formatearMoneda(historial.totalComprado)}</strong></td>
+                    </tr>
+                    <tr>
+                      <th>Contacto</th>
+                      <td>{cliente.telefono || '—'}</td>
+                      <th>Email</th>
+                      <td>{cliente.email || '—'}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </section>
 
           <section>

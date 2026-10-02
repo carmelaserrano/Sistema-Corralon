@@ -434,89 +434,97 @@ export default function VentaDetalle({ ventaId, onCerrar, onComprobanteEmitido }
             No se han emitido comprobantes fiscales para esta venta todavía.
           </p>
         ) : (
-          <table style={{ width: '100%', marginBottom: '20px' }}>
-            <thead>
-              <tr>
-                <th>Tipo y Letra</th>
-                <th>Número</th>
-                <th>Fecha Emisión</th>
-                <th>Neto</th>
-                <th>IVA 21%</th>
-                <th>Total</th>
-                <th>CAE</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(venta.comprobantes ?? []).map((comp) => (
-                <tr key={comp.id}>
-                  <td>
-                    <strong>
-                      {comp.tipo_comprobante === 'factura'
-                        ? 'Factura'
-                        : comp.tipo_comprobante === 'nota_credito'
-                          ? 'Nota de Crédito'
-                          : 'Nota de Débito'}{' '}
-                      {comp.letra}
-                    </strong>
-                  </td>
-                  <td>{formatearComprobanteNumero(comp.punto_venta, comp.numero)}</td>
-                  <td>{formatearFecha(comp.fecha_emision)}</td>
-                  <td>{formatearMoneda(comp.neto)}</td>
-                  <td>{formatearMoneda(comp.iva)}</td>
-                  <td><strong>{formatearMoneda(comp.total)}</strong></td>
-                  <td>
-                    <span style={{ fontSize: '11px', background: '#e0e0e0', padding: '2px 6px', borderRadius: '4px' }}>
-                      {comp.cae || 'HOMOLOGACIÓN'}
-                    </span>
-                  </td>
-                  <td>
-                    {/* BOTÓN DESCARGAR PDF (CA-04) */}
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={() => handleDescargarPdf(comp.id)}
-                      loading={descargandoId === comp.id}
-                      loadingLabel="Generando…"
-                      title="Descargar comprobante en PDF"
-                    >
-                      <Download size={14} style={{ marginRight: '4px' }} />
-                      Descargar PDF
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="data-table-card" style={{ marginBottom: '20px' }}>
+            <div className="data-table-scroll-container">
+              <table style={{ width: '100%' }}>
+                <thead>
+                  <tr>
+                    <th>Tipo y Letra</th>
+                    <th>Número</th>
+                    <th>Fecha Emisión</th>
+                    <th>Neto</th>
+                    <th>IVA 21%</th>
+                    <th>Total</th>
+                    <th>CAE</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(venta.comprobantes ?? []).map((comp) => (
+                    <tr key={comp.id}>
+                      <td>
+                        <strong>
+                          {comp.tipo_comprobante === 'factura'
+                            ? 'Factura'
+                            : comp.tipo_comprobante === 'nota_credito'
+                              ? 'Nota de Crédito'
+                              : 'Nota de Débito'}{' '}
+                          {comp.letra}
+                        </strong>
+                      </td>
+                      <td>{formatearComprobanteNumero(comp.punto_venta, comp.numero)}</td>
+                      <td>{formatearFecha(comp.fecha_emision)}</td>
+                      <td>{formatearMoneda(comp.neto)}</td>
+                      <td>{formatearMoneda(comp.iva)}</td>
+                      <td><strong>{formatearMoneda(comp.total)}</strong></td>
+                      <td>
+                        <span style={{ fontSize: '11px', background: '#e0e0e0', padding: '2px 6px', borderRadius: '4px' }}>
+                          {comp.cae || 'HOMOLOGACIÓN'}
+                        </span>
+                      </td>
+                      <td>
+                        {/* BOTÓN DESCARGAR PDF (CA-04) */}
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => handleDescargarPdf(comp.id)}
+                          loading={descargandoId === comp.id}
+                          loadingLabel="Generando…"
+                          title="Descargar comprobante en PDF"
+                        >
+                          <Download size={14} style={{ marginRight: '4px' }} />
+                          Descargar PDF
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
 
         {/* DETALLE DE ARTÍCULOS */}
         <h3>Artículos de la venta</h3>
-        <table style={{ width: '100%', marginBottom: '20px' }}>
-          <thead>
-            <tr>
-              <th>Artículo</th>
-              <th>Cantidad</th>
-              <th>Precio Unit.</th>
-              <th>Descuento</th>
-              <th>Subtotal</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(venta.detalle ?? []).map((item) => (
-              <tr key={item.id}>
-                <td>
-                  {item.producto?.sku ? `[${item.producto.sku}] ` : ''}
-                  {item.producto?.nombre || 'Artículo'}
-                </td>
-                <td>{item.cantidad}</td>
-                <td>{formatearMoneda(item.precio_unitario)}</td>
-                <td>{item.descuento_pct > 0 ? `${item.descuento_pct}%` : '—'}</td>
-                <td><strong>{formatearMoneda(item.subtotal)}</strong></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="data-table-card" style={{ marginBottom: '20px' }}>
+          <div className="data-table-scroll-container">
+            <table style={{ width: '100%' }}>
+              <thead>
+                <tr>
+                  <th>Artículo</th>
+                  <th>Cantidad</th>
+                  <th>Precio Unit.</th>
+                  <th>Descuento</th>
+                  <th>Subtotal</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(venta.detalle ?? []).map((item) => (
+                  <tr key={item.id}>
+                    <td>
+                      {item.producto?.sku ? `[${item.producto.sku}] ` : ''}
+                      {item.producto?.nombre || 'Artículo'}
+                    </td>
+                    <td>{item.cantidad}</td>
+                    <td>{formatearMoneda(item.precio_unitario)}</td>
+                    <td>{item.descuento_pct > 0 ? `${item.descuento_pct}%` : '—'}</td>
+                    <td><strong>{formatearMoneda(item.subtotal)}</strong></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
 
         {/* DETALLE DE COBROS */}
         <h3>Cobros registrados</h3>
@@ -525,30 +533,34 @@ export default function VentaDetalle({ ventaId, onCerrar, onComprobanteEmitido }
             No registra cobros cargados.
           </p>
         ) : (
-          <table style={{ width: '100%' }}>
-            <thead>
-              <tr>
-                <th>Nº Cobro</th>
-                <th>Fecha</th>
-                <th>Medio de Pago</th>
-                <th>Monto</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(venta.cobros ?? []).map((cobro) => (
-                <tr key={cobro.id}>
-                  <td>Cobro #{cobro.numero || '1'}</td>
-                  <td>{formatearFecha(cobro.created_at)}</td>
-                  <td>
-                    {(cobro.detalle ?? [])
-                      .map((d) => d.medio_pago?.nombre || 'Efectivo')
-                      .join(', ') || 'Efectivo'}
-                  </td>
-                  <td><strong>{formatearMoneda(cobro.total)}</strong></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="data-table-card">
+            <div className="data-table-scroll-container">
+              <table style={{ width: '100%' }}>
+                <thead>
+                  <tr>
+                    <th>Nº Cobro</th>
+                    <th>Fecha</th>
+                    <th>Medio de Pago</th>
+                    <th>Monto</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(venta.cobros ?? []).map((cobro) => (
+                    <tr key={cobro.id}>
+                      <td>Cobro #{cobro.numero || '1'}</td>
+                      <td>{formatearFecha(cobro.created_at)}</td>
+                      <td>
+                        {(cobro.detalle ?? [])
+                          .map((d) => d.medio_pago?.nombre || 'Efectivo')
+                          .join(', ') || 'Efectivo'}
+                      </td>
+                      <td><strong>{formatearMoneda(cobro.total)}</strong></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
       </section>
     </div>

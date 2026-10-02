@@ -5,6 +5,11 @@ import {
   getMarcas,
   updateMarca,
 } from '../api/marcasApi'
+import PageHeader from '../../../components/ui/PageHeader'
+import KpiCard from '../../../components/ui/KpiCard'
+import { useToast } from '../../../components/ui/ToastContext'
+import Papa from 'papaparse'
+import { Award, CheckCircle2, XCircle, Search, Download } from 'lucide-react'
 
 const marcaInicial = {
   nombre: '',
@@ -12,6 +17,7 @@ const marcaInicial = {
 }
 
 function MarcasPage() {
+  const { showToast } = useToast()
   const [marcas, setMarcas] = useState([])
   const [form, setForm] = useState(marcaInicial)
   const [editandoId, setEditandoId] = useState(null)
@@ -71,15 +77,18 @@ function MarcasPage() {
       if (editandoId) {
         await updateMarca(editandoId, form)
         setAviso('Marca actualizada')
+        showToast({ message: 'Marca actualizada exitosamente', tone: 'success' })
       } else {
         const creada = await createMarca(form)
         setAviso(`Marca "${creada.nombre}" creada`)
+        showToast({ message: `Marca "${creada.nombre}" creada exitosamente`, tone: 'success' })
       }
 
       limpiarFormulario()
       await cargarMarcas()
     } catch (err) {
       setError(err.message || 'No se pudo guardar la marca')
+      showToast({ message: err.message || 'Error al guardar la marca', tone: 'danger' })
     }
   }
 
@@ -95,9 +104,11 @@ function MarcasPage() {
       setAviso('')
       await deleteMarca(marca.id)
       setAviso(`Marca "${marca.nombre}" eliminada`)
+      showToast({ message: `Marca "${marca.nombre}" eliminada`, tone: 'info' })
       await cargarMarcas()
     } catch (err) {
       setError(err.message || 'No se pudo eliminar la marca')
+      showToast({ message: err.message || 'Error al eliminar la marca', tone: 'danger' })
     }
   }
 
@@ -106,9 +117,78 @@ function MarcasPage() {
     cargarMarcas()
   }
 
+  function exportarCsv() {
+    if (marcas.length === 0) {
+      showToast({ message: 'No hay marcas para exportar', tone: 'warning' })
+      return
+    }
+    const datosCsv = marcas.map((m) => ({
+      Nombre: m.nombre || '',
+      Estado: m.activo ? 'Activa' : 'Inactiva',
+    }))
+    const csv = Papa.unparse(datosCsv)
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const enlace = document.createElement('a')
+    enlace.href = url
+    enlace.setAttribute('download', `marcas_${new Date().toISOString().slice(0, 10)}.csv`)
+    document.body.appendChild(enlace)
+    enlace.click()
+    document.body.removeChild(enlace)
+    URL.revokeObjectURL(url)
+    showToast({ message: 'Marcas exportadas en CSV', tone: 'success' })
+  }
+
+  const activasCount = marcas.filter((m) => m.activo).length
+  const inactivasCount = marcas.filter((m) => !m.activo).length
+
   return (
     <main>
-      <h1>Gestión de marcas</h1>
+      <PageHeader
+        title="Gestión de marcas"
+        kicker="Módulo Stock"
+        description="Registro de fabricantes y marcas comerciales de productos comercializados."
+        actions={[
+          {
+            label: 'Exportar CSV',
+            icon: Download,
+            onClick: exportarCsv,
+            variant: 'secondary',
+            disabled: marcas.length === 0,
+          },
+        ]}
+      />
+
+      <div className="kpi-grid">
+        <KpiCard
+          label="Total marcas"
+          value={marcas.length}
+          icon={Award}
+          tone="brand"
+          helperText="En catálogo"
+        />
+        <KpiCard
+          label="Marcas activas"
+          value={activasCount}
+          icon={CheckCircle2}
+          tone="success"
+          helperText="Disponibles en artículos"
+        />
+        <KpiCard
+          label="Inactivas"
+          value={inactivasCount}
+          icon={XCircle}
+          tone="neutral"
+          helperText="Deshabilitadas"
+        />
+        <KpiCard
+          label="Búsqueda"
+          value={busqueda ? `Filtro: "${busqueda}"` : 'Todas'}
+          icon={Search}
+          tone="info"
+          helperText="Estado del listado"
+        />
+      </div>
 
       {error && <p role="alert">{error}</p>}
       {aviso && <p role="status">{aviso}</p>}
@@ -163,31 +243,35 @@ function MarcasPage() {
       {!loading && marcas.length === 0 && <p>No hay marcas para mostrar.</p>}
 
       {!loading && marcas.length > 0 && (
-        <table>
-          <thead>
-            <tr>
-              <th>Nombre</th>
-              <th>Estado</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {marcas.map((marca) => (
-              <tr key={marca.id}>
-                <td>{marca.nombre}</td>
-                <td>{marca.activo ? 'Activa' : 'Inactiva'}</td>
-                <td>
-                  <button type="button" onClick={() => comenzarEdicion(marca)}>
-                    Editar
-                  </button>
-                  <button type="button" onClick={() => eliminarMarca(marca)}>
-                    Eliminar
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="data-table-card">
+          <div className="data-table-scroll-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Nombre</th>
+                  <th>Estado</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {marcas.map((marca) => (
+                  <tr key={marca.id}>
+                    <td>{marca.nombre}</td>
+                    <td>{marca.activo ? 'Activa' : 'Inactiva'}</td>
+                    <td>
+                      <button type="button" onClick={() => comenzarEdicion(marca)}>
+                        Editar
+                      </button>
+                      <button type="button" onClick={() => eliminarMarca(marca)}>
+                        Eliminar
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
     </main>
   )

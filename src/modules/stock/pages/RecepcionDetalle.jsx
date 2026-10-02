@@ -57,21 +57,21 @@ export default function RecepcionDetalle({ id, onVolver }) {
       <section>
         <h2>Artículos recibidos en esta recepción</h2>
         {!(recepcion.detalle ?? []).length ? <EmptyState title="No hay artículos registrados" description="Esta recepción no tiene detalle disponible." /> :
-          <table><thead><tr><th>Artículo</th><th>Cantidad recibida</th><th>Costo unitario</th><th>Subtotal</th></tr></thead>
+          <div className="data-table-card"><div className="data-table-scroll-container"><table><thead><tr><th>Artículo</th><th>Cantidad recibida</th><th>Costo unitario</th><th>Subtotal</th></tr></thead>
             <tbody>{recepcion.detalle.map((item) => <tr key={item.id}>
               <td>{item.producto?.sku} — {item.producto?.nombre}</td><td>{item.cantidad}</td>
               <td>{moneda(item.costo_unitario)}</td><td>{moneda(Number(item.cantidad) * Number(item.costo_unitario))}</td>
-            </tr>)}</tbody></table>}
+            </tr>)}</tbody></table></div></div>}
       </section>
       <section>
         <h2>Seguimiento actual de la orden de compra</h2>
         <p>Incluye todas las recepciones confirmadas de esta OC, también las posteriores a esta recepción.</p>
         {!renglones.length ? <Feedback>No hay detalle de la OC disponible.</Feedback> :
-          <table><thead><tr><th>Artículo</th><th>Cantidad pedida en la OC</th><th>Total recibido</th><th>Pendiente de recibir</th></tr></thead>
+          <div className="data-table-card"><div className="data-table-scroll-container"><table><thead><tr><th>Artículo</th><th>Cantidad pedida en la OC</th><th>Total recibido</th><th>Pendiente de recibir</th></tr></thead>
             <tbody>{renglones.map((item) => <tr key={item.id}>
               <td>{item.producto?.sku} — {item.producto?.nombre}</td><td>{item.cantidad}</td>
               <td>{item.cantidad_recibida}</td><td>{item.pendiente}</td>
-            </tr>)}</tbody></table>}
+            </tr>)}</tbody></table></div></div>}
       </section>
     </>}
   </main>

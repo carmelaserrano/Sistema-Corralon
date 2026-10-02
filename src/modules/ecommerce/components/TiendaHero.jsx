@@ -11,11 +11,25 @@ import {
 } from 'lucide-react'
 
 const CATEGORIAS_ICONOS = [
-  { nombre: 'Cementos', icon: Building2 },
-  { nombre: 'Cales', icon: Layers },
-  { nombre: 'Áridos', icon: Boxes },
-  { nombre: 'Hierros', icon: Hammer },
-  { nombre: 'Pinturas', icon: Paintbrush },
+  { clave: 'árido', icon: Boxes },
+  { clave: 'suelo', icon: Boxes },
+  { clave: 'arena', icon: Boxes },
+  { clave: 'ripio', icon: Boxes },
+  { clave: 'cemento', icon: Building2 },
+  { clave: 'cal', icon: Layers },
+  { clave: 'hierro', icon: Hammer },
+  { clave: 'malla', icon: Hammer },
+  { clave: 'acero', icon: Hammer },
+  { clave: 'ladrillo', icon: Layers },
+  { clave: 'bloque', icon: Layers },
+  { clave: 'techo', icon: ShieldCheck },
+  { clave: 'impermea', icon: ShieldCheck },
+  { clave: 'membrana', icon: ShieldCheck },
+  { clave: 'adhesivo', icon: Layers },
+  { clave: 'pastina', icon: Layers },
+  { clave: 'klaukol', icon: Layers },
+  { clave: 'pintura', icon: Paintbrush },
+  { clave: 'ferreter', icon: Paintbrush },
 ]
 
 export function TiendaHero({ categorias = [], categoriaSeleccionada, onSeleccionarCategoria }) {
@@ -63,7 +77,7 @@ export function TiendaHero({ categorias = [], categoriaSeleccionada, onSeleccion
               </button>
               {categorias.map((cat) => {
                 const iconoObj = CATEGORIAS_ICONOS.find((item) =>
-                  cat.nombre.toLowerCase().includes(item.nombre.toLowerCase()),
+                  cat.nombre.toLowerCase().includes(item.clave),
                 )
                 const Icono = iconoObj ? iconoObj.icon : CheckCircle2
 

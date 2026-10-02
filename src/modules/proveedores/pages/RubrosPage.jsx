@@ -10,12 +10,18 @@ import {
 import Button from '../../../components/ui/Button'
 import EmptyState from '../../../components/ui/EmptyState'
 import Feedback from '../../../components/ui/Feedback'
+import PageHeader from '../../../components/ui/PageHeader'
+import KpiCard from '../../../components/ui/KpiCard'
+import { useToast } from '../../../components/ui/ToastContext'
+import Papa from 'papaparse'
+import { Tags, CheckCircle2, XCircle, Building2, Download } from 'lucide-react'
 
 const rubroInicial = {
   nombre: '',
 }
 
 function RubrosPage() {
+  const { showToast } = useToast()
   const [rubros, setRubros] = useState([])
   const [form, setForm] = useState(rubroInicial)
   const [editandoId, setEditandoId] = useState(null)
@@ -110,15 +116,18 @@ function RubrosPage() {
       if (editandoId) {
         const actualizado = await updateRubro(editandoId, form)
         setAviso(`Rubro "${actualizado.nombre}" actualizado`)
+        showToast({ message: `Rubro "${actualizado.nombre}" actualizado`, tone: 'success' })
       } else {
         const creado = await createRubro(form)
         setAviso(`Rubro "${creado.nombre}" creado`)
+        showToast({ message: `Rubro "${creado.nombre}" creado`, tone: 'success' })
       }
 
       limpiarFormulario()
       await cargarRubros()
     } catch (err) {
       setError(err.message || 'No se pudo guardar el rubro')
+      showToast({ message: err.message || 'Error al guardar el rubro', tone: 'danger' })
     } finally {
       setGuardando(false)
     }
@@ -136,9 +145,11 @@ function RubrosPage() {
       setAviso('')
       await darDeBajaRubro(rubro.id)
       setAviso(`Rubro "${rubro.nombre}" eliminado`)
+      showToast({ message: `Rubro "${rubro.nombre}" eliminado`, tone: 'info' })
       await cargarRubros()
     } catch (err) {
       setError(err.message || 'No se pudo eliminar el rubro')
+      showToast({ message: err.message || 'Error al eliminar el rubro', tone: 'danger' })
     }
   }
 
@@ -148,9 +159,11 @@ function RubrosPage() {
       setAviso('')
       await reactivarRubro(rubro.id)
       setAviso(`Rubro "${rubro.nombre}" reactivado`)
+      showToast({ message: `Rubro "${rubro.nombre}" reactivado`, tone: 'success' })
       await cargarRubros()
     } catch (err) {
       setError(err.message || 'No se pudo reactivar el rubro')
+      showToast({ message: err.message || 'Error al reactivar el rubro', tone: 'danger' })
     }
   }
 
@@ -170,9 +183,80 @@ function RubrosPage() {
     cargarRubros({ soloActivos: !incluir })
   }
 
+  function exportarCsv() {
+    if (rubros.length === 0) {
+      showToast({ message: 'No hay rubros para exportar', tone: 'warning' })
+      return
+    }
+    const datosCsv = rubros.map((r) => ({
+      Nombre: r.nombre || '',
+      'Proveedores asociados': r.proveedores_asociados ?? 0,
+      Estado: r.activo ? 'Activo' : 'Eliminado',
+    }))
+    const csv = Papa.unparse(datosCsv)
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const enlace = document.createElement('a')
+    enlace.href = url
+    enlace.setAttribute('download', `rubros_${new Date().toISOString().slice(0, 10)}.csv`)
+    document.body.appendChild(enlace)
+    enlace.click()
+    document.body.removeChild(enlace)
+    URL.revokeObjectURL(url)
+    showToast({ message: 'Rubros exportados en CSV', tone: 'success' })
+  }
+
+  const totalActivos = rubros.filter((r) => r.activo).length
+  const totalInactivos = rubros.filter((r) => !r.activo).length
+  const totalAsociados = rubros.reduce((acc, r) => acc + (Number(r.proveedores_asociados) || 0), 0)
+
   return (
     <main>
-      <h1>Rubros de proveedor</h1>
+      <PageHeader
+        title="Rubros de proveedor"
+        kicker="Módulo Proveedores"
+        description="Categorías de clasificación comercial para el padrón y catálogo de proveedores."
+        actions={[
+          {
+            label: 'Exportar CSV',
+            icon: Download,
+            onClick: exportarCsv,
+            variant: 'secondary',
+            disabled: rubros.length === 0,
+          },
+        ]}
+      />
+
+      <div className="kpi-grid">
+        <KpiCard
+          label="Total rubros"
+          value={rubros.length}
+          icon={Tags}
+          tone="brand"
+          helperText="Categorías en listado"
+        />
+        <KpiCard
+          label="Rubros operativos"
+          value={totalActivos}
+          icon={CheckCircle2}
+          tone="success"
+          helperText="Disponibles para asignar"
+        />
+        <KpiCard
+          label="Rubros eliminados"
+          value={totalInactivos}
+          icon={XCircle}
+          tone="neutral"
+          helperText="Bajas lógicas"
+        />
+        <KpiCard
+          label="Vínculos activos"
+          value={totalAsociados}
+          icon={Building2}
+          tone="info"
+          helperText="Asignaciones totales"
+        />
+      </div>
 
       {error && <Feedback tone="error">{error}</Feedback>}
       {aviso && <Feedback tone="success">{aviso}</Feedback>}
@@ -277,57 +361,61 @@ function RubrosPage() {
         )}
 
         {!loading && !error && rubros.length > 0 && (
-          <table>
-            <thead>
-              <tr>
-                <th>Nombre</th>
-                <th>Proveedores asociados</th>
-                <th>Estado</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rubros.map((rubro) => (
-                <tr key={rubro.id}>
-                  <td>{rubro.nombre}</td>
-                  <td>{rubro.proveedores_asociados}</td>
-                  <td>{rubro.activo ? 'Activo' : 'Eliminado'}</td>
-                  <td>
-                    {!puedeGestionar && <span>—</span>}
+          <div className="data-table-card">
+            <div className="data-table-scroll-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Nombre</th>
+                    <th>Proveedores asociados</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rubros.map((rubro) => (
+                    <tr key={rubro.id}>
+                      <td>{rubro.nombre}</td>
+                      <td>{rubro.proveedores_asociados}</td>
+                      <td>{rubro.activo ? 'Activo' : 'Eliminado'}</td>
+                      <td>
+                        {!puedeGestionar && <span>—</span>}
 
-                    {puedeGestionar && rubro.activo && (
-                      <>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          onClick={() => comenzarEdicion(rubro)}
-                        >
-                          Editar
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          onClick={() => eliminarRubro(rubro)}
-                        >
-                          Eliminar
-                        </Button>
-                      </>
-                    )}
+                        {puedeGestionar && rubro.activo && (
+                          <>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              onClick={() => comenzarEdicion(rubro)}
+                            >
+                              Editar
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              onClick={() => eliminarRubro(rubro)}
+                            >
+                              Eliminar
+                            </Button>
+                          </>
+                        )}
 
-                    {puedeGestionar && !rubro.activo && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => restaurarRubro(rubro)}
-                      >
-                        Reactivar
-                      </Button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                        {puedeGestionar && !rubro.activo && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => restaurarRubro(rubro)}
+                          >
+                            Reactivar
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
       </section>
     </main>

@@ -72,7 +72,7 @@ describe('ClienteHistorialPage', () => {
     expect(screen.getByText('DNI 30111222')).toBeInTheDocument()
     expect(screen.getByText('Mayorista')).toBeInTheDocument()
     expect(screen.getByText('Obra')).toBeInTheDocument()
-    expect(screen.getByText(/1\.500,00/)).toBeInTheDocument()
+    expect(screen.getAllByText(/1\.500,00/).length).toBeGreaterThan(0)
 
     for (const nombre of ['Ventas', 'Comprobantes', 'Cobros', 'Pedidos web', 'Acopios']) {
       expect(screen.getByRole('tab', { name: nombre })).toBeInTheDocument()

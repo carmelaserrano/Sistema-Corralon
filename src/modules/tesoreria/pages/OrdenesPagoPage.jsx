@@ -17,6 +17,11 @@ import { getProveedores } from '../../proveedores/api/proveedoresApi'
 import Button from '../../../components/ui/Button'
 import EmptyState from '../../../components/ui/EmptyState'
 import Feedback from '../../../components/ui/Feedback'
+import PageHeader from '../../../components/ui/PageHeader'
+import KpiCard from '../../../components/ui/KpiCard'
+import { useToast } from '../../../components/ui/ToastContext'
+import Papa from 'papaparse'
+import { Wallet, DollarSign, Calendar, CreditCard, Download, Plus } from 'lucide-react'
 
 function formatearFechaCorta(isoDateString) {
   if (!isoDateString) return '—'
@@ -52,6 +57,7 @@ const filtrosIniciales = {
 }
 
 export default function OrdenesPagoPage() {
+  const { showToast } = useToast()
   const [vista, setVista] = useState('listado') // 'listado', 'nueva', 'detalle'
 
   // Listado
@@ -645,15 +651,90 @@ export default function OrdenesPagoPage() {
     )
   }
 
+  function exportarCsv() {
+    if (!ordenes || ordenes.length === 0) {
+      showToast({ message: 'No hay órdenes de pago para exportar', tone: 'warning' })
+      return
+    }
+    const datosCsv = ordenes.map((o) => ({
+      'Nº Orden': `#${o.numero}`,
+      Fecha: o.fecha || '',
+      Proveedor: o.proveedor?.razon_social || '',
+      Importe: o.importe_total || 0,
+      'Medio de pago': o.medio_pago?.nombre || '',
+    }))
+    const csv = Papa.unparse(datosCsv)
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const enlace = document.createElement('a')
+    enlace.href = url
+    enlace.setAttribute('download', `ordenes_pago_${new Date().toISOString().slice(0, 10)}.csv`)
+    document.body.appendChild(enlace)
+    enlace.click()
+    document.body.removeChild(enlace)
+    URL.revokeObjectURL(url)
+    showToast({ message: 'Órdenes de pago exportadas en CSV', tone: 'success' })
+  }
+
+  const totalPagado = ordenes?.reduce((acc, o) => acc + (Number(o.importe_total) || 0), 0) || 0
+  const proveedoresBeneficiarios = new Set(ordenes?.map((o) => o.proveedor?.razon_social).filter(Boolean)).size
+
+  const accionesHeader = [
+    puedeRegistrar && {
+      label: 'Nueva Orden de Pago',
+      icon: Plus,
+      onClick: irANueva,
+      variant: 'primary',
+    },
+    {
+      label: 'Exportar CSV',
+      icon: Download,
+      onClick: exportarCsv,
+      variant: 'secondary',
+      disabled: !ordenes || ordenes.length === 0,
+    },
+  ].filter(Boolean)
+
   // --- RENDER: LISTADO (CA 13) ---
   return (
     <main>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-        <h1>Órdenes de Pago</h1>
-        {puedeRegistrar && (
-          <Button type="button" onClick={irANueva}>Nueva Orden de Pago</Button>
-        )}
-      </header>
+      <PageHeader
+        title="Órdenes de Pago"
+        kicker="Módulo Tesorería"
+        description="Emisión de pagos a proveedores, imputación contra facturas pendientes y registro de medios de pago."
+        actions={accionesHeader}
+      />
+
+      <div className="kpi-grid">
+        <KpiCard
+          label="Total órdenes"
+          value={ordenes?.length || 0}
+          icon={Wallet}
+          tone="brand"
+          helperText="Emitidas en el período"
+        />
+        <KpiCard
+          label="Total pagado"
+          value={formatearMoneda(totalPagado)}
+          icon={DollarSign}
+          tone="success"
+          helperText="Desembolso efectivo"
+        />
+        <KpiCard
+          label="Proveedores con cobro"
+          value={proveedoresBeneficiarios}
+          icon={Calendar}
+          tone="info"
+          helperText="Beneficiarios únicos"
+        />
+        <KpiCard
+          label="Medios de pago"
+          value={mediosPago.length}
+          icon={CreditCard}
+          tone="neutral"
+          helperText="Canales configurados"
+        />
+      </div>
 
       {error && <Feedback tone="error">{error}</Feedback>}
       {aviso && <Feedback tone="success">{aviso}</Feedback>}
@@ -687,34 +768,38 @@ export default function OrdenesPagoPage() {
         )}
 
         {!loadingListado && ordenes?.length > 0 && (
-          <table>
-            <thead>
-              <tr>
-                <th>Nº</th>
-                <th>Fecha</th>
-                <th>Proveedor</th>
-                <th style={{ textAlign: 'right' }}>Importe</th>
-                <th>Medio de pago</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {ordenes?.map((orden) => (
-                <tr key={orden.id}>
-                  <td><strong>#{orden.numero}</strong></td>
-                  <td>{formatearFechaCorta(orden.fecha)}</td>
-                  <td>{orden.proveedor?.razon_social}</td>
-                  <td style={{ textAlign: 'right' }}>{formatearMoneda(orden.importe_total)}</td>
-                  <td>{orden.medio_pago?.nombre}</td>
-                  <td style={{ textAlign: 'right' }}>
-                    <Button type="button" variant="ghost" onClick={() => verDetalle(orden.id)}>
-                      Ver detalle
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="data-table-card">
+            <div className="data-table-scroll-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Nº</th>
+                    <th>Fecha</th>
+                    <th>Proveedor</th>
+                    <th style={{ textAlign: 'right' }}>Importe</th>
+                    <th>Medio de pago</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ordenes?.map((orden) => (
+                    <tr key={orden.id}>
+                      <td><strong>#{orden.numero}</strong></td>
+                      <td>{formatearFechaCorta(orden.fecha)}</td>
+                      <td>{orden.proveedor?.razon_social}</td>
+                      <td style={{ textAlign: 'right' }}>{formatearMoneda(orden.importe_total)}</td>
+                      <td>{orden.medio_pago?.nombre}</td>
+                      <td style={{ textAlign: 'right' }}>
+                        <Button type="button" variant="ghost" onClick={() => verDetalle(orden.id)}>
+                          Ver detalle
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
       </section>
     </main>

@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
+import { ArrowLeftRight, History, Package, Warehouse } from 'lucide-react'
+import KpiCard from '../../../components/ui/KpiCard'
+import { useToast } from '../../../components/ui/ToastContext'
 import { TIPOS, createMovimientoMultiarticulo } from '../api/movimientosApi'
 import { getDepositos } from '../api/depositosApi'
 import { getArticulos } from '../api/articulosApi'
@@ -12,6 +15,7 @@ function mensajeDeError(error, respaldo) {
 }
 
 function MovimientosPage({ onVerHistorial }) {
+  const toast = useToast()
   const [depositos, setDepositos] = useState([])
   const [articulos, setArticulos] = useState([])
   const [stock, setStock] = useState(new Map())
@@ -81,14 +85,24 @@ function MovimientosPage({ onVerHistorial }) {
 
   async function confirmar(event) {
     event.preventDefault()
-    if (items.length === 0) return setError('Agregá al menos un artículo antes de confirmar')
+    if (items.length === 0) {
+      setError('Agregá al menos un artículo antes de confirmar')
+      toast?.error?.('Agregá al menos un artículo antes de confirmar')
+      return
+    }
     try {
       setEnviando(true); setError('')
       await createMovimientoMultiarticulo({ ...form, items })
       setItems([]); setForm(inicial); setProductoId(''); setCantidad('')
-      setExito('Movimiento confirmado. El stock se actualizó correctamente.')
+      const msg = 'Movimiento confirmado. El stock se actualizó correctamente.'
+      setExito(msg)
+      toast?.success?.(msg)
       await cargarStock(form.deposito_id)
-    } catch (err) { setError(mensajeDeError(err, 'No se pudo confirmar el movimiento')) }
+    } catch (err) {
+      const msg = mensajeDeError(err, 'No se pudo confirmar el movimiento')
+      setError(msg)
+      toast?.error?.(msg)
+    }
     finally { setEnviando(false) }
   }
 
@@ -96,8 +110,36 @@ function MovimientosPage({ onVerHistorial }) {
   return <main className="movements-page">
     <header className="movements-header"><div><p className="eyebrow">Operación de stock</p><h1>Nuevo movimiento</h1>
       <p>Elegí el depósito, definí la operación y agregá todos los artículos antes de confirmar.</p></div>
-      <button type="button" className="secondary-action" onClick={onVerHistorial}>Ver historial</button></header>
+      <button type="button" className="secondary-action" onClick={onVerHistorial} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+        <History size={16} />
+        Ver historial
+      </button></header>
     {error && <p role="alert">{error}</p>}{exito && <p role="status">{exito}</p>}
+
+    <div className="kpi-grid" style={{ marginBottom: 'var(--space-6)' }}>
+      <KpiCard
+        label="Artículos en Carrito"
+        value={items.length}
+        icon={Package}
+        tone="brand"
+        helperText="Ítems cargados en esta orden"
+      />
+      <KpiCard
+        label="Unidades en Detalle"
+        value={items.reduce((s, i) => s + (Number(i.cantidad) || 0), 0)}
+        icon={ArrowLeftRight}
+        tone="info"
+        helperText="Cantidad física total a mover"
+      />
+      <KpiCard
+        label="Depósitos Operativos"
+        value={depositos.length}
+        icon={Warehouse}
+        tone="success"
+        helperText="Sedes disponibles para operación"
+      />
+    </div>
+
     <section className="movement-card"><form className="movements-form" onSubmit={confirmar}>
       <div className="movement-step"><span className="step-number">1</span><div className="step-content"><h2>Depósito</h2><p>Seleccioná dónde se realizará el movimiento.</p>
         <label htmlFor="deposito_id">Depósito de operación</label>
@@ -113,7 +155,7 @@ function MovimientosPage({ onVerHistorial }) {
           <p className="stock-indicator">{cargandoStock ? 'Consultando stock...' : <>Stock actual: <strong>{productoId ? (stock.get(productoId) ?? 0) : '-'}</strong></>}</p><button type="button" onClick={agregarArticulo} disabled={!tipoCompleto || cargandoStock}>Agregar artículo</button></div>
       </fieldset>
       <div className="cart-section"><div className="cart-heading"><div><span className="step-number">4</span><div><h2>Detalle del movimiento</h2><p>{items.length} artículo{items.length === 1 ? '' : 's'} agregado{items.length === 1 ? '' : 's'}</p></div></div></div>
-        {items.length === 0 ? <p className="empty-cart">Todavía no agregaste artículos al movimiento.</p> : <table><thead><tr><th>Artículo</th><th>Stock actual</th><th>Cantidad</th><th>Acción</th></tr></thead><tbody>{items.map((item) => <tr key={item.producto_id}><td>{item.sku} — {item.nombre}</td><td>{item.stock_actual}</td><td>{item.cantidad}</td><td><button type="button" className="danger-action" onClick={() => setItems((lista) => lista.filter((fila) => fila.producto_id !== item.producto_id))}>Quitar</button></td></tr>)}</tbody></table>}</div>
+        {items.length === 0 ? <p className="empty-cart">Todavía no agregaste artículos al movimiento.</p> : <div className="data-table-card"><div className="data-table-scroll-container"><table><thead><tr><th>Artículo</th><th>Stock actual</th><th>Cantidad</th><th>Acción</th></tr></thead><tbody>{items.map((item) => <tr key={item.producto_id}><td>{item.sku} — {item.nombre}</td><td>{item.stock_actual}</td><td>{item.cantidad}</td><td><button type="button" className="danger-action" onClick={() => setItems((lista) => lista.filter((fila) => fila.producto_id !== item.producto_id))}>Quitar</button></td></tr>)}</tbody></table></div></div>}</div>
       <div className={`movement-step ${items.length === 0 ? 'is-disabled' : ''}`}><span className="step-number">5</span><div className="step-content"><h2>Datos del movimiento</h2><p>Cuando termines el carrito, completá los datos antes de confirmar.</p>
         <label htmlFor="comprobante">Comprobante</label><input id="comprobante" name="comprobante" value={form.comprobante} onChange={cambiarCampo} disabled={items.length === 0} required />
         <label htmlFor="observaciones">Observaciones</label><textarea id="observaciones" name="observaciones" value={form.observaciones} onChange={cambiarCampo} disabled={items.length === 0} /></div></div>

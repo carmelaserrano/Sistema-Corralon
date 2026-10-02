@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { X } from 'lucide-react'
+import { Building2, CheckCircle2, Download, User, Users, X } from 'lucide-react'
+import Papa from 'papaparse'
 import {
   ESTADOS_CLIENTE,
   TIPOS_DOCUMENTO,
@@ -21,6 +22,10 @@ import EstadoClienteBadge from '../components/EstadoClienteBadge'
 import Button from '../../../components/ui/Button'
 import EmptyState from '../../../components/ui/EmptyState'
 import Feedback from '../../../components/ui/Feedback'
+import PageHeader from '../../../components/ui/PageHeader'
+import KpiCard from '../../../components/ui/KpiCard'
+import { useToast } from '../../../components/ui/ToastContext'
+
 
 const DEBOUNCE_BUSQUEDA_MS = 300
 
@@ -264,6 +269,40 @@ function ClientesPage() {
   const [aviso, setAviso] = useState('')
   const [loading, setLoading] = useState(true)
   const [guardando, setGuardando] = useState(false)
+  const toast = useToast()
+
+  function exportarCsv() {
+    if (!clientes || clientes.length === 0) {
+      toast?.info?.('No hay clientes en pantalla para exportar.')
+      return
+    }
+
+    try {
+      const data = clientes.map((c) => ({
+        Numero: c.numero,
+        Nombre_o_RazonSocial: nombreCliente(c),
+        TipoPersona: c.tipo_persona === 'fisica' ? 'Física' : 'Jurídica',
+        Documento: formatearDocumento(c),
+        Telefono: c.telefono || '',
+        Email: c.email || '',
+        Origen: c.origen || '',
+        Estado: c.estado,
+      }))
+
+      const csv = Papa.unparse(data)
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.setAttribute('href', url)
+      link.setAttribute('download', `clientes_pag_${pagina}.csv`)
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      toast?.success?.('Listado de clientes exportado con éxito a CSV.')
+    } catch {
+      toast?.error?.('Ocurrió un error al exportar los clientes.')
+    }
+  }
 
   async function verificarPermisos() {
     try {
@@ -541,7 +580,23 @@ function ClientesPage() {
 
   return (
     <main>
-      <h1>Clientes</h1>
+      <PageHeader
+        kicker="Módulo Clientes"
+        title="Clientes"
+        description="Padrón general de clientes físicos y corporativos, condiciones impositivas, domicilios y control de cuenta corriente."
+        actions={
+          <Button
+            type="button"
+            variant="ghost"
+            icon={Download}
+            onClick={exportarCsv}
+            disabled={loading || clientes.length === 0}
+            title="Exportar clientes en pantalla a CSV"
+          >
+            Exportar CSV
+          </Button>
+        }
+      />
 
       {error && <Feedback tone="error">{error}</Feedback>}
       {aviso && <Feedback tone="success">{aviso}</Feedback>}
@@ -779,6 +834,37 @@ function ClientesPage() {
           {!loading && !error && total > 0 && ` (${total})`}
         </h2>
 
+        <div className="kpi-grid">
+          <KpiCard
+            label="Total registrados"
+            value={total}
+            icon={Users}
+            tone="brand"
+            helperText="Padrón general de clientes"
+          />
+          <KpiCard
+            label="Activos en pantalla"
+            value={clientes.filter((c) => c.estado === 'Activo').length}
+            icon={CheckCircle2}
+            tone="success"
+            helperText="Clientes habilitados para venta"
+          />
+          <KpiCard
+            label="Personas físicas"
+            value={clientes.filter((c) => c.tipo_persona === 'fisica').length}
+            icon={User}
+            tone="info"
+            helperText="Particulares y consumidores finales"
+          />
+          <KpiCard
+            label="Empresas / Jurídicas"
+            value={clientes.filter((c) => c.tipo_persona === 'juridica').length}
+            icon={Building2}
+            tone="default"
+            helperText="Constructores y empresas"
+          />
+        </div>
+
         {loading && (
           <p className="loading-state" role="status">
             Cargando clientes…
@@ -801,89 +887,93 @@ function ClientesPage() {
         )}
 
         {!loading && !error && clientes.length > 0 && (
-          <>
-            <table>
-              <thead>
-                <tr>
-                  <th>Nº</th>
-                  <th>Cliente</th>
-                  <th>Documento</th>
-                  <th>Teléfono</th>
-                  <th>Origen</th>
-                  <th>Estado</th>
-                  <th>Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {clientes.map((cliente) => (
-                  <tr key={cliente.id}>
-                    <td>{cliente.numero}</td>
-                    <td>{nombreCliente(cliente)}</td>
-                    <td>{formatearDocumento(cliente)}</td>
-                    <td>{cliente.telefono}</td>
-                    <td>{cliente.origen}</td>
-                    <td>
-                      <EstadoClienteBadge estado={cliente.estado} />
-                    </td>
-                    <td>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => verDetalle(cliente)}
-                      >
-                        Ver detalle
-                      </Button>
-
-                      {puedeModificar && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          onClick={() => comenzarEdicion(cliente)}
-                        >
-                          Editar
-                        </Button>
-                      )}
-
-                      {puedeCambiarEstado && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          onClick={() => abrirModalEstado(cliente)}
-                        >
-                          Cambiar estado
-                        </Button>
-                      )}
-
-                      {!puedeModificar && !puedeCambiarEstado && <span>—</span>}
-                    </td>
+          <div className="data-table-card">
+            <div className="data-table-scroll-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Nº</th>
+                    <th>Cliente</th>
+                    <th>Documento</th>
+                    <th>Teléfono</th>
+                    <th>Origen</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {clientes.map((cliente) => (
+                    <tr key={cliente.id}>
+                      <td>{cliente.numero}</td>
+                      <td>{nombreCliente(cliente)}</td>
+                      <td>{formatearDocumento(cliente)}</td>
+                      <td>{cliente.telefono}</td>
+                      <td>{cliente.origen}</td>
+                      <td>
+                        <EstadoClienteBadge estado={cliente.estado} />
+                      </td>
+                      <td>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => verDetalle(cliente)}
+                        >
+                          Ver detalle
+                        </Button>
 
-            <p>
-              Página {pagina} de {totalPaginas}
-            </p>
+                        {puedeModificar && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => comenzarEdicion(cliente)}
+                          >
+                            Editar
+                          </Button>
+                        )}
 
-            <div>
-              <Button
-                type="button"
-                variant="ghost"
-                disabled={pagina <= 1}
-                onClick={() => cargarClientes({ pagina: pagina - 1 })}
-              >
-                Anterior
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                disabled={pagina >= totalPaginas}
-                onClick={() => cargarClientes({ pagina: pagina + 1 })}
-              >
-                Siguiente
-              </Button>
+                        {puedeCambiarEstado && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => abrirModalEstado(cliente)}
+                          >
+                            Cambiar estado
+                          </Button>
+                        )}
+
+                        {!puedeModificar && !puedeCambiarEstado && <span>—</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          </>
+
+            <div className="data-table-footer">
+              <p style={{ margin: 0 }}>
+                Página {pagina} de {totalPaginas}
+              </p>
+
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={pagina <= 1}
+                  onClick={() => cargarClientes({ pagina: pagina - 1 })}
+                >
+                  Anterior
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={pagina >= totalPaginas}
+                  onClick={() => cargarClientes({ pagina: pagina + 1 })}
+                >
+                  Siguiente
+                </Button>
+              </div>
+            </div>
+          </div>
         )}
       </section>
 

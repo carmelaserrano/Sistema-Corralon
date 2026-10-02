@@ -11,7 +11,10 @@ import {
 import Button from '../../../components/ui/Button'
 import EmptyState from '../../../components/ui/EmptyState'
 import Feedback from '../../../components/ui/Feedback'
+import PageHeader from '../../../components/ui/PageHeader'
+import KpiCard from '../../../components/ui/KpiCard'
 import { EstadoPedidoBadge, LineaDeTiempoPedido } from './MisPedidosPage'
+
 
 function formatearFecha(fechaIso) {
   return new Date(fechaIso).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })
@@ -228,60 +231,173 @@ export default function PedidosWebPage() {
 
   const pedidoSeleccionado = pedidoSeleccionadoId ? (pedidos.find((p) => p.id === pedidoSeleccionadoId) ?? null) : null
 
+  const pedidosPendientes = pedidos.filter(
+    (p) => p.estado === 'Pendiente' || p.estado === 'En preparación',
+  ).length
+  const pedidosEnTransito = pedidos.filter(
+    (p) => p.estado === 'En camino' || p.estado === 'Listo para retiro',
+  ).length
+  const pedidosEntregados = pedidos.filter((p) => p.estado === 'Entregado').length
+
   return (
     <main aria-busy={cargando}>
-      <h1>Pedidos web</h1>
-      <p>Seguí los pedidos de la tienda online y avanzalos por su ciclo: preparación, retiro o envío, y entrega.</p>
+      <PageHeader
+        kicker="Módulo E-commerce"
+        title="Pedidos web"
+        description="Seguí los pedidos de la tienda online y avanzalos por su ciclo: preparación, retiro o envío, y entrega."
+      />
+
+      <div className="kpi-grid">
+        <KpiCard
+          label="Total pedidos"
+          value={pedidos.length}
+          tone="default"
+          helperText="Registrados en la tienda"
+        />
+        <KpiCard
+          label="En preparación"
+          value={pedidosPendientes}
+          tone={pedidosPendientes > 0 ? 'warning' : 'default'}
+          helperText="Requieren armado de pedido"
+        />
+        <KpiCard
+          label="Listos / En camino"
+          value={pedidosEnTransito}
+          tone={pedidosEnTransito > 0 ? 'info' : 'default'}
+          helperText="En tránsito o listos para retiro"
+        />
+        <KpiCard
+          label="Completados"
+          value={pedidosEntregados}
+          tone="success"
+          helperText="Entregados al cliente"
+        />
+      </div>
 
       {!puedeGestionar && (
-        <Feedback>Podés consultar los pedidos, pero para cambiarlos de estado necesitás el permiso «ecommerce.pedidos.gestionar».</Feedback>
+        <Feedback>
+          Podés consultar los pedidos, pero para cambiarlos de estado necesitás el
+          permiso «ecommerce.pedidos.gestionar».
+        </Feedback>
       )}
 
-      <label style={{ display: 'grid', gap: 4, maxWidth: 280 }}>
-        Estado
-        <select value={filtroEstado} onChange={(event) => setFiltroEstado(event.target.value)}>
-          <option value="">Todos</option>
-          {ESTADOS_PEDIDO.map((estado) => <option key={estado} value={estado}>{estado}</option>)}
-        </select>
-      </label>
+      <div
+        className="data-table-toolbar"
+        style={{
+          borderRadius: 'var(--radius-md)',
+          marginBottom: 'var(--space-4)',
+          border: '1px solid var(--border-default)',
+        }}
+      >
+        <label
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+            fontSize: '13px',
+            fontWeight: 600,
+          }}
+        >
+          <span>Filtrar por estado:</span>
+          <select
+            value={filtroEstado}
+            onChange={(event) => setFiltroEstado(event.target.value)}
+            style={{ minHeight: '36px', padding: '0 12px' }}
+          >
+            <option value="">Todos los estados</option>
+            {ESTADOS_PEDIDO.map((estado) => (
+              <option key={estado} value={estado}>
+                {estado}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
 
       {error && <Feedback tone="error">{error}</Feedback>}
       {cargando && <p className="loading-state" role="status">Cargando pedidos…</p>}
 
       {!cargando && !error && pedidos.length === 0 && (
-        <EmptyState title="No hay pedidos" description={filtroEstado ? 'Probá con otro estado.' : 'Todavía no entraron pedidos por la tienda.'} />
+        <EmptyState
+          title="No hay pedidos"
+          description={
+            filtroEstado
+              ? 'Probá con otro estado.'
+              : 'Todavía no entraron pedidos por la tienda.'
+          }
+        />
       )}
 
       {!cargando && pedidos.length > 0 && (
-        <table>
-          <caption style={{ textAlign: 'left' }}>{pedidos.length} pedidos</caption>
-          <thead>
-            <tr>
-              <th scope="col">Nº</th>
-              <th scope="col">Fecha</th>
-              <th scope="col">Cliente</th>
-              <th scope="col">Entrega</th>
-              <th scope="col">Total</th>
-              <th scope="col">Estado</th>
-              <th scope="col">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {pedidos.map((pedido) => (
-              <tr key={pedido.id}>
-                <td>{pedido.numero}</td>
-                <td>{formatearFecha(pedido.created_at)}</td>
-                <td>{nombreCliente(pedido.cliente)}</td>
-                <td>{pedido.tipo_entrega === 'envio' ? 'Envío' : 'Retiro'}</td>
-                <td>{formatearMoneda(pedido.total)}</td>
-                <td><EstadoPedidoBadge estado={pedido.estado} /></td>
-                <td>
-                  <Button type="button" variant="ghost" onClick={() => setPedidoSeleccionadoId(pedido.id)}>Ver detalle</Button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="data-table-card">
+          <div className="data-table-scroll-container">
+            <table>
+              <caption style={{ textAlign: 'left', padding: '12px 16px', fontWeight: 600 }}>
+                {pedidos.length} pedidos encontrados
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Nº</th>
+                  <th scope="col">Fecha</th>
+                  <th scope="col">Cliente</th>
+                  <th scope="col">Entrega</th>
+                  <th scope="col">Total</th>
+                  <th scope="col">Estado</th>
+                  <th scope="col">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pedidos.map((pedido) => (
+                  <tr key={pedido.id}>
+                    <td>
+                      <code>#{pedido.numero}</code>
+                    </td>
+                    <td>{formatearFecha(pedido.created_at)}</td>
+                    <td>
+                      <strong>{nombreCliente(pedido.cliente)}</strong>
+                    </td>
+                    <td>
+                      <span
+                        style={{
+                          display: 'inline-block',
+                          padding: '2px 8px',
+                          borderRadius: 'var(--radius-sm)',
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          background:
+                            pedido.tipo_entrega === 'envio'
+                              ? 'var(--color-info-soft)'
+                              : 'var(--surface-subtle)',
+                          color:
+                            pedido.tipo_entrega === 'envio'
+                              ? 'var(--color-info)'
+                              : 'var(--text-secondary)',
+                        }}
+                      >
+                        {pedido.tipo_entrega === 'envio' ? 'Envío a domicilio' : 'Retiro en sucursal'}
+                      </span>
+                    </td>
+                    <td>
+                      <strong>{formatearMoneda(pedido.total)}</strong>
+                    </td>
+                    <td>
+                      <EstadoPedidoBadge estado={pedido.estado} />
+                    </td>
+                    <td>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => setPedidoSeleccionadoId(pedido.id)}
+                      >
+                        Ver detalle
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
 
       {pedidoSeleccionado && (

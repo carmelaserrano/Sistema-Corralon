@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import Papa from 'papaparse'
+import { CheckCircle2, Download, Percent, ShieldAlert } from 'lucide-react'
 import {
   TIPOS_APLICACION,
   actualizarReglaDescuento,
@@ -12,12 +14,16 @@ import {
 import Button from '../../../components/ui/Button'
 import EmptyState from '../../../components/ui/EmptyState'
 import Feedback from '../../../components/ui/Feedback'
+import PageHeader from '../../../components/ui/PageHeader'
+import KpiCard from '../../../components/ui/KpiCard'
+import { useToast } from '../../../components/ui/ToastContext'
 
 const etiquetaTipo = (tipo) => TIPOS_APLICACION.find((t) => t.value === tipo)?.label ?? tipo
 
 const reglaInicial = { tipo_aplicacion: '', referencia_id: '', porcentaje: '', activo: true }
 
 function DescuentosPage() {
+  const toast = useToast()
   const [reglas, setReglas] = useState([])
   const [form, setForm] = useState(reglaInicial)
   const [opcionesReferencia, setOpcionesReferencia] = useState([])
@@ -41,6 +47,26 @@ function DescuentosPage() {
   const [guardandoRegla, setGuardandoRegla] = useState(false)
   const [guardandoLimite, setGuardandoLimite] = useState(false)
   const [guardandoFilaId, setGuardandoFilaId] = useState(null)
+
+  function exportarCsv() {
+    if (!reglas.length) return
+    const filas = reglas.map((r) => ({
+      Aplica_A: etiquetaTipo(r.tipo_aplicacion),
+      Referencia: r.referencia_nombre ?? '—',
+      Porcentaje: `${r.porcentaje}%`,
+      Estado: r.activo ? 'Activa' : 'Inactiva',
+    }))
+    const csv = Papa.unparse(filas)
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `reglas_descuento_${new Date().toISOString().slice(0, 10)}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    toast.success('Reglas de descuento exportadas a CSV')
+  }
 
   async function verificarPermiso() {
     try {
@@ -144,6 +170,7 @@ function DescuentosPage() {
       })
 
       setAviso('Regla de descuento creada')
+      toast.success('Regla de descuento creada')
       limpiarFormulario()
       await cargarReglas()
     } catch (err) {
@@ -159,6 +186,7 @@ function DescuentosPage() {
       setAviso('')
       setGuardandoFilaId(regla.id)
       await actualizarReglaDescuento(regla.id, { activo: !regla.activo })
+      toast.success(`Regla ${regla.activo ? 'desactivada' : 'activada'}`)
       await cargarReglas()
     } catch (err) {
       setError(err.message || 'No se pudo cambiar el estado de la regla')
@@ -176,6 +204,7 @@ function DescuentosPage() {
       setAviso('')
       setGuardandoFilaId(regla.id)
       await actualizarReglaDescuento(regla.id, { porcentaje: Number(nuevoPorcentaje) })
+      toast.success('Porcentaje de descuento actualizado')
       setEdicionPorcentaje((actual) =>
         Object.fromEntries(Object.entries(actual).filter(([id]) => id !== regla.id)),
       )
@@ -196,6 +225,7 @@ function DescuentosPage() {
       setAviso('')
       await setLimiteDescuentoManual(Number(limiteForm))
       setAviso('Límite de descuento manual actualizado')
+      toast.success('Límite de descuento manual actualizado')
       await cargarLimite()
     } catch (err) {
       setError(err.message || 'No se pudo guardar el límite')
@@ -206,7 +236,44 @@ function DescuentosPage() {
 
   return (
     <main>
-      <h1>Descuentos</h1>
+      <PageHeader
+        breadcrumbs={[{ label: 'Ventas', to: '/#/ventas' }, { label: 'Descuentos' }]}
+        kicker="Ventas y Precios"
+        title="Descuentos"
+        description="Reglas comerciales de bonificación automática por tipo de cliente o producto y límite de descuento manual."
+        actions={
+          reglas.length > 0 ? (
+            <Button variant="secondary" onClick={exportarCsv}>
+              <Download size={16} />
+              Exportar CSV
+            </Button>
+          ) : null
+        }
+      />
+
+      <div className="kpi-grid">
+        <KpiCard
+          label="Total reglas"
+          value={reglas.length}
+          icon={Percent}
+          tone="brand"
+          helperText="Reglas registradas"
+        />
+        <KpiCard
+          label="Reglas activas"
+          value={reglas.filter((r) => r.activo).length}
+          icon={CheckCircle2}
+          tone="success"
+          helperText="Aplicando descuentos"
+        />
+        <KpiCard
+          label="Límite manual"
+          value={limite !== null ? `${limite}%` : 'Sin configurar'}
+          icon={ShieldAlert}
+          tone={limite !== null ? 'warning' : 'neutral'}
+          helperText="Requiere autorización"
+        />
+      </div>
 
       {error && <Feedback tone="error">{error}</Feedback>}
       {aviso && <Feedback tone="success">{aviso}</Feedback>}
@@ -344,71 +411,75 @@ function DescuentosPage() {
         )}
 
         {!loading && reglas.length > 0 && (
-          <table>
-            <thead>
-              <tr>
-                <th>Aplica a</th>
-                <th>Referencia</th>
-                <th>Porcentaje</th>
-                <th>Estado</th>
-                {puedeGestionar && <th>Acciones</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {reglas.map((regla) => (
-                <tr key={regla.id}>
-                  <td>{etiquetaTipo(regla.tipo_aplicacion)}</td>
-                  <td>{regla.referencia_nombre ?? '— (ya no existe)'}</td>
-                  <td>
-                    {puedeGestionar ? (
-                      <input
-                        aria-label={`Porcentaje de la regla ${regla.referencia_nombre ?? regla.id}`}
-                        type="number"
-                        min="0.01"
-                        max="100"
-                        step="0.01"
-                        value={edicionPorcentaje[regla.id] ?? String(regla.porcentaje)}
-                        onChange={(event) =>
-                          setEdicionPorcentaje((actual) => ({
-                            ...actual,
-                            [regla.id]: event.target.value,
-                          }))
-                        }
-                        disabled={guardandoFilaId === regla.id}
-                      />
-                    ) : (
-                      `${regla.porcentaje}%`
-                    )}
-                  </td>
-                  <td>{regla.activo ? 'Activa' : 'Inactiva'}</td>
-                  {puedeGestionar && (
-                    <td>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => guardarPorcentaje(regla)}
-                        disabled={
-                          guardandoFilaId === regla.id ||
-                          edicionPorcentaje[regla.id] === undefined ||
-                          edicionPorcentaje[regla.id] === String(regla.porcentaje)
-                        }
-                      >
-                        Guardar
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => alternarActivo(regla)}
-                        disabled={guardandoFilaId === regla.id}
-                      >
-                        {regla.activo ? 'Desactivar' : 'Activar'}
-                      </Button>
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="data-table-card">
+            <div className="data-table-scroll-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Aplica a</th>
+                    <th>Referencia</th>
+                    <th>Porcentaje</th>
+                    <th>Estado</th>
+                    {puedeGestionar && <th>Acciones</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {reglas.map((regla) => (
+                    <tr key={regla.id}>
+                      <td>{etiquetaTipo(regla.tipo_aplicacion)}</td>
+                      <td>{regla.referencia_nombre ?? '— (ya no existe)'}</td>
+                      <td>
+                        {puedeGestionar ? (
+                          <input
+                            aria-label={`Porcentaje de la regla ${regla.referencia_nombre ?? regla.id}`}
+                            type="number"
+                            min="0.01"
+                            max="100"
+                            step="0.01"
+                            value={edicionPorcentaje[regla.id] ?? String(regla.porcentaje)}
+                            onChange={(event) =>
+                              setEdicionPorcentaje((actual) => ({
+                                ...actual,
+                                [regla.id]: event.target.value,
+                              }))
+                            }
+                            disabled={guardandoFilaId === regla.id}
+                          />
+                        ) : (
+                          `${regla.porcentaje}%`
+                        )}
+                      </td>
+                      <td>{regla.activo ? 'Activa' : 'Inactiva'}</td>
+                      {puedeGestionar && (
+                        <td>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => guardarPorcentaje(regla)}
+                            disabled={
+                              guardandoFilaId === regla.id ||
+                              edicionPorcentaje[regla.id] === undefined ||
+                              edicionPorcentaje[regla.id] === String(regla.porcentaje)
+                            }
+                          >
+                            Guardar
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => alternarActivo(regla)}
+                            disabled={guardandoFilaId === regla.id}
+                          >
+                            {regla.activo ? 'Desactivar' : 'Activar'}
+                          </Button>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
       </section>
     </main>
