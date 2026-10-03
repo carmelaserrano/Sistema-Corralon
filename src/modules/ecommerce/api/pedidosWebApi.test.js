@@ -4,13 +4,22 @@ import {
   avanzarEstadoPedido,
   listarMisPedidos,
   listarPedidosWeb,
+  obtenerDetallePedidoBackoffice,
   obtenerSeguimientoPedido,
   puedeGestionarPedidos,
   siguientesEstados,
+  suscribirPedidosWeb,
 } from './pedidosWebApi'
 import { supabase } from '../../../lib/supabaseClient'
 
-vi.mock('../../../lib/supabaseClient', () => ({ supabase: { rpc: vi.fn(), from: vi.fn() } }))
+vi.mock('../../../lib/supabaseClient', () => ({
+  supabase: {
+    rpc: vi.fn(),
+    from: vi.fn(),
+    channel: vi.fn(),
+    removeChannel: vi.fn(),
+  },
+}))
 
 function builder(resultado) {
   const consulta = { then: (ok, fail) => Promise.resolve(resultado).then(ok, fail) }
@@ -20,10 +29,39 @@ function builder(resultado) {
 
 beforeEach(() => vi.resetAllMocks())
 
+describe('suscribirPedidosWeb', () => {
+  it('escucha cambios de pedidos y elimina el canal al limpiar', () => {
+    const on = vi.fn()
+    const canal = { on, subscribe: vi.fn() }
+    on.mockReturnValue(canal)
+    canal.subscribe.mockReturnValue(canal)
+    supabase.channel.mockReturnValue(canal)
+    supabase.removeChannel.mockResolvedValue('ok')
+    const manejarCambio = vi.fn()
+
+    const limpiar = suscribirPedidosWeb(manejarCambio)
+
+    expect(supabase.channel).toHaveBeenCalledWith(expect.stringMatching(/^backoffice-pedidos-web-\d+$/))
+    expect(on).toHaveBeenCalledWith('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'pedidos_web',
+    }, manejarCambio)
+    expect(canal.subscribe).toHaveBeenCalledOnce()
+
+    limpiar()
+    expect(supabase.removeChannel).toHaveBeenCalledWith(canal)
+  })
+
+  it('exige un manejador de cambios', () => {
+    expect(() => suscribirPedidosWeb()).toThrow('Falta el manejador')
+  })
+})
+
 describe('siguientesEstados (matriz de transiciones)', () => {
   it.each([
     [{ estado: 'Pendiente de pago', tipo_entrega: 'retiro' }, ['Cancelado']],
-    [{ estado: 'Pagado', tipo_entrega: 'retiro' }, ['En preparación', 'Cancelado']],
+    [{ estado: 'Pagado', tipo_entrega: 'retiro' }, ['En preparación']],
     [{ estado: 'En preparación', tipo_entrega: 'retiro' }, ['Listo para retirar']],
     [{ estado: 'En preparación', tipo_entrega: 'envio' }, ['Enviado']],
     [{ estado: 'Listo para retirar', tipo_entrega: 'retiro' }, ['Entregado']],
@@ -39,7 +77,7 @@ describe('siguientesEstados (matriz de transiciones)', () => {
   })
 
   it('no permite cancelar después de empezar la preparación', () => {
-    for (const estado of ['En preparación', 'Listo para retirar', 'Enviado']) {
+    for (const estado of ['Pagado', 'En preparación', 'Listo para retirar', 'Enviado']) {
       expect(siguientesEstados({ estado, tipo_entrega: 'envio' })).not.toContain('Cancelado')
     }
   })
@@ -195,6 +233,55 @@ describe('consultas', () => {
     consulta.eq.mockClear()
     await listarPedidosWeb()
     expect(consulta.eq).not.toHaveBeenCalled()
+  })
+
+  it('trae el detalle operativo completo para el backoffice', async () => {
+    const pedido = {
+      id: 'p1',
+      numero: 42,
+      cliente: { numero_documento: '30111222', telefono: '3874000000' },
+      domicilio: { calle: 'Caseros', numero: '850' },
+    }
+    const items = [{ id: 'i1', cantidad: 2, producto: { nombre: 'Cemento' } }]
+    const historial = [{ id: 'h1', estado_nuevo: 'Pagado' }]
+    const consultaPedido = builder({ data: pedido, error: null })
+    const consultaItems = builder({ data: items, error: null })
+    const consultaHistorial = builder({ data: historial, error: null })
+    supabase.from
+      .mockReturnValueOnce(consultaPedido)
+      .mockReturnValueOnce(consultaItems)
+      .mockReturnValueOnce(consultaHistorial)
+
+    await expect(obtenerDetallePedidoBackoffice('p1')).resolves.toEqual({
+      pedido,
+      items,
+      historial,
+    })
+    expect(supabase.from).toHaveBeenNthCalledWith(1, 'pedidos_web')
+    expect(supabase.from).toHaveBeenNthCalledWith(2, 'detalle_pedido_web')
+    expect(supabase.from).toHaveBeenNthCalledWith(3, 'historial_estado_pedido')
+    expect(consultaPedido.select).toHaveBeenCalledWith(expect.stringContaining('numero_documento'))
+    expect(consultaPedido.select).toHaveBeenCalledWith(expect.stringContaining('domicilio:domicilios_cliente'))
+    expect(consultaItems.select).toHaveBeenCalledWith(expect.stringContaining('producto:productos'))
+  })
+
+  it('no consulta relaciones si el pedido de backoffice no existe o falta el id', async () => {
+    supabase.from.mockReturnValue(builder({ data: null, error: null }))
+
+    await expect(obtenerDetallePedidoBackoffice('inexistente')).resolves.toBeNull()
+    expect(supabase.from).toHaveBeenCalledTimes(1)
+    await expect(obtenerDetallePedidoBackoffice('')).resolves.toBeNull()
+    expect(supabase.from).toHaveBeenCalledTimes(1)
+  })
+
+  it('propaga errores al cargar los artículos del detalle de backoffice', async () => {
+    const error = new Error('falló el detalle')
+    supabase.from
+      .mockReturnValueOnce(builder({ data: { id: 'p1' }, error: null }))
+      .mockReturnValueOnce(builder({ data: null, error }))
+      .mockReturnValueOnce(builder({ data: [], error: null }))
+
+    await expect(obtenerDetallePedidoBackoffice('p1')).rejects.toBe(error)
   })
 
   it('propaga errores de las listas', async () => {

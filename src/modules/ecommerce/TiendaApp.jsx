@@ -76,7 +76,7 @@ function TiendaHeader({ pagina, onNavigate, onAbrirCarrito }) {
             <Building2 size={24} aria-hidden="true" />
           </div>
           <div className="tienda-brand-text">
-            <strong>Corralón del Sur</strong>
+            <strong>Corralón Norte</strong>
             <span className="tienda-brand-sub">Tienda de Materiales</span>
           </div>
         </div>
@@ -251,7 +251,7 @@ function TiendaRoutes({
   return <CatalogoPage onVerProducto={onVerProducto} onNotificar={onNotificar} />
 }
 
-function TiendaShell() {
+export function TiendaShell() {
   const parametros = new URLSearchParams(window.location.search)
   const retornoPago = parametros.get('pago')
   const pedidoRetornado = parametros.get('pedido') || parametros.get('external_reference')
@@ -262,25 +262,30 @@ function TiendaShell() {
     pedidoId: pedidoRetornado || '',
     resultado: retornoPago || '',
   })
-  const [volverAlCarrito, setVolverAlCarrito] = useState(false)
+  const [destinoPostIngreso, setDestinoPostIngreso] = useState(null)
   const [productoId, setProductoId] = useState(null)
   const [toast, setToast] = useState(null)
   const [drawerAbierto, setDrawerAbierto] = useState(false)
   const { cliente } = useClienteWeb()
 
   useEffect(() => {
-    if (cliente && volverAlCarrito) {
-      setPagina('carrito')
-      setVolverAlCarrito(false)
+    if (cliente && destinoPostIngreso) {
+      setPagina(destinoPostIngreso)
+      setDestinoPostIngreso(null)
     }
-  }, [cliente, volverAlCarrito])
+  }, [cliente, destinoPostIngreso])
 
   function navegar(destino) {
-    setVolverAlCarrito(false)
+    const requiereIngreso = destino === 'checkout' && !cliente
+    const mantieneRetornoAuth = destinoPostIngreso
+      && ['ingresar', 'registrarme'].includes(pagina)
+      && ['ingresar', 'registrarme'].includes(destino)
+    if (requiereIngreso) setDestinoPostIngreso('checkout')
+    else if (!mantieneRetornoAuth) setDestinoPostIngreso(null)
     if (destino !== 'pago-resultado') {
       window.history.replaceState({}, '', window.location.pathname)
     }
-    setPagina(destino === 'checkout' && !cliente ? 'ingresar' : destino)
+    setPagina(requiereIngreso ? 'ingresar' : destino)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -290,7 +295,7 @@ function TiendaShell() {
   }
 
   function ingresarDesdeCarrito() {
-    setVolverAlCarrito(true)
+    setDestinoPostIngreso('carrito')
     setPagina('ingresar')
   }
 

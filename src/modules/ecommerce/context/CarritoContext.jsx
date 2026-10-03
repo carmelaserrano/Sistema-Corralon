@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { useClienteWeb } from './ClienteWebContext'
-import { fusionarCarrito, guardarItems, obtenerCarrito, validarItems } from '../api/carritoApi'
+import { esCantidadEnteraPositiva, fusionarCarrito, guardarItems, obtenerCarrito, validarItems } from '../api/carritoApi'
 import Feedback from '../../../components/ui/Feedback'
 
 const CarritoContext = createContext(undefined)
@@ -10,7 +10,14 @@ const CLAVE = 'corralon.carrito.visitante.v1'
 function leerVisitante() {
   try {
     const guardado = JSON.parse(sessionStorage.getItem(CLAVE) || 'null')
-    if (guardado && Array.isArray(guardado.items) && typeof guardado.fusionId === 'string') return guardado
+    if (guardado && Array.isArray(guardado.items) && typeof guardado.fusionId === 'string') {
+      // Un carrito de visitante guardado antes de exigir cantidades enteras
+      // se redondea en lugar de dejar el carrito bloqueado.
+      const items = guardado.items
+        .map((item) => ({ ...item, cantidad: Math.round(Number(item?.cantidad)) }))
+        .filter((item) => typeof item.productoId === 'string' && Number.isFinite(item.cantidad) && item.cantidad > 0)
+      return { ...guardado, items }
+    }
   } catch { /* Un navegador sin almacenamiento sigue funcionando en memoria. */ }
   return { items: [], fusionId: crypto.randomUUID() }
 }
@@ -130,8 +137,8 @@ function CarritoSesion({ children, clienteId, esperandoSesion, visitante }) {
 
   function agregar(productoId, cantidad) {
     return modificar((prev) => {
-      if (typeof cantidad !== 'number' || !Number.isFinite(cantidad) || cantidad <= 0) {
-        throw new Error('Ingresá una cantidad mayor a cero')
+      if (!esCantidadEnteraPositiva(cantidad)) {
+        throw new Error('Ingresá una cantidad entera mayor a cero')
       }
       const encontrado = prev.find((item) => item.productoId === productoId)
       return encontrado
@@ -143,8 +150,12 @@ function CarritoSesion({ children, clienteId, esperandoSesion, visitante }) {
   function agregarVarios(nuevosItems) {
     return modificar((prev) => {
       let resultado = [...prev]
+      let agregados = 0
       for (const { productoId, cantidad } of nuevosItems) {
-        if (typeof cantidad !== 'number' || !Number.isFinite(cantidad) || cantidad <= 0) continue
+        // Reordenar un pedido histórico: las líneas con cantidad inválida se
+        // omiten para no perder las líneas válidas.
+        if (!esCantidadEnteraPositiva(cantidad)) continue
+        agregados += 1
         const idx = resultado.findIndex((item) => item.productoId === productoId)
         if (idx >= 0) {
           resultado[idx] = { ...resultado[idx], cantidad: resultado[idx].cantidad + cantidad }
@@ -152,17 +163,19 @@ function CarritoSesion({ children, clienteId, esperandoSesion, visitante }) {
           resultado.push({ productoId, cantidad })
         }
       }
+      if (nuevosItems.length > 0 && agregados === 0) {
+        throw new Error('Ingresá una cantidad entera mayor a cero')
+      }
       return resultado
     })
   }
 
   function actualizar(productoId, cantidad) {
     return modificar((prev) => {
-      if (typeof cantidad !== 'number' || !Number.isFinite(cantidad) || cantidad < 0) {
-        throw new Error('Ingresá una cantidad mayor o igual a cero')
+      if (!esCantidadEnteraPositiva(cantidad)) {
+        throw new Error('Ingresá una cantidad entera mayor a cero')
       }
-      return cantidad === 0 ? prev.filter((item) => item.productoId !== productoId)
-        : prev.map((item) => item.productoId === productoId ? { ...item, cantidad } : item)
+      return prev.map((item) => item.productoId === productoId ? { ...item, cantidad } : item)
     })
   }
 
