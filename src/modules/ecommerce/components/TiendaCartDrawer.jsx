@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import {
   ArrowRight,
   Minus,
@@ -10,12 +10,28 @@ import {
 } from 'lucide-react'
 import { useCarrito } from '../context/CarritoContext'
 import Button from '../../../components/ui/Button'
+import Feedback from '../../../components/ui/Feedback'
 import { ImagenProducto } from '../pages/CatalogoPage'
 
 const moneda = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' })
 
 export default function TiendaCartDrawer({ abierto, onCerrar, onIrCheckout, onIrCarritoCompleto }) {
   const { items, cantidadTotal, total, actualizar, quitar, vaciar } = useCarrito()
+  const [errorOperacion, setErrorOperacion] = useState('')
+
+  async function ejecutarOperacion(operacion) {
+    setErrorOperacion('')
+    try {
+      await operacion()
+    } catch (error) {
+      setErrorOperacion(error?.message || 'No pudimos actualizar el carrito.')
+    }
+  }
+
+  // Un error de una operación anterior no debe reaparecer al reabrir el drawer.
+  useEffect(() => {
+    if (!abierto) setErrorOperacion('')
+  }, [abierto])
 
   // Cerrar con Escape
   useEffect(() => {
@@ -58,6 +74,7 @@ export default function TiendaCartDrawer({ abierto, onCerrar, onIrCheckout, onIr
 
         {/* Lista de Items */}
         <div className="tienda-cart-drawer-body">
+          {errorOperacion && <Feedback tone="error">{errorOperacion}</Feedback>}
           {items.length === 0 ? (
             <div className="tienda-cart-drawer-empty">
               <div className="tienda-cart-empty-icon">
@@ -82,7 +99,7 @@ export default function TiendaCartDrawer({ abierto, onCerrar, onIrCheckout, onIr
                       {item.nombre}
                     </h5>
                     <div className="tienda-cart-item-precio-unit">
-                      {moneda.format(item.precio)} c/u
+                      {item.precioUnitario == null ? 'Sin precio disponible' : `${moneda.format(item.precioUnitario)} c/u`}
                     </div>
 
                     <div className="tienda-cart-item-actions">
@@ -91,7 +108,9 @@ export default function TiendaCartDrawer({ abierto, onCerrar, onIrCheckout, onIr
                           type="button"
                           className="tienda-qty-btn"
                           disabled={item.cantidad <= 1}
-                          onClick={() => actualizar(item.productoId, item.cantidad - 1)}
+                          onClick={() => {
+                            void ejecutarOperacion(() => actualizar(item.productoId, item.cantidad - 1))
+                          }}
                           aria-label={`Reducir cantidad de ${item.nombre}`}
                         >
                           <Minus size={13} />
@@ -100,7 +119,9 @@ export default function TiendaCartDrawer({ abierto, onCerrar, onIrCheckout, onIr
                         <button
                           type="button"
                           className="tienda-qty-btn"
-                          onClick={() => actualizar(item.productoId, item.cantidad + 1)}
+                          onClick={() => {
+                            void ejecutarOperacion(() => actualizar(item.productoId, item.cantidad + 1))
+                          }}
                           aria-label={`Aumentar cantidad de ${item.nombre}`}
                         >
                           <Plus size={13} />
@@ -114,7 +135,9 @@ export default function TiendaCartDrawer({ abierto, onCerrar, onIrCheckout, onIr
                       <button
                         type="button"
                         className="tienda-cart-item-remove"
-                        onClick={() => quitar(item.productoId)}
+                        onClick={() => {
+                          void ejecutarOperacion(() => quitar(item.productoId))
+                        }}
                         title="Eliminar producto"
                         aria-label={`Eliminar ${item.nombre} del carrito`}
                       >
@@ -172,7 +195,9 @@ export default function TiendaCartDrawer({ abierto, onCerrar, onIrCheckout, onIr
                 <button
                   type="button"
                   className="tienda-btn-vaciar-drawer"
-                  onClick={vaciar}
+                  onClick={() => {
+                    void ejecutarOperacion(vaciar)
+                  }}
                 >
                   Vaciar
                 </button>

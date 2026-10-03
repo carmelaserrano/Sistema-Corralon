@@ -31,7 +31,7 @@ export default function TiendaFooter({ onNavigate }) {
         <div className="tienda-footer-col">
           <div className="tienda-brand" style={{ marginBottom: 12 }}>
             <Building2 size={22} />
-            <strong style={{ fontSize: 18 }}>Corralón del Sur</strong>
+            <strong style={{ fontSize: 18 }}>Corralón Norte</strong>
           </div>
           <p className="tienda-footer-desc">
             Venta mayorista y minorista de materiales para la construcción gruesa y fina.
@@ -73,7 +73,7 @@ export default function TiendaFooter({ onNavigate }) {
       </div>
 
       <div className="tienda-footer-bottom">
-        <p>© {new Date().getFullYear()} Corralón del Sur. Todos los derechos reservados.</p>
+        <p>© {new Date().getFullYear()} Corralón Norte. Todos los derechos reservados.</p>
         <p>Sistema de Gestión Comercial y E-commerce Integrado.</p>
       </div>
     </footer>
