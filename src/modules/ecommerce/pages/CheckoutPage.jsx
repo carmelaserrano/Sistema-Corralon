@@ -420,7 +420,7 @@ export default function CheckoutPage({ onPasarelaSimulada, onVolverCarrito }) {
                   <div className="tienda-resumen-det">
                     <strong>{item.nombre}</strong>
                     <span>
-                      {item.cantidad} × {moneda.format(item.precio)}
+                      {item.cantidad} × {moneda.format(item.precioUnitario)}
                     </span>
                   </div>
                   <div className="tienda-resumen-item-total">

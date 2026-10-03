@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ArrowLeft, ShoppingCart } from 'lucide-react'
 import { obtenerProducto } from '../api/catalogoApi'
+import { esCantidadEnteraPositiva } from '../api/carritoApi'
 import { useCarrito } from '../context/CarritoContext'
 import Button from '../../../components/ui/Button'
 import Feedback from '../../../components/ui/Feedback'
@@ -31,7 +32,7 @@ export default function ProductoDetallePage({ productoId, onVolver }) {
   }, [productoId])
 
   const numero = Number(cantidad)
-  const cantidadValida = Number.isInteger(numero) && numero > 0
+  const cantidadValida = esCantidadEnteraPositiva(numero)
 
   async function agregarAlCarrito(event) {
     event.preventDefault()

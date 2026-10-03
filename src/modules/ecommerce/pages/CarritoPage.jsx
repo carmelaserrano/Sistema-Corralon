@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { ImageOff, ShoppingCart, Trash2 } from 'lucide-react'
 import { useCarrito, useEstadoCarrito } from '../context/CarritoContext'
 import { useClienteWeb } from '../context/ClienteWebContext'
+import { esCantidadEnteraPositiva } from '../api/carritoApi'
 import Button from '../../../components/ui/Button'
 import Feedback from '../../../components/ui/Feedback'
 
@@ -14,8 +15,8 @@ function CantidadItem({ item, disabled, actualizar }) {
 
   async function confirmar() {
     const cantidad = Number(valor)
-    if (!valor.trim() || !Number.isFinite(cantidad) || cantidad < 0) {
-      setError('Ingresá una cantidad mayor o igual a cero.')
+    if (!valor.trim() || !esCantidadEnteraPositiva(cantidad)) {
+      setError('Ingresá una cantidad entera mayor a cero.')
       setValor(String(item.cantidad))
       return
     }
@@ -32,7 +33,7 @@ function CantidadItem({ item, disabled, actualizar }) {
 
   return (
     <div>
-      <input type="number" min="0" step="any" value={valor}
+      <input type="number" min="1" step="1" inputMode="numeric" value={valor}
         aria-label={`Cantidad de ${item.nombre}`} aria-invalid={!!error}
         disabled={disabled} style={{ width: 110 }}
         onChange={(event) => setValor(event.target.value)} onBlur={confirmar}
