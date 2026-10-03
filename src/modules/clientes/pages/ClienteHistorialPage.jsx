@@ -290,7 +290,12 @@ function ModalDetalleVenta({ venta, onCerrar }) {
                         <strong>{item.producto?.nombre ?? 'Artículo no disponible'}</strong>
                         {item.producto?.sku ? ` · ${item.producto.sku}` : ''}
                       </td>
-                      <td>{item.cantidad}</td>
+                      <td>
+                        {item.cantidad}
+                        {Number(item.cantidad_backorder) > 0 && (
+                          <div>{item.cantidad_backorder} en backorder</div>
+                        )}
+                      </td>
                       <td>{formatearMoneda(item.precio_unitario)}</td>
                       <td>{formatearMoneda(item.subtotal)}</td>
                     </tr>

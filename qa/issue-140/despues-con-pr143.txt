@@ -1,0 +1,23 @@
+AVISO: se omitió 0027_orden_de_pago.sql (column "nota_id" does not exist) — ver issue #141
+OK:    migraciones aplicadas
+OK:    CA-01 persistencia atómica: venta Pendiente, correlativo, detalle e historial
+OK:    CA-02 comprometer_stock sube `comprometido` y no toca la cantidad física
+OK:    CA-03 stock insuficiente: error descriptivo y rollback total
+OK:    validaciones: precio desactualizado, cliente bloqueado y producto repetido (H6)
+OK:    CA-04 cobro exacto, Factura A (RI) con IVA 21% y venta Facturada
+OK:    CA-04 consumidor final recibe Factura B
+OK:    CA-05 entrega: descuenta físico, libera comprometido y audita en movimientos_stock (H4)
+OK:    CA-05 una venta Pendiente no se puede entregar
+OK:    H4 la firma de 2 parámetros de egresar_comprometido (pedidos web) conserva su texto
+OK:    CA-06 anular Pendiente libera el comprometido y exige motivo
+OK:    CA-06 Facturada sólo se anula con Nota de Crédito total (parcial no anula)
+OK:    H3 una venta con cobro registrado no se anula: se indica el camino fiscal
+OK:    H1 anular una venta con backorder libera sólo lo comprometido
+OK:    H1 anular con backorder NO libera reservas de otras ventas
+OK:    H1 la Nota de Crédito total con backorder libera sólo lo comprometido
+OK:    H1 no se entrega una venta con backorder pendiente (mensaje claro, stock intacto)
+OK:    CA-07 ventas, comprobantes y cobros quedan asociados a la ficha del cliente
+OK:    integridad: el total de la venta coincide con la suma de sus líneas
+OK:    permisos: sin personal interno / sin permiso granular se rechaza con 42501
+
+Todos los escenarios pasaron.
