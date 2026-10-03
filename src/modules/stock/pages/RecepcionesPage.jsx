@@ -15,6 +15,11 @@ import Button from '../../../components/ui/Button'
 import Feedback from '../../../components/ui/Feedback'
 import EmptyState from '../../../components/ui/EmptyState'
 import RecepcionDetalle from './RecepcionDetalle'
+import PageHeader from '../../../components/ui/PageHeader'
+import KpiCard from '../../../components/ui/KpiCard'
+import { useToast } from '../../../components/ui/ToastContext'
+import Papa from 'papaparse'
+import { PackageCheck, Clock, FileCheck, Warehouse, Download, RefreshCw } from 'lucide-react'
 
 const inicial = {
   orden_compra_id: '',
@@ -30,6 +35,7 @@ const moneda = (valor) =>
   })
 
 export default function RecepcionesPage() {
+  const { showToast } = useToast()
   const [form, setForm] = useState(inicial)
   const [ordenes, setOrdenes] = useState([])
   const [depositos, setDepositos] = useState([])
@@ -178,20 +184,51 @@ export default function RecepcionesPage() {
       setAviso(
         `Recepción N.º ${recepcion.numero} confirmada. Se actualizaron el stock y la orden de compra.`
       )
+      showToast({
+        message: `Recepción N.º ${recepcion.numero} confirmada`,
+        tone: 'success',
+      })
 
       setForm(inicial)
 
       await cargarDatos()
     } catch (err) {
-      setError(
-        err?.status === 423
-          ? 'Hay otra operación en proceso. Esperá unos segundos y volvé a intentar.'
-          : err?.message || 'No se pudo confirmar la recepción.'
-      )
+      const msg = err?.status === 423
+        ? 'Hay otra operación en proceso. Esperá unos segundos y volvé a intentar.'
+        : err?.message || 'No se pudo confirmar la recepción.'
+      setError(msg)
+      showToast({ message: msg, tone: 'danger' })
     } finally {
       guardando.current = false
       setEnviando(false)
     }
+  }
+
+  function exportarCsv() {
+    if (!listado.recepciones.length) {
+      showToast({ message: 'No hay recepciones para exportar', tone: 'warning' })
+      return
+    }
+    const datosCsv = listado.recepciones.map((r) => ({
+      Número: r.numero,
+      'Fecha y hora': new Date(r.confirmado_at || r.created_at).toLocaleString('es-AR'),
+      Usuario: r.confirmado_by || r.created_by || '-',
+      'Orden de compra': r.orden?.numero || '-',
+      Depósito: r.destino?.nombre || '-',
+      Estado: r.estado || '-',
+      'Estado OC': r.orden?.estado || '-',
+    }))
+    const csv = Papa.unparse(datosCsv)
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const enlace = document.createElement('a')
+    enlace.href = url
+    enlace.setAttribute('download', `recepciones_${new Date().toISOString().slice(0, 10)}.csv`)
+    document.body.appendChild(enlace)
+    enlace.click()
+    document.body.removeChild(enlace)
+    URL.revokeObjectURL(url)
+    showToast({ message: 'Recepciones exportadas en CSV', tone: 'success' })
   }
 
   if (detalleId) {
@@ -203,9 +240,67 @@ export default function RecepcionesPage() {
     )
   }
 
+  const recepcionesCompletas = listado.recepciones.filter((r) => r.orden?.estado === 'recibida').length
+
+  const accionesHeader = [
+    {
+      label: 'Actualizar',
+      icon: RefreshCw,
+      onClick: () => {
+        cargarDatos(listado.page)
+        showToast({ message: 'Listado actualizado', tone: 'info' })
+      },
+      variant: 'ghost',
+      disabled: enviando,
+    },
+    {
+      label: 'Exportar CSV',
+      icon: Download,
+      onClick: exportarCsv,
+      variant: 'secondary',
+      disabled: !listado.recepciones.length,
+    },
+  ]
+
   return (
     <main className="recepciones-page">
-      <h1>Recepción de mercadería</h1>
+      <PageHeader
+        title="Recepción de mercadería"
+        kicker="Módulo Stock"
+        description="Ingreso físico de productos remitidos por proveedores contra órdenes de compra emitidas."
+        actions={accionesHeader}
+      />
+
+      <div className="kpi-grid">
+        <KpiCard
+          label="Recepciones confirmadas"
+          value={listado.recepciones.length}
+          icon={PackageCheck}
+          tone="brand"
+          helperText="Registradas en el sistema"
+        />
+        <KpiCard
+          label="OC pendientes"
+          value={ordenes.length}
+          icon={Clock}
+          tone={ordenes.length > 0 ? 'warning' : 'neutral'}
+          helperText="A la espera de ingreso"
+        />
+        <KpiCard
+          label="Recepciones completas"
+          value={recepcionesCompletas}
+          icon={FileCheck}
+          tone="success"
+          helperText="Sin saldo remanente"
+        />
+        <KpiCard
+          label="Depósitos destino"
+          value={depositos.length}
+          icon={Warehouse}
+          tone="neutral"
+          helperText="Ubicaciones de guarda"
+        />
+      </div>
 
       {error && <Feedback tone="error">{error}</Feedback>}
 
@@ -220,6 +315,7 @@ export default function RecepcionesPage() {
             variant="secondary"
             onClick={() => cargarDatos(listado.page)}
             disabled={enviando}
+            style={{ display: 'none' }}
           >
             Actualizar
           </Button>
@@ -438,8 +534,10 @@ export default function RecepcionesPage() {
                 description="Las recepciones aparecerán aquí después de confirmarlas."
               />
             ) : (
-              <table>
-                <thead>
+              <div className="data-table-card">
+                <div className="data-table-scroll-container">
+                  <table>
+                    <thead>
                   <tr>
                     <th>Número</th>
                     <th>Fecha y hora</th>
@@ -523,7 +621,9 @@ export default function RecepcionesPage() {
                   ))}
                 </tbody>
               </table>
-            )}
+            </div>
+          </div>
+        )}
 
             {listado.totalPaginas > 1 && (
               <div>

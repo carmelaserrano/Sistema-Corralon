@@ -5,6 +5,11 @@ import {
   setEstadoUnidadMedida,
   updateUnidadMedida,
 } from '../api/unidadesMedidaApi'
+import PageHeader from '../../../components/ui/PageHeader'
+import KpiCard from '../../../components/ui/KpiCard'
+import { useToast } from '../../../components/ui/ToastContext'
+import Papa from 'papaparse'
+import { Scale, CheckCircle2, XCircle, Layers, Download } from 'lucide-react'
 
 const unidadInicial = {
   nombre: '',
@@ -15,6 +20,7 @@ const unidadInicial = {
 }
 
 function UnidadesMedidaPage() {
+  const { showToast } = useToast()
   const [unidades, setUnidades] = useState([])
   const [todas, setTodas] = useState([])
   const [form, setForm] = useState(unidadInicial)
@@ -86,15 +92,18 @@ function UnidadesMedidaPage() {
       if (editandoId) {
         await updateUnidadMedida(editandoId, form)
         setAviso('Unidad de medida actualizada')
+        showToast({ message: 'Unidad de medida actualizada exitosamente', tone: 'success' })
       } else {
         const creada = await createUnidadMedida(form)
         setAviso(`Unidad "${creada.nombre}" creada`)
+        showToast({ message: `Unidad "${creada.nombre}" creada exitosamente`, tone: 'success' })
       }
 
       limpiarFormulario()
       await cargarUnidades()
     } catch (err) {
       setError(err.message || 'No se pudo guardar la unidad de medida')
+      showToast({ message: err.message || 'Error al guardar la unidad de medida', tone: 'danger' })
     }
   }
 
@@ -103,12 +112,13 @@ function UnidadesMedidaPage() {
       setError('')
       setAviso('')
       await setEstadoUnidadMedida(unidad.id, !unidad.activo)
-      setAviso(
-        `Unidad "${unidad.nombre}" ${unidad.activo ? 'desactivada' : 'activada'}`,
-      )
+      const nuevoEstado = unidad.activo ? 'desactivada' : 'activada'
+      setAviso(`Unidad "${unidad.nombre}" ${nuevoEstado}`)
+      showToast({ message: `Unidad "${unidad.nombre}" ${nuevoEstado}`, tone: 'info' })
       await cargarUnidades()
     } catch (err) {
       setError(err.message || 'No se pudo cambiar el estado de la unidad')
+      showToast({ message: err.message || 'Error al cambiar estado', tone: 'danger' })
     }
   }
 
@@ -128,9 +138,82 @@ function UnidadesMedidaPage() {
     (unidad) => unidad.activo && unidad.id !== editandoId,
   )
 
+  function exportarCsv() {
+    if (unidades.length === 0) {
+      showToast({ message: 'No hay unidades de medida para exportar', tone: 'warning' })
+      return
+    }
+    const datosCsv = unidades.map((u) => ({
+      Nombre: u.nombre || '',
+      Abreviatura: u.abreviatura || '',
+      Factor: u.factor_conversion ?? 1,
+      'Unidad base': nombreDeUnidadBase(u.unidad_base_id),
+      Estado: u.activo ? 'Activa' : 'Inactiva',
+    }))
+    const csv = Papa.unparse(datosCsv)
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const enlace = document.createElement('a')
+    enlace.href = url
+    enlace.setAttribute('download', `unidades_medida_${new Date().toISOString().slice(0, 10)}.csv`)
+    document.body.appendChild(enlace)
+    enlace.click()
+    document.body.removeChild(enlace)
+    URL.revokeObjectURL(url)
+    showToast({ message: 'Unidades de medida exportadas en CSV', tone: 'success' })
+  }
+
+  const activasCount = unidades.filter((u) => u.activo).length
+  const inactivasCount = unidades.filter((u) => !u.activo).length
+  const unidadesBaseCount = unidades.filter((u) => !u.unidad_base_id).length
+
   return (
     <main>
-      <h1>Gestión de unidades de medida</h1>
+      <PageHeader
+        title="Gestión de unidades de medida"
+        kicker="Módulo Stock"
+        description="Unidades métricas, factores de conversión y equivalencias para artículos del corralón."
+        actions={[
+          {
+            label: 'Exportar CSV',
+            icon: Download,
+            onClick: exportarCsv,
+            variant: 'secondary',
+            disabled: unidades.length === 0,
+          },
+        ]}
+      />
+
+      <div className="kpi-grid">
+        <KpiCard
+          label="Total unidades"
+          value={unidades.length}
+          icon={Scale}
+          tone="brand"
+          helperText="En catálogo"
+        />
+        <KpiCard
+          label="Unidades activas"
+          value={activasCount}
+          icon={CheckCircle2}
+          tone="success"
+          helperText="Disponibles en artículos"
+        />
+        <KpiCard
+          label="Inactivas"
+          value={inactivasCount}
+          icon={XCircle}
+          tone="neutral"
+          helperText="Deshabilitadas"
+        />
+        <KpiCard
+          label="Unidades base"
+          value={unidadesBaseCount}
+          icon={Layers}
+          tone="info"
+          helperText="Referencias principales"
+        />
+      </div>
 
       {error && <p role="alert">{error}</p>}
       {aviso && <p role="status">{aviso}</p>}
@@ -224,37 +307,41 @@ function UnidadesMedidaPage() {
       )}
 
       {!loading && unidades.length > 0 && (
-        <table>
-          <thead>
-            <tr>
-              <th>Nombre</th>
-              <th>Abreviatura</th>
-              <th>Factor</th>
-              <th>Unidad base</th>
-              <th>Estado</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {unidades.map((unidad) => (
-              <tr key={unidad.id}>
-                <td>{unidad.nombre}</td>
-                <td>{unidad.abreviatura}</td>
-                <td>{unidad.factor_conversion}</td>
-                <td>{nombreDeUnidadBase(unidad.unidad_base_id)}</td>
-                <td>{unidad.activo ? 'Activa' : 'Inactiva'}</td>
-                <td>
-                  <button type="button" onClick={() => comenzarEdicion(unidad)}>
-                    Editar
-                  </button>
-                  <button type="button" onClick={() => cambiarEstado(unidad)}>
-                    {unidad.activo ? 'Desactivar' : 'Activar'}
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="data-table-card">
+          <div className="data-table-scroll-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Nombre</th>
+                  <th>Abreviatura</th>
+                  <th>Factor</th>
+                  <th>Unidad base</th>
+                  <th>Estado</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {unidades.map((unidad) => (
+                  <tr key={unidad.id}>
+                    <td>{unidad.nombre}</td>
+                    <td>{unidad.abreviatura}</td>
+                    <td>{unidad.factor_conversion}</td>
+                    <td>{nombreDeUnidadBase(unidad.unidad_base_id)}</td>
+                    <td>{unidad.activo ? 'Activa' : 'Inactiva'}</td>
+                    <td>
+                      <button type="button" onClick={() => comenzarEdicion(unidad)}>
+                        Editar
+                      </button>
+                      <button type="button" onClick={() => cambiarEstado(unidad)}>
+                        {unidad.activo ? 'Desactivar' : 'Activar'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
     </main>
   )

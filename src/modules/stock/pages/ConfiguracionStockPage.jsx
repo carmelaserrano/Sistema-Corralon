@@ -1,5 +1,17 @@
 import { useEffect, useState } from 'react'
 import {
+  Sliders,
+  Package,
+  Warehouse,
+  AlertTriangle,
+  Download,
+  RotateCcw,
+} from 'lucide-react'
+import Papa from 'papaparse'
+import PageHeader from '../../../components/ui/PageHeader'
+import KpiCard from '../../../components/ui/KpiCard'
+import { useToast } from '../../../components/ui/ToastContext'
+import {
   createConfiguracionStock,
   getConfiguracionesStock,
   updateConfiguracionStock,
@@ -15,6 +27,7 @@ const configuracionInicial = {
 }
 
 function ConfiguracionStockPage() {
+  const toast = useToast()
   const [configuraciones, setConfiguraciones] = useState([])
   const [articulos, setArticulos] = useState([])
   const [depositos, setDepositos] = useState([])
@@ -116,15 +129,19 @@ function ConfiguracionStockPage() {
       if (editandoId) {
         await updateConfiguracionStock(editandoId, form)
         setAviso('Configuración de stock actualizada')
+        toast?.success?.('Configuración de stock actualizada')
       } else {
         await createConfiguracionStock(form)
         setAviso('Configuración de stock creada')
+        toast?.success?.('Configuración de stock creada')
       }
 
       limpiarFormulario()
       await cargarConfiguraciones()
     } catch (err) {
-      setError(err.message || 'No se pudo guardar la configuración de stock')
+      const msg = err.message || 'No se pudo guardar la configuración de stock'
+      setError(msg)
+      toast?.error?.(msg)
     }
   }
 
@@ -147,12 +164,119 @@ function ConfiguracionStockPage() {
     })
   }
 
+  function exportarCsv() {
+    if (!configuraciones || configuraciones.length === 0) {
+      toast?.info?.('No hay configuraciones para exportar')
+      return
+    }
+
+    const filas = configuraciones.map((c) => ({
+      Articulo: c.producto?.nombre || '',
+      SKU: c.producto?.sku || '',
+      Deposito: c.deposito?.nombre || '',
+      StockActual: c.stock_actual ?? 'Sin stock registrado',
+      StockMinimo: c.min_stock ?? '',
+      StockMaximo: c.max_stock ?? '',
+      Estado: c.estado_stock || '',
+    }))
+
+    const csv = Papa.unparse(filas)
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute(
+      'download',
+      `configuracion_stock_${new Date().toISOString().slice(0, 10)}.csv`,
+    )
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    toast?.success?.('Configuraciones exportadas a CSV')
+  }
+
+  const totalConfiguraciones = configuraciones.length
+  const articulosConfigurados = new Set(
+    configuraciones.map((c) => c.producto_id || c.articulo_id).filter(Boolean),
+  ).size
+  const depositosConfigurados = new Set(
+    configuraciones.map((c) => c.deposito_id).filter(Boolean),
+  ).size
+  const enAlerta = configuraciones.filter(
+    (c) =>
+      c.estado_stock &&
+      (c.estado_stock.toLowerCase().includes('bajo') ||
+        c.estado_stock.toLowerCase().includes('crítico') ||
+        c.estado_stock.toLowerCase().includes('critico')),
+  ).length
+
   return (
-    <main>
-      <h1>Configuración de stock por depósito</h1>
+    <main className="page-canvas">
+      <PageHeader
+        title="Configuración de stock por depósito"
+        breadcrumbs={[
+          { label: 'Stock', to: '/#/stock' },
+          { label: 'Configuración' },
+        ]}
+        description="Define y ajusta los umbrales mínimos y máximos de existencias para cada artículo según el depósito físico."
+        actions={
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              type="button"
+              className="button button-outline"
+              onClick={exportarCsv}
+              disabled={configuraciones.length === 0}
+            >
+              <Download size={16} />
+              Exportar CSV
+            </button>
+            <button
+              type="button"
+              className="button button-outline"
+              onClick={() => cargarConfiguraciones()}
+              disabled={loading}
+              title="Recargar datos"
+            >
+              <RotateCcw size={16} />
+              Recargar
+            </button>
+          </div>
+        }
+      />
 
       {error && <p role="alert">{error}</p>}
       {aviso && <p role="status">{aviso}</p>}
+
+      <div className="kpi-grid" style={{ marginBottom: '24px' }}>
+        <KpiCard
+          label="Total Configuraciones"
+          value={totalConfiguraciones}
+          icon={Sliders}
+          tone="brand"
+          helperText="Reglas de umbrales activas"
+        />
+        <KpiCard
+          label="Artículos con Regla"
+          value={articulosConfigurados}
+          icon={Package}
+          tone="info"
+          helperText="Productos con min/max definidos"
+        />
+        <KpiCard
+          label="Depósitos Configurados"
+          value={depositosConfigurados}
+          icon={Warehouse}
+          tone="success"
+          helperText="Ubicaciones con control"
+        />
+        <KpiCard
+          label="En Umbral Crítico / Bajo"
+          value={enAlerta}
+          icon={AlertTriangle}
+          tone={enAlerta > 0 ? 'warning' : 'neutral'}
+          helperText="Requieren reposición urgente"
+        />
+      </div>
 
       <section>
         <h2>
@@ -298,52 +422,56 @@ function ConfiguracionStockPage() {
         )}
 
         {!loading && configuraciones.length > 0 && (
-          <table>
-            <thead>
-              <tr>
-                <th>Artículo</th>
-                <th>Depósito</th>
-                <th>Stock actual</th>
-                <th>Stock mínimo</th>
-                <th>Stock máximo</th>
-                <th>Estado</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
+          <div className="data-table-card">
+            <div className="data-table-scroll-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Artículo</th>
+                    <th>Depósito</th>
+                    <th>Stock actual</th>
+                    <th>Stock mínimo</th>
+                    <th>Stock máximo</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
 
-            <tbody>
-              {configuraciones.map((configuracion) => (
-                <tr key={configuracion.id}>
-                  <td>
-                    {configuracion.producto?.sku
-                      ? `${configuracion.producto.sku} - ${configuracion.producto.nombre}`
-                      : configuracion.producto?.nombre || '-'}
-                  </td>
+                <tbody>
+                  {configuraciones.map((configuracion) => (
+                    <tr key={configuracion.id}>
+                      <td>
+                        {configuracion.producto?.sku
+                          ? `${configuracion.producto.sku} - ${configuracion.producto.nombre}`
+                          : configuracion.producto?.nombre || '-'}
+                      </td>
 
-                  <td>{configuracion.deposito?.nombre || '-'}</td>
+                      <td>{configuracion.deposito?.nombre || '-'}</td>
 
-                  <td>
-                    {configuracion.stock_actual === null
-                      ? 'Sin stock registrado'
-                      : configuracion.stock_actual}
-                  </td>
+                      <td>
+                        {configuracion.stock_actual === null
+                          ? 'Sin stock registrado'
+                          : configuracion.stock_actual}
+                      </td>
 
-                  <td>{configuracion.min_stock}</td>
-                  <td>{configuracion.max_stock}</td>
+                      <td>{configuracion.min_stock}</td>
+                      <td>{configuracion.max_stock}</td>
 
-                  <td>{configuracion.estado_stock}</td>
-                  <td>
-                    <button
-                      type="button"
-                      onClick={() => comenzarEdicion(configuracion)}
-                    >
-                      Editar
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                      <td>{configuracion.estado_stock}</td>
+                      <td>
+                        <button
+                          type="button"
+                          onClick={() => comenzarEdicion(configuracion)}
+                        >
+                          Editar
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
       </section>
     </main>

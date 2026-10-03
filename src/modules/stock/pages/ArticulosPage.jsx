@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { CheckCircle2, Download, Package, PackageX, Tags } from 'lucide-react'
+import Papa from 'papaparse'
 import {
   createArticulo,
   getArticulos,
@@ -8,6 +10,12 @@ import {
 import { getCategorias } from '../api/categoriasApi'
 import { getMarcas } from '../api/marcasApi'
 import { getUnidadesMedida } from '../api/unidadesMedidaApi'
+import PageHeader from '../../../components/ui/PageHeader'
+import KpiCard from '../../../components/ui/KpiCard'
+import Button from '../../../components/ui/Button'
+import Feedback from '../../../components/ui/Feedback'
+import { useToast } from '../../../components/ui/ToastContext'
+
 
 const TAMANIO_PAGINA = 10
 
@@ -57,6 +65,40 @@ function ArticulosPage() {
   const [error, setError] = useState('')
   const [aviso, setAviso] = useState('')
   const [loading, setLoading] = useState(true)
+  const toast = useToast()
+
+  function exportarCsv() {
+    if (!articulos || articulos.length === 0) {
+      toast?.info?.('No hay artículos para exportar con los filtros actuales.')
+      return
+    }
+
+    try {
+      const data = articulos.map((a) => ({
+        SKU: a.sku,
+        Nombre: a.nombre,
+        Categoria: a.categoria?.nombre || '',
+        Marca: a.marca?.nombre || '',
+        Unidad: a.unidad_medida?.abreviatura || '',
+        CodigoBarras: a.codigo_barras || '',
+        Estado: mostrarEstado(a.estado_producto),
+      }))
+
+      const csv = Papa.unparse(data)
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.setAttribute('href', url)
+      link.setAttribute('download', `articulos_pag_${pagina}.csv`)
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      toast?.success?.('Catálogo de artículos exportado con éxito a CSV.')
+    } catch {
+      toast?.error?.('Ocurrió un error al exportar los artículos.')
+    }
+  }
+
 
   async function cargarCatalogos() {
     const [cats, mars, unis] = await Promise.all([
@@ -179,10 +221,57 @@ function ArticulosPage() {
 
   return (
     <main>
-      <h1>Catálogo de artículos</h1>
+      <PageHeader
+        kicker="Módulo Stock"
+        title="Catálogo de artículos"
+        description="Gestión maestra de productos, categorización, marcas, unidades de medida y códigos de barras."
+        actions={
+          <Button
+            type="button"
+            variant="ghost"
+            icon={Download}
+            onClick={exportarCsv}
+            disabled={loading || articulos.length === 0}
+            title="Exportar artículos en pantalla a CSV"
+          >
+            Exportar CSV
+          </Button>
+        }
+      />
 
-      {error && <p role="alert">{error}</p>}
-      {aviso && <p role="status">{aviso}</p>}
+      <div className="kpi-grid">
+        <KpiCard
+          label="Total en catálogo"
+          value={total}
+          icon={Package}
+          tone="brand"
+          helperText="Artículos registrados"
+        />
+        <KpiCard
+          label="Activos en pantalla"
+          value={articulos.filter((a) => a.estado_producto === 'activo').length}
+          icon={CheckCircle2}
+          tone="success"
+          helperText="Habilitados para venta y compras"
+        />
+        <KpiCard
+          label="Inactivos en pantalla"
+          value={articulos.filter((a) => a.estado_producto === 'inactivo').length}
+          icon={PackageX}
+          tone="warning"
+          helperText="Desactivados temporalmente"
+        />
+        <KpiCard
+          label="Categorías disponibles"
+          value={categorias.length}
+          icon={Tags}
+          tone="info"
+          helperText="Rubros de clasificación"
+        />
+      </div>
+
+      {error && <Feedback tone="error">{error}</Feedback>}
+      {aviso && <Feedback tone="success">{aviso}</Feedback>}
 
       <form onSubmit={guardarArticulo}>
         <h2>{editandoId ? 'Editar artículo' : 'Nuevo artículo'}</h2>
@@ -340,67 +429,99 @@ function ArticulosPage() {
       )}
 
       {!loading && articulos.length > 0 && (
-        <>
-          <table>
-            <thead>
-              <tr>
-                <th>SKU</th>
-                <th>Nombre</th>
-                <th>Categoría</th>
-                <th>Marca</th>
-                <th>Unidad</th>
-                <th>Código de barras</th>
-                <th>Estado</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {articulos.map((articulo) => (
-                <tr key={articulo.id}>
-                  <td>{articulo.sku}</td>
-                  <td>{articulo.nombre}</td>
-                  <td>{articulo.categoria?.nombre}</td>
-                  <td>{articulo.marca?.nombre}</td>
-                  <td>{articulo.unidad_medida?.abreviatura}</td>
-                  <td>{articulo.codigo_barras ?? '—'}</td>
-                  <td>{mostrarEstado(articulo.estado_producto)}</td>
-                  <td>
-                    <button
-                      type="button"
-                      onClick={() => comenzarEdicion(articulo)}
-                    >
-                      Editar
-                    </button>
-                    <button type="button" onClick={() => cambiarEstado(articulo)}>
-                      {articulo.estado_producto === 'activo'
-                        ? 'Desactivar'
-                        : 'Activar'}
-                    </button>
-                  </td>
+        <div className="data-table-card">
+          <div className="data-table-scroll-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>SKU</th>
+                  <th>Nombre</th>
+                  <th>Categoría</th>
+                  <th>Marca</th>
+                  <th>Unidad</th>
+                  <th>Código de barras</th>
+                  <th>Estado</th>
+                  <th>Acciones</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {articulos.map((articulo) => (
+                  <tr key={articulo.id}>
+                    <td>
+                      <code>{articulo.sku}</code>
+                    </td>
+                    <td>
+                      <strong>{articulo.nombre}</strong>
+                    </td>
+                    <td>{articulo.categoria?.nombre || '—'}</td>
+                    <td>{articulo.marca?.nombre || '—'}</td>
+                    <td>{articulo.unidad_medida?.abreviatura || '—'}</td>
+                    <td>{articulo.codigo_barras ?? '—'}</td>
+                    <td>
+                      <span
+                        style={{
+                          display: 'inline-block',
+                          padding: '2px 8px',
+                          borderRadius: 'var(--radius-sm)',
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          background:
+                            articulo.estado_producto === 'activo'
+                              ? 'var(--color-success-soft)'
+                              : 'var(--color-neutral-200)',
+                          color:
+                            articulo.estado_producto === 'activo'
+                              ? 'var(--color-success)'
+                              : 'var(--text-secondary)',
+                        }}
+                      >
+                        {mostrarEstado(articulo.estado_producto)}
+                      </span>
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        onClick={() => comenzarEdicion(articulo)}
+                      >
+                        Editar
+                      </button>
+                      <button type="button" onClick={() => cambiarEstado(articulo)}>
+                        {articulo.estado_producto === 'activo'
+                          ? 'Desactivar'
+                          : 'Activar'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
-          <p>
-            {total} artículo(s) · página {pagina} de {totalPaginas}
-          </p>
+          <div className="data-table-footer">
+            <p style={{ margin: 0 }}>
+              {total} artículo(s) · página {pagina} de {totalPaginas}
+            </p>
 
-          <button
-            type="button"
-            disabled={pagina <= 1}
-            onClick={() => cargarArticulos(pagina - 1)}
-          >
-            Anterior
-          </button>
-          <button
-            type="button"
-            disabled={pagina >= totalPaginas}
-            onClick={() => cargarArticulos(pagina + 1)}
-          >
-            Siguiente
-          </button>
-        </>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                type="button"
+                className="pagination-btn"
+                disabled={pagina <= 1}
+                onClick={() => cargarArticulos(pagina - 1)}
+              >
+                Anterior
+              </button>
+              <button
+                type="button"
+                className="pagination-btn"
+                disabled={pagina >= totalPaginas}
+                onClick={() => cargarArticulos(pagina + 1)}
+              >
+                Siguiente
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </main>
   )
