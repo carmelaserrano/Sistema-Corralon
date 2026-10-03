@@ -503,7 +503,7 @@ export default function PedidosWebPage() {
                 {pedidos.map((pedido) => (
                   <tr key={pedido.id}>
                     <td>
-                      <code>#{pedido.numero}</code>
+                      <code>{pedido.numero}</code>
                     </td>
                     <td>{formatearFecha(pedido.created_at)}</td>
                     <td>
