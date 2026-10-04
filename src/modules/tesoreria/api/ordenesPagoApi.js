@@ -84,6 +84,34 @@ export function calcularTotales(facturas = [], notas = []) {
 }
 
 /**
+ * Calcula, por factura, el efectivo que debe registrarse en una orden de
+ * pago. Las notas se imputan por separado: crédito resta efectivo y débito
+ * lo incrementa.
+ *
+ * @param {Array<{factura_id: string, importe: number|string}>} facturas
+ * @param {Array<{factura_id: string, importe: number|string, tipo: string}>} notas
+ * @returns {Array<{factura_id: string, importe: number}>} Importes netos
+ *   compatibles con la RPC `crear_orden_pago`.
+ */
+export function calcularImportesPago(facturas = [], notas = []) {
+  const redondear = (valor) => Math.round(valor * 100) / 100
+
+  return facturas.map((factura) => {
+    const ajuste = notas
+      .filter((nota) => nota.factura_id === factura.factura_id)
+      .reduce((total, nota) => {
+        const importe = Number(nota.importe) || 0
+        return total + (nota.tipo === 'CREDITO' ? -importe : importe)
+      }, 0)
+
+    return {
+      ...factura,
+      importe: redondear((Number(factura.importe) || 0) + ajuste),
+    }
+  })
+}
+
+/**
  * Medios de pago activos, para el selector del CA 9.
  */
 export async function getMediosPago() {
