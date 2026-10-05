@@ -215,10 +215,12 @@ export default function NotasProveedorPage() {
   }
 
   async function cargarDetalle(id) {
-    const [nota, imps, facturas] = await Promise.all([
-      getNotaById(id),
+    const nota = await getNotaById(id)
+    const [imps, facturas] = await Promise.all([
       getImputacionesDeNota(id),
-      getFacturasConSaldoDelProveedor(id)
+      // Las facturas se filtran por proveedor. Usar el id de la nota dejaba
+      // vacío el selector aunque hubiera comprobantes con saldo pendiente.
+      getFacturasConSaldoDelProveedor(nota.proveedor_id),
     ])
     setNotaActiva(nota)
     setImputaciones(Array.isArray(imps) ? imps : (imps?.imputaciones || []))

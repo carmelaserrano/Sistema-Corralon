@@ -294,40 +294,21 @@ export async function createFactura(datos) {
     }
   }
 
-  const { data: cabecera, error } = await supabase
-    .from(TABLA)
-    .insert({
-      proveedor_id: datos.proveedor_id,
-      letra: datos.letra,
-      sucursal,
-      numero,
-      fecha_emision: datos.fecha_emision,
-      fecha_vencimiento: datos.fecha_vencimiento || null,
-      importe_neto: Number(datos.importe_neto) || 0,
-      impuestos: Number(datos.impuestos) || 0,
-      importe_total: Number(datos.importe_total),
-      orden_compra_id: datos.orden_compra_id || null,
-    })
-    .select(COLUMNAS)
-    .single()
+  const { data: cabecera, error } = await supabase.rpc('registrar_factura_proveedor', {
+    p_proveedor_id: datos.proveedor_id,
+    p_letra: datos.letra,
+    p_sucursal: sucursal,
+    p_numero: numero,
+    p_fecha_emision: datos.fecha_emision,
+    p_fecha_vencimiento: datos.fecha_vencimiento || null,
+    p_importe_neto: Number(datos.importe_neto) || 0,
+    p_impuestos: Number(datos.impuestos) || 0,
+    p_importe_total: Number(datos.importe_total),
+    p_orden_compra_id: datos.orden_compra_id || null,
+    p_recepcion_id: datos.recepcion_id || null,
+  })
 
   if (error) await manejarErrorFactura(error)
-
-  if (datos.recepcion_id) {
-    const { error: errorVinculo } = await supabase
-      .from(TABLA_FACTURA_RECEPCION)
-      .insert({ factura_id: cabecera.id, recepcion_id: datos.recepcion_id })
-
-    if (errorVinculo) {
-      // La cabecera ya se guardó: no hay transacción cruzada desde el
-      // cliente para revertirla (mismo criterio que createProveedor con el
-      // rubro, en proveedoresApi.js). Se avisa para vincularla después.
-      throw errorDeApi(
-        `La factura se registró, pero no se pudo vincular a la recepción (${errorVinculo.message || 'error desconocido'}).`,
-        409,
-      )
-    }
-  }
 
   return cabecera
 }

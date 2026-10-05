@@ -5,7 +5,8 @@ import {
     createOrdenCompra,
     updateOrdenCompra,
     cancelarOrdenCompra,
-    puedeCrearOrdenes
+    puedeCrearOrdenes,
+    diagnosticarConsistenciaComprasTesoreria,
 } from './ordenesCompraApi'
 import { supabase } from '../../../lib/supabaseClient'
 
@@ -60,6 +61,14 @@ describe('ordenesCompraApi', () => {
             supabase.rpc.mockResolvedValueOnce({ data: null, error: { message: 'Error DB' } })
             await expect(puedeCrearOrdenes()).rejects.toEqual({ message: 'Error DB' })
         })
+    })
+
+    it('consulta el diagnóstico integral de consistencia del circuito', async () => {
+        const inconsistencias = [{ entidad: 'facturas_proveedor', entidad_id: 'f1', campo: 'saldo_pendiente/estado' }]
+        supabase.rpc.mockResolvedValueOnce({ data: inconsistencias, error: null })
+
+        await expect(diagnosticarConsistenciaComprasTesoreria()).resolves.toEqual(inconsistencias)
+        expect(supabase.rpc).toHaveBeenCalledWith('diagnosticar_consistencia_compras_tesoreria')
     })
 
     describe('getOrdenesCompra', () => {
@@ -122,17 +131,27 @@ describe('ordenesCompraApi', () => {
             await expect(createOrdenCompra({ proveedor_id: 'p1', deposito_destino_id: 'd1', items: [] })).rejects.toThrow('La orden debe tener al menos un artículo')
         })
 
-        it('lanza error si falla la creación de la cabecera', async () => {
-            mockCabecera.single.mockResolvedValueOnce({ data: null, error: { message: 'Error cabecera' } })
+        it('lanza error si falla la transacción de creación', async () => {
+            supabase.rpc.mockResolvedValueOnce({ data: null, error: { message: 'Error cabecera' } })
             await expect(createOrdenCompra(ordenValida)).rejects.toThrow('Error cabecera')
         })
 
-        it('lanza error si falla la inserción de items (pero advierte de cabecera creada)', async () => {
-            mockCabecera.single.mockResolvedValueOnce({ data: { id: 'orden-1' }, error: null })
-            // Simulamos que la inserción del detalle falla
-            mockDetalle.insert.mockResolvedValueOnce({ error: { message: 'Falla items' } })
+        it('rechaza con conflicto si el proveedor quedó inactivo', async () => {
+            supabase.rpc.mockResolvedValueOnce({
+                data: null,
+                error: { code: 'OC004', message: 'La orden de compra requiere un proveedor activo' },
+            })
+            await expect(createOrdenCompra(ordenValida)).rejects.toMatchObject({ status: 409 })
+        })
 
-            await expect(createOrdenCompra(ordenValida)).rejects.toThrow('Falla items')
+        it('envía cabecera e ítems dentro de una única RPC', async () => {
+            supabase.rpc.mockResolvedValueOnce({ data: { id: 'orden-1', numero: 12 }, error: null })
+
+            await expect(createOrdenCompra(ordenValida)).resolves.toMatchObject({ id: 'orden-1' })
+            expect(supabase.rpc).toHaveBeenCalledWith('crear_orden_compra', expect.objectContaining({
+                p_proveedor_id: 'p1',
+                p_items: [{ producto_id: 'prod1', cantidad: 10, precio_unitario: 100 }],
+            }))
         })
     })
 
@@ -151,18 +170,16 @@ describe('ordenesCompraApi', () => {
             await expect(updateOrdenCompra('id1', { proveedor_id: 'p1' })).rejects.toThrow('El depósito destino es obligatorio')
         })
 
-        it('ejecuta correctamente la actualización y el borrado previo de items', async () => {
-            // 1. Select de items actuales
+        it('ejecuta la actualización dentro de una única RPC', async () => {
             mockDetalle.eq.mockResolvedValueOnce({ data: [], error: null })
-            // 2. Update cabecera
-            mockCabecera.single.mockResolvedValueOnce({ data: { id: 'id1' }, error: null })
-            // 3. Delete items viejos
-            mockDetalle.eq.mockResolvedValueOnce({ error: null })
-            // 4. Insert items nuevos
-            mockDetalle.insert.mockResolvedValueOnce({ error: null })
+            supabase.rpc.mockResolvedValueOnce({ data: { id: 'id1', numero: 12 }, error: null })
 
             const resultado = await updateOrdenCompra('id1', ordenModificada)
             expect(resultado.id).toBe('id1')
+            expect(supabase.rpc).toHaveBeenCalledWith('actualizar_orden_compra', expect.objectContaining({
+                p_orden_compra_id: 'id1',
+                p_items: [{ producto_id: 'prod1', cantidad: 20, precio_unitario: 150 }],
+            }))
         })
     })
 

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
+  calcularImportesPago,
   calcularTotales,
   crearOrdenPago,
   getMediosPago,
@@ -249,8 +250,33 @@ export default function OrdenesPagoPage() {
   }))
 
   const totales = calcularTotales(facturasElegidas, notasElegidas)
+  const facturasParaPago = calcularImportesPago(facturasElegidas, notasElegidas)
   const importeOrden = Number(form.importe_total) || 0
-  const diferencia = Math.round((importeOrden - totales.subtotal) * 100) / 100
+  const diferencia = Math.round((importeOrden - totales.total) * 100) / 100
+
+  // El importe que sale por el medio de pago siempre es el total neto de
+  // facturas y notas. Se completa al modificar la selección para que la UI y
+  // la validación de la RPC trabajen sobre el mismo valor.
+  useEffect(() => {
+    const facturasSeleccionadas = Object.entries(seleccionFacturas).map(([factura_id, importe]) => ({
+      factura_id,
+      importe,
+    }))
+    const notasSeleccionadas = Object.entries(seleccionNotas).map(([nota_id, datos]) => ({
+      nota_id,
+      factura_id: datos.factura_id,
+      importe: datos.importe,
+      tipo: notasDisponibles?.find((nota) => nota.id === nota_id)?.tipo,
+    }))
+    const importeCalculado = facturasSeleccionadas.length > 0
+      ? String(calcularTotales(facturasSeleccionadas, notasSeleccionadas).total)
+      : ''
+    setForm((actual) => (
+      actual.importe_total === importeCalculado
+        ? actual
+        : { ...actual, importe_total: importeCalculado }
+    ))
+  }, [seleccionFacturas, seleccionNotas, notasDisponibles])
 
   async function confirmarOrden(e) {
     e.preventDefault()
@@ -259,7 +285,7 @@ export default function OrdenesPagoPage() {
       setError('')
       const creada = await crearOrdenPago({
         ...form,
-        facturas: facturasElegidas,
+        facturas: facturasParaPago,
         notas: notasElegidas,
       })
       setAviso(`Orden de pago #${creada.numero} confirmada correctamente.`)
