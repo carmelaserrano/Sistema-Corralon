@@ -108,6 +108,8 @@ export async function getVentaById(id) {
         email,
         telefono,
         habilita_cta_cte,
+        limite_credito,
+        plazo_credito_dias,
         condicion_iva:condiciones_iva(id, nombre),
         domicilios:domicilios_cliente(*)
       ),

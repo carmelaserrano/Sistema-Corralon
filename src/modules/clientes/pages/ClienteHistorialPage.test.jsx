@@ -7,11 +7,26 @@ import {
   getHistorialCliente,
   obtenerDetalleVenta,
 } from '../api/historialClienteApi'
+import {
+  actualizarCondicionesCredito,
+  listarMovimientosCtaCte,
+  listarVentasPendientesCtaCte,
+  obtenerResumenCtaCte,
+  registrarReciboCobranza,
+} from '../api/cuentaCorrienteClienteApi'
 
 vi.mock('../api/historialClienteApi', () => ({
   buscarClientes: vi.fn(),
   getHistorialCliente: vi.fn(),
   obtenerDetalleVenta: vi.fn(),
+}))
+
+vi.mock('../api/cuentaCorrienteClienteApi', () => ({
+  obtenerResumenCtaCte: vi.fn(),
+  listarMovimientosCtaCte: vi.fn(),
+  listarVentasPendientesCtaCte: vi.fn(),
+  registrarReciboCobranza: vi.fn(),
+  actualizarCondicionesCredito: vi.fn(),
 }))
 
 const cliente = {
@@ -53,6 +68,17 @@ describe('ClienteHistorialPage', () => {
     buscarClientes.mockResolvedValue([cliente])
     getHistorialCliente.mockResolvedValue(historialVacio)
     obtenerDetalleVenta.mockResolvedValue([])
+    obtenerResumenCtaCte.mockResolvedValue({
+      cliente_id: 'c1',
+      habilita_cta_cte: false,
+      limite_credito: 0,
+      plazo_credito_dias: 30,
+      saldo_deudor: 0,
+      credito_disponible: 0,
+      facturas_pendientes_count: 0,
+    })
+    listarMovimientosCtaCte.mockResolvedValue([])
+    listarVentasPendientesCtaCte.mockResolvedValue([])
   })
 
   afterEach(cleanup)
@@ -153,5 +179,106 @@ describe('ClienteHistorialPage', () => {
 
     fireEvent.click(within(modal).getByRole('button', { name: 'Cerrar' }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('muestra la pestaña de cuenta corriente con KPIs, libro mayor y movimientos', async () => {
+    obtenerResumenCtaCte.mockResolvedValueOnce({
+      cliente_id: 'c1',
+      habilita_cta_cte: true,
+      limite_credito: 1000000,
+      plazo_credito_dias: 60,
+      saldo_deudor: 250000,
+      credito_disponible: 750000,
+      facturas_pendientes_count: 1,
+    })
+    listarMovimientosCtaCte.mockResolvedValueOnce([
+      {
+        cliente_id: 'c1',
+        fecha: '2026-09-01',
+        tipo_movimiento: 'factura',
+        comprobante: 'FC-A-0001-00000001',
+        referencia: 'Venta #1',
+        debe: 250000,
+        haber: 0,
+        saldo_acumulado: 250000,
+      },
+    ])
+    listarVentasPendientesCtaCte.mockResolvedValueOnce([
+      {
+        venta_id: 'v1',
+        numero: 1,
+        fecha: '2026-09-01',
+        comprobante: 'FC-A-0001-00000001',
+        total_credito: 250000,
+        total_imputado: 0,
+        saldo_pendiente: 250000,
+      },
+    ])
+
+    render(<ClienteHistorialPage />)
+    await seleccionarCliente()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Cuenta corriente' }))
+
+    expect(await screen.findByText('Cuenta corriente habilitada')).toBeInTheDocument()
+    expect(screen.getAllByText('FC-A-0001-00000001')).toHaveLength(2)
+    expect(screen.getByText('Libro Mayor de Cuenta Corriente')).toBeInTheDocument()
+    expect(screen.getByText('Facturas con saldo pendiente de cobro')).toBeInTheDocument()
+  })
+
+  it('permite abrir el modal de configurar crédito y actualizar condiciones', async () => {
+    actualizarCondicionesCredito.mockResolvedValueOnce({
+      id: 'c1',
+      habilita_cta_cte: true,
+      limite_credito: 2000000,
+      plazo_credito_dias: 45,
+    })
+
+    render(<ClienteHistorialPage />)
+    await seleccionarCliente()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Cuenta corriente' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Configurar crédito' }))
+
+    const modal = await screen.findByRole('dialog')
+    expect(within(modal).getByRole('heading', { name: 'Condiciones de Crédito' })).toBeInTheDocument()
+
+    const checkHabilita = within(modal).getByRole('checkbox')
+    fireEvent.click(checkHabilita)
+
+    const inputLimite = within(modal).getByLabelText(/Límite de crédito/)
+    fireEvent.change(inputLimite, { target: { value: '2000000' } })
+
+    const inputPlazo = within(modal).getByLabelText(/Plazo de crédito acordado/)
+    fireEvent.change(inputPlazo, { target: { value: '45' } })
+
+    fireEvent.click(within(modal).getByRole('button', { name: 'Guardar condiciones' }))
+
+    await waitFor(() => {
+      expect(actualizarCondicionesCredito).toHaveBeenCalledWith('c1', {
+        habilita_cta_cte: true,
+        limite_credito: 2000000,
+        plazo_credito_dias: 45,
+      })
+    })
+  })
+
+  it('permite abrir el modal de registrar recibo de cobranza', async () => {
+    registrarReciboCobranza.mockResolvedValueOnce({
+      id: 'r1',
+      numero: 99,
+      total: 50000,
+      total_imputado: 50000,
+      saldo_a_cuenta: 0,
+    })
+
+    render(<ClienteHistorialPage />)
+    await seleccionarCliente()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Cuenta corriente' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Registrar recibo de cobranza' }))
+
+    const modal = await screen.findByRole('dialog')
+    expect(within(modal).getByRole('heading', { name: 'Nuevo Recibo de Cobranza' })).toBeInTheDocument()
   })
 })

@@ -9,6 +9,7 @@ import {
   listarMediosPago,
   registrarCobro,
 } from '../api/cobrosApi'
+import { obtenerResumenCtaCte } from '../../clientes/api/cuentaCorrienteClienteApi'
 
 const LINEA_INICIAL = {
   id: 1,
@@ -53,7 +54,7 @@ function calcularResumenCobro(total, lineas, medios) {
   }
 }
 
-function validarLinea(linea, medio, clienteHabilitado) {
+function validarLinea(linea, medio, clienteHabilitado, resumenCtaCte) {
   if (!medio) return 'Seleccione un medio de pago'
   if (aCentavos(linea.monto) <= 0) return 'El importe debe ser mayor a 0'
 
@@ -71,8 +72,19 @@ function validarLinea(linea, medio, clienteHabilitado) {
     return 'La referencia de la transferencia es obligatoria'
   }
 
-  if (esCuentaCorriente(medio) && !clienteHabilitado) {
-    return 'El cliente no está habilitado para cuenta corriente'
+  if (esCuentaCorriente(medio)) {
+    if (!clienteHabilitado) {
+      return 'El cliente no está habilitado para cuenta corriente'
+    }
+    if (resumenCtaCte && Number(resumenCtaCte.limite_credito) > 0) {
+      const limite = Number(resumenCtaCte.limite_credito)
+      const saldo = Number(resumenCtaCte.saldo_deudor || 0)
+      const monto = Number(linea.monto || 0)
+      if (saldo + monto > limite) {
+        const disponible = Math.max(0, limite - saldo)
+        return `Supera el límite de crédito disponible (${moneda(Math.round(disponible * 100))})`
+      }
+    }
   }
 
   return ''
@@ -88,6 +100,7 @@ export default function ModalCobro({ abierto, venta, onCobrado, onCancelar }) {
   const [cargandoMedios, setCargandoMedios] = useState(false)
   const [guardando, setGuardando] = useState(false)
   const [cobroConfirmado, setCobroConfirmado] = useState(false)
+  const [resumenCtaCte, setResumenCtaCte] = useState(null)
   const [error, setError] = useState('')
   const [exito, setExito] = useState('')
   const siguienteId = useRef(2)
@@ -129,10 +142,30 @@ export default function ModalCobro({ abierto, venta, onCobrado, onCancelar }) {
         if (vigente) setCargandoMedios(false)
       })
 
+    const clienteId = venta?.cliente?.id ?? venta?.cliente_id
+    if (clienteId && clienteHabilitado) {
+      obtenerResumenCtaCte(clienteId)
+        .then((res) => {
+          if (vigente) setResumenCtaCte(res)
+        })
+        .catch(() => {
+          if (vigente) {
+            setResumenCtaCte({
+              limite_credito: Number(venta?.cliente?.limite_credito || 0),
+              saldo_deudor: 0,
+              credito_disponible: Number(venta?.cliente?.limite_credito || 0),
+            })
+          }
+        })
+    } else {
+      setResumenCtaCte(null)
+    }
+
     return () => {
       vigente = false
     }
-  }, [abierto, venta?.id])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [abierto, venta?.id, clienteHabilitado])
 
   useEffect(() => {
     if (!abierto) return undefined
@@ -153,6 +186,7 @@ export default function ModalCobro({ abierto, venta, onCobrado, onCancelar }) {
       linea,
       medios.find((medio) => medio.id === linea.medio_pago_id),
       clienteHabilitado,
+      resumenCtaCte,
     ),
   )
   const ventaPendiente = venta?.estado === 'Pendiente'
@@ -411,7 +445,23 @@ export default function ModalCobro({ abierto, venta, onCobrado, onCancelar }) {
                         {!esEfectivo(medio) &&
                           !esTarjeta(medio) &&
                           !esTransferencia(medio) &&
+                          !esCuentaCorriente(medio) &&
                           medio && <span>No requiere datos adicionales</span>}
+                        {esCuentaCorriente(medio) && (
+                          <small>
+                            {resumenCtaCte && Number(resumenCtaCte.limite_credito) > 0
+                              ? `Límite: ${moneda(Math.round(Number(resumenCtaCte.limite_credito) * 100))} · Disp.: ${moneda(
+                                  Math.round(
+                                    Math.max(
+                                      0,
+                                      Number(resumenCtaCte.limite_credito) -
+                                        Number(resumenCtaCte.saldo_deudor || 0),
+                                    ) * 100,
+                                  ),
+                                )}`
+                              : 'Cuenta corriente habilitada'}
+                          </small>
+                        )}
                         {erroresLineas[indice] && (
                           <small role="alert">{erroresLineas[indice]}</small>
                         )}
