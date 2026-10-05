@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
+  calcularImportesPago,
   calcularTotales,
   crearOrdenPago,
   getMediosPago,
@@ -74,6 +75,35 @@ describe('ordenesPagoApi', () => {
 
     it('no explota sin argumentos', () => {
       expect(calcularTotales()).toEqual({ subtotal: 0, creditos: 0, debitos: 0, total: 0 })
+    })
+  })
+
+  describe('calcularImportesPago', () => {
+    it('descuenta créditos y agrega débitos al efectivo enviado por factura', () => {
+      const importes = calcularImportesPago(
+        [{ factura_id: 'f1', importe: 4000 }],
+        [
+          { factura_id: 'f1', tipo: 'CREDITO', importe: 10 },
+          { factura_id: 'f1', tipo: 'DEBITO', importe: 25 },
+        ],
+      )
+
+      expect(importes).toEqual([{ factura_id: 'f1', importe: 4015 }])
+    })
+
+    it('solo ajusta la factura a la que está asignada cada nota', () => {
+      const importes = calcularImportesPago(
+        [
+          { factura_id: 'f1', importe: 1000 },
+          { factura_id: 'f2', importe: 500 },
+        ],
+        [{ factura_id: 'f1', tipo: 'CREDITO', importe: 200 }],
+      )
+
+      expect(importes).toEqual([
+        { factura_id: 'f1', importe: 800 },
+        { factura_id: 'f2', importe: 500 },
+      ])
     })
   })
 

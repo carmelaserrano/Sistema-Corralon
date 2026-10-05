@@ -10,6 +10,13 @@ export const PERMISO_CANCELAR = 'compras.orden.cancelar'
 
 export const ESTADOS = ['pendiente', 'parcialmente_recibida', 'recibida', 'cancelada']
 
+function errorOrdenCompra(error, mensajePorDefecto) {
+  if (error?.code === 'OC004') {
+    throw errorDeApi(error.message || 'La orden de compra requiere un proveedor activo', 409)
+  }
+  throw errorDeApi(error?.message || mensajePorDefecto)
+}
+
 const COLUMNAS = `
   id,
   numero,
@@ -136,6 +143,17 @@ export async function getHistorialOC({ estado, proveedorId, fechaDesde, fechaHas
 }
 
 /**
+ * Busca descuadres entre cantidades recibidas, estados de OC, saldos de
+ * facturas/notas, imputaciones de pagos y movimientos de stock confirmados.
+ * @returns {Promise<Array<{entidad: string, entidad_id: string, campo: string, esperado: string, actual: string}>>}
+ */
+export async function diagnosticarConsistenciaComprasTesoreria() {
+  const { data, error } = await supabase.rpc('diagnosticar_consistencia_compras_tesoreria')
+  if (error) throw error
+  return data ?? []
+}
+
+/**
  * Consulta una OC con recepciones, facturas y notas vinculadas por imputaciones vigentes.
  * @param {string} id UUID de la orden.
  * @returns {Promise<Object>} Cabecera/detalles, recepciones y facturas con sus notas.
@@ -167,40 +185,21 @@ export async function createOrdenCompra(orden) {
   if (!orden.deposito_destino_id) throw errorDeApi('El depósito destino es obligatorio', 400)
   if (!orden.items || orden.items.length === 0) throw errorDeApi('La orden debe tener al menos un artículo', 400)
 
-  // Primero creamos la cabecera
-  const { data: cabecera, error: errorCabecera } = await supabase
-    .from(TABLA)
-    .insert({
-      proveedor_id: orden.proveedor_id,
-      deposito_destino_id: orden.deposito_destino_id,
-      condicion_pago: orden.condicion_pago?.trim() || null,
-      fecha_emision: orden.fecha_emision || new Date().toISOString().split('T')[0],
-      fecha_entrega_estimada: orden.fecha_entrega_estimada || null,
-      observaciones: orden.observaciones?.trim() || null,
-    })
-    .select('id, numero')
-    .single()
-
-  if (errorCabecera) {
-    throw errorDeApi(errorCabecera.message || 'Error al crear la cabecera de la orden')
-  }
-
-  // Ahora insertamos el detalle
-  const items = orden.items.map((item) => ({
-    orden_compra_id: cabecera.id,
+  const { data: cabecera, error } = await supabase.rpc('crear_orden_compra', {
+    p_proveedor_id: orden.proveedor_id,
+    p_deposito_destino_id: orden.deposito_destino_id,
+    p_condicion_pago: orden.condicion_pago?.trim() || null,
+    p_fecha_emision: orden.fecha_emision || new Date().toISOString().split('T')[0],
+    p_fecha_entrega_estimada: orden.fecha_entrega_estimada || null,
+    p_observaciones: orden.observaciones?.trim() || null,
+    p_items: orden.items.map((item) => ({
     producto_id: item.producto_id,
     cantidad: Number(item.cantidad),
     precio_unitario: Number(item.precio_unitario),
-  }))
+    })),
+  })
 
-  const { error: errorDetalle } = await supabase
-    .from(TABLA_DETALLE)
-    .insert(items)
-
-  if (errorDetalle) {
-    // Si falla el detalle, advertimos pero la cabecera ya se creó
-    throw errorDeApi(errorDetalle.message || 'Error al crear el detalle de la orden. La cabecera fue creada.')
-  }
+  if (error) errorOrdenCompra(error, 'No se pudo crear la orden de compra')
 
   return cabecera
 }
@@ -224,50 +223,22 @@ export async function updateOrdenCompra(id, orden) {
     precio_unitario: Number(d.precio_unitario),
   }))
 
-  // 2. Actualizamos la cabecera
-  const { data: cabecera, error: errorCabecera } = await supabase
-    .from(TABLA)
-    .update({
-      proveedor_id: orden.proveedor_id,
-      deposito_destino_id: orden.deposito_destino_id,
-      condicion_pago: orden.condicion_pago?.trim() || null,
-      fecha_emision: orden.fecha_emision,
-      fecha_entrega_estimada: orden.fecha_entrega_estimada || null,
-      observaciones: orden.observaciones?.trim() || null,
-    })
-    .eq('id', id)
-    .select('id, numero')
-    .single()
-
-  if (errorCabecera) {
-    throw errorDeApi(errorCabecera.message || 'Error al actualizar la cabecera de la orden')
-  }
-
-  // 3. Eliminamos el detalle actual
-  const { error: errorDelete } = await supabase
-    .from(TABLA_DETALLE)
-    .delete()
-    .eq('orden_compra_id', id)
-
-  if (errorDelete) {
-    throw errorDeApi(errorDelete.message || 'Error al actualizar el detalle de la orden (delete)')
-  }
-
-  // 4. Insertamos el nuevo detalle
-  const items = orden.items.map((item) => ({
-    orden_compra_id: id,
+  const { data: cabecera, error } = await supabase.rpc('actualizar_orden_compra', {
+    p_orden_compra_id: id,
+    p_proveedor_id: orden.proveedor_id,
+    p_deposito_destino_id: orden.deposito_destino_id,
+    p_condicion_pago: orden.condicion_pago?.trim() || null,
+    p_fecha_emision: orden.fecha_emision,
+    p_fecha_entrega_estimada: orden.fecha_entrega_estimada || null,
+    p_observaciones: orden.observaciones?.trim() || null,
+    p_items: orden.items.map((item) => ({
     producto_id: item.producto_id,
     cantidad: Number(item.cantidad),
     precio_unitario: Number(item.precio_unitario),
-  }))
+    })),
+  })
 
-  const { error: errorDetalle } = await supabase
-    .from(TABLA_DETALLE)
-    .insert(items)
-
-  if (errorDetalle) {
-    throw errorDeApi(errorDetalle.message || 'Error al crear el detalle de la orden. La cabecera fue actualizada.')
-  }
+  if (error) errorOrdenCompra(error, 'No se pudo actualizar la orden de compra')
 
   // 5. Calculamos diff de ítems y registramos en historial
   try {

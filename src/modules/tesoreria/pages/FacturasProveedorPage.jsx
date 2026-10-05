@@ -208,10 +208,8 @@ export default function FacturasProveedorPage() {
   }
 
   async function cargarDetalle(id) {
-    const [data, notas] = await Promise.all([
-      getFacturaById(id),
-      getNotasDisponiblesDelProveedor(id)
-    ])
+    const data = await getFacturaById(id)
+    const notas = await getNotasDisponiblesDelProveedor(data.proveedor_id)
     setFacturaActiva(data)
     setNotasVinculables(Array.isArray(notas) ? notas : (notas?.notas || []))
   }
