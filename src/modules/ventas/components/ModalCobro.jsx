@@ -7,9 +7,9 @@ import {
   esTarjeta,
   esTransferencia,
   listarMediosPago,
+  obtenerResumenCtaCte,
   registrarCobro,
 } from '../api/cobrosApi'
-import { obtenerResumenCtaCte } from '../../clientes/api/cuentaCorrienteClienteApi'
 
 const LINEA_INICIAL = {
   id: 1,

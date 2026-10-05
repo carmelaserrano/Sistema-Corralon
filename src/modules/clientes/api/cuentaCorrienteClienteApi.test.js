@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { supabase } from '../../../lib/supabaseClient'
 import {
   actualizarCondicionesCredito,
+  listarMediosCobranza,
   listarMovimientosCtaCte,
   listarVentasPendientesCtaCte,
   obtenerResumenCtaCte,
@@ -195,6 +196,45 @@ describe('cuentaCorrienteClienteApi', () => {
         }),
       )
       expect(res.limite_credito).toBe(1000000)
+    })
+  })
+
+  describe('listarMediosCobranza', () => {
+    it('consulta medios_pago activos y excluye cuenta corriente', async () => {
+      const mockMedios = [
+        { id: 'm1', nombre: 'Efectivo', activo: true },
+        { id: 'm2', nombre: 'Cuenta Corriente', activo: true },
+        { id: 'm3', nombre: 'Transferencia bancaria', activo: true },
+      ]
+
+      const builder = {
+        select: vi.fn(() => builder),
+        eq: vi.fn(() => builder),
+        order: vi.fn(() => Promise.resolve({ data: mockMedios, error: null })),
+      }
+      supabase.from.mockReturnValueOnce(builder)
+
+      const res = await listarMediosCobranza()
+
+      expect(supabase.from).toHaveBeenCalledWith('medios_pago')
+      expect(builder.select).toHaveBeenCalledWith('id, nombre, activo')
+      expect(builder.eq).toHaveBeenCalledWith('activo', true)
+      expect(builder.order).toHaveBeenCalledWith('nombre')
+      expect(res).toEqual([
+        { id: 'm1', nombre: 'Efectivo', activo: true },
+        { id: 'm3', nombre: 'Transferencia bancaria', activo: true },
+      ])
+    })
+
+    it('propaga el error si falla la consulta', async () => {
+      const builder = {
+        select: vi.fn(() => builder),
+        eq: vi.fn(() => builder),
+        order: vi.fn(() => Promise.resolve({ data: null, error: new Error('Error de base de datos') })),
+      }
+      supabase.from.mockReturnValueOnce(builder)
+
+      await expect(listarMediosCobranza()).rejects.toThrow('Error de base de datos')
     })
   })
 })

@@ -9,6 +9,7 @@ import {
 } from '../api/historialClienteApi'
 import {
   actualizarCondicionesCredito,
+  listarMediosCobranza,
   listarMovimientosCtaCte,
   listarVentasPendientesCtaCte,
   obtenerResumenCtaCte,
@@ -27,6 +28,7 @@ vi.mock('../api/cuentaCorrienteClienteApi', () => ({
   listarVentasPendientesCtaCte: vi.fn(),
   registrarReciboCobranza: vi.fn(),
   actualizarCondicionesCredito: vi.fn(),
+  listarMediosCobranza: vi.fn(),
 }))
 
 const cliente = {
@@ -79,6 +81,7 @@ describe('ClienteHistorialPage', () => {
     })
     listarMovimientosCtaCte.mockResolvedValue([])
     listarVentasPendientesCtaCte.mockResolvedValue([])
+    listarMediosCobranza.mockResolvedValue([])
   })
 
   afterEach(cleanup)

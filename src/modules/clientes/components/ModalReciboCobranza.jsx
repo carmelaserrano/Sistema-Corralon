@@ -2,8 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, Trash2, Wand2, X } from 'lucide-react'
 import Button from '../../../components/ui/Button'
 import Feedback from '../../../components/ui/Feedback'
-import { esCuentaCorriente, listarMediosPago } from '../../ventas/api/cobrosApi'
-import { registrarReciboCobranza } from '../api/cuentaCorrienteClienteApi'
+import {
+  listarMediosCobranza,
+  registrarReciboCobranza,
+} from '../api/cuentaCorrienteClienteApi'
 
 const moneda = new Intl.NumberFormat('es-AR', {
   style: 'currency',
@@ -52,15 +54,12 @@ export default function ModalReciboCobranza({
       cerrarRef.current?.focus()
 
       setCargandoMedios(true)
-      listarMediosPago()
+      listarMediosCobranza()
         .then((medios) => {
-          // Filtrar medios activos y excluir Cuenta corriente para cobranzas
-          setMediosDisponibles(
-            (medios || []).filter((m) => m.activo && !esCuentaCorriente(m)),
-          )
+          setMediosDisponibles(Array.isArray(medios) ? medios : [])
         })
         .catch((err) => {
-          setError(err.message || 'No se pudieron cargar los medios de pago')
+          setError(err.message || 'No se pudieron cargar los medios de cobro')
         })
         .finally(() => {
           setCargandoMedios(false)

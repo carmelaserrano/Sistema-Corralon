@@ -116,3 +116,20 @@ export async function registrarCobro(ventaId, detalle) {
   if (error) manejarErrorCobro(error)
   return data
 }
+
+/**
+ * Consulta el resumen de crédito y saldo del cliente para validar cobro en mostrador.
+ *
+ * @param {string} clienteId
+ * @returns {Promise<Object>}
+ */
+export async function obtenerResumenCtaCte(clienteId) {
+  if (!clienteId) return null
+
+  const { data, error } = await supabase.rpc('obtener_resumen_cta_cte_cliente', {
+    p_cliente_id: clienteId,
+  })
+
+  if (error) throw error
+  return data
+}

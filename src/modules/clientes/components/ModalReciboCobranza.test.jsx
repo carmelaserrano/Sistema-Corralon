@@ -2,15 +2,13 @@ import '@testing-library/jest-dom/vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ModalReciboCobranza from './ModalReciboCobranza'
-import { listarMediosPago } from '../../ventas/api/cobrosApi'
-import { registrarReciboCobranza } from '../api/cuentaCorrienteClienteApi'
-
-vi.mock('../../ventas/api/cobrosApi', () => ({
-  listarMediosPago: vi.fn(),
-  esCuentaCorriente: (medio) => medio?.nombre?.trim().toLowerCase() === 'cuenta corriente',
-}))
+import {
+  listarMediosCobranza,
+  registrarReciboCobranza,
+} from '../api/cuentaCorrienteClienteApi'
 
 vi.mock('../api/cuentaCorrienteClienteApi', () => ({
+  listarMediosCobranza: vi.fn(),
   registrarReciboCobranza: vi.fn(),
 }))
 
@@ -50,13 +48,12 @@ const mediosMock = [
   { id: 'm-efectivo', nombre: 'Efectivo', activo: true },
   { id: 'm-transferencia', nombre: 'Transferencia bancaria', activo: true },
   { id: 'm-cheque', nombre: 'Cheque al día', activo: true },
-  { id: 'm-cta-cte', nombre: 'Cuenta corriente', activo: true },
 ]
 
 describe('ModalReciboCobranza', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    listarMediosPago.mockResolvedValue(mediosMock)
+    listarMediosCobranza.mockResolvedValue(mediosMock)
     registrarReciboCobranza.mockResolvedValue({
       id: 'r1',
       numero: 50,

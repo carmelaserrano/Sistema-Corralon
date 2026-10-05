@@ -7,16 +7,13 @@ import { listarMediosPago, registrarCobro } from '../api/cobrosApi'
 vi.mock('../api/cobrosApi', () => ({
   listarMediosPago: vi.fn(),
   registrarCobro: vi.fn(),
+  obtenerResumenCtaCte: vi.fn(),
   esEfectivo: (medio) => medio?.nombre?.trim().toLowerCase() === 'efectivo',
   esTarjeta: (medio) => medio?.nombre?.trim().toLowerCase().startsWith('tarjeta'),
   esTransferencia: (medio) =>
     medio?.nombre?.trim().toLowerCase().startsWith('transferencia'),
   esCuentaCorriente: (medio) =>
     medio?.nombre?.trim().toLowerCase() === 'cuenta corriente',
-}))
-
-vi.mock('../../clientes/api/cuentaCorrienteClienteApi', () => ({
-  obtenerResumenCtaCte: vi.fn(),
 }))
 
 const medios = [
@@ -196,7 +193,7 @@ describe('ModalCobro', () => {
   })
 
   it('bloquea cuenta corriente si el monto supera el límite de crédito disponible', async () => {
-    const { obtenerResumenCtaCte } = await import('../../clientes/api/cuentaCorrienteClienteApi')
+    const { obtenerResumenCtaCte } = await import('../api/cobrosApi')
     obtenerResumenCtaCte.mockResolvedValueOnce({
       cliente_id: 'cliente-1',
       habilita_cta_cte: true,

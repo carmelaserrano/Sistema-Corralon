@@ -159,3 +159,22 @@ export async function actualizarCondicionesCredito(clienteId, condiciones) {
   if (error) throw error
   return data
 }
+
+/**
+ * Lista los medios de pago disponibles para cobranzas en cuenta corriente
+ * (excluyendo 'Cuenta corriente' y devolviendo los activos ordenados).
+ *
+ * @returns {Promise<Array<{ id: string, nombre: string, activo: boolean }>>}
+ */
+export async function listarMediosCobranza() {
+  const { data, error } = await supabase
+    .from('medios_pago')
+    .select('id, nombre, activo')
+    .eq('activo', true)
+    .order('nombre')
+
+  if (error) throw error
+  return (data ?? []).filter(
+    (m) => m.nombre?.trim().toLowerCase() !== 'cuenta corriente',
+  )
+}
