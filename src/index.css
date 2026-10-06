@@ -975,6 +975,185 @@ td button,
   text-transform: uppercase;
 }
 
+/* Modal de cobro (ModalCobro.jsx). El panel usa page-canvas, que convierte
+   cualquier form en un grid de columnas; acá el form es un flujo vertical. */
+.modal-panel.cobro-panel {
+  width: min(760px, 100%);
+}
+
+.page-canvas .cobro-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+}
+
+.cobro-pasos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-6);
+  margin: 0;
+  padding: var(--space-3) var(--space-4) var(--space-3) var(--space-8);
+  border-radius: var(--radius-md);
+  background: var(--color-brand-soft);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.page-canvas .cobro-form > .cobro-nota {
+  margin: calc(var(--space-2) * -1) 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.cobro-lineas {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.cobro-linea {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--surface-panel);
+}
+
+.cobro-linea--error {
+  border-color: var(--color-danger);
+}
+
+.cobro-linea-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.cobro-linea-header strong {
+  font-size: 14px;
+}
+
+.cobro-campos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3) var(--space-4);
+  align-items: start;
+}
+
+.cobro-campo {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.page-canvas button.cobro-link {
+  justify-self: start;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-brand-hover);
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.cobro-vuelto {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.cobro-ayuda {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.cobro-error {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-danger-soft);
+  color: var(--color-danger-strong);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.cobro-resumen {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--surface-subtle);
+}
+
+.cobro-resumen dl {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.cobro-resumen dt {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.cobro-resumen dd {
+  margin: var(--space-1) 0 0;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.cobro-estado {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.cobro-estado--pendiente {
+  background: var(--color-info-soft);
+  color: var(--color-info);
+}
+
+.cobro-estado--ok {
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+
+.cobro-estado--error {
+  background: var(--color-danger-soft);
+  color: var(--color-danger-strong);
+}
+
+.cobro-form .modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+@media (max-width: 560px) {
+  .cobro-campos {
+    grid-template-columns: 1fr;
+  }
+
+  .cobro-resumen dl {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .historial-articulo-table {
   overflow-x: auto;
 }
