@@ -7,6 +7,7 @@ import {
   esTarjeta,
   esTransferencia,
   listarMediosPago,
+  obtenerResumenCtaCte,
   registrarCobro,
 } from '../api/cobrosApi'
 
@@ -53,7 +54,18 @@ function calcularResumenCobro(total, lineas, medios) {
   }
 }
 
-function validarLinea(linea, medio, clienteHabilitado) {
+/**
+ * Crédito disponible del cliente en centavos, o null si no tiene límite
+ * (limite_credito = 0 significa "sin límite", igual que registrar_cobro).
+ */
+function disponibleCtaCte(resumenCtaCte) {
+  const limite = Number(resumenCtaCte?.limite_credito) || 0
+  if (limite <= 0) return null
+  const saldo = Number(resumenCtaCte?.saldo_deudor) || 0
+  return Math.max(0, aCentavos(limite) - aCentavos(saldo))
+}
+
+function validarLinea(linea, medio, clienteHabilitado, resumenCtaCte) {
   if (!medio) return 'Seleccione un medio de pago'
   if (aCentavos(linea.monto) <= 0) return 'El importe debe ser mayor a 0'
 
@@ -71,8 +83,15 @@ function validarLinea(linea, medio, clienteHabilitado) {
     return 'La referencia de la transferencia es obligatoria'
   }
 
-  if (esCuentaCorriente(medio) && !clienteHabilitado) {
-    return 'El cliente no está habilitado para cuenta corriente'
+  if (esCuentaCorriente(medio)) {
+    if (!clienteHabilitado) {
+      return 'El cliente no está habilitado para cuenta corriente'
+    }
+    // La base vuelve a validar el límite (CV007); esto solo avisa antes.
+    const disponible = disponibleCtaCte(resumenCtaCte)
+    if (disponible !== null && aCentavos(linea.monto) > disponible) {
+      return `Supera el límite de crédito disponible (${moneda(disponible)})`
+    }
   }
 
   return ''
@@ -107,6 +126,7 @@ export default function ModalCobro({ abierto, venta, onCobrado, onCancelar }) {
   const [cobroConfirmado, setCobroConfirmado] = useState(false)
   const [error, setError] = useState('')
   const [exito, setExito] = useState('')
+  const [resumenCtaCte, setResumenCtaCte] = useState(null)
   const siguienteId = useRef(2)
   const enviando = useRef(false)
 
@@ -146,10 +166,23 @@ export default function ModalCobro({ abierto, venta, onCobrado, onCancelar }) {
         if (vigente) setCargandoMedios(false)
       })
 
+    // Saldo y límite de cuenta corriente para avisar antes de confirmar. Si la
+    // consulta falla no se bloquea: registrar_cobro valida el límite igual.
+    setResumenCtaCte(null)
+    const clienteId = venta?.cliente?.id ?? venta?.cliente_id
+    if (clienteId && clienteHabilitado) {
+      obtenerResumenCtaCte(clienteId)
+        .then((resultado) => {
+          if (vigente) setResumenCtaCte(resultado)
+        })
+        .catch(() => {})
+    }
+
     return () => {
       vigente = false
     }
-  }, [abierto, venta?.id])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [abierto, venta?.id, clienteHabilitado])
 
   useEffect(() => {
     if (!abierto) return undefined
@@ -170,6 +203,7 @@ export default function ModalCobro({ abierto, venta, onCobrado, onCancelar }) {
       linea,
       medios.find((medio) => medio.id === linea.medio_pago_id),
       clienteHabilitado,
+      resumenCtaCte,
     ),
   )
   const ventaPendiente = venta?.estado === 'Pendiente'
@@ -475,6 +509,15 @@ export default function ModalCobro({ abierto, venta, onCobrado, onCancelar }) {
                       ? ayudaMedio(medio)
                       : 'Empezá eligiendo cómo paga el cliente esta parte.'}
                   </p>
+                  {esCuentaCorriente(medio) && clienteHabilitado && resumenCtaCte && (
+                    <p className="cobro-ayuda">
+                      <strong>
+                        {disponibleCtaCte(resumenCtaCte) === null
+                          ? `Sin límite de crédito · Saldo deudor actual: ${moneda(aCentavos(resumenCtaCte.saldo_deudor))}`
+                          : `Límite: ${moneda(aCentavos(resumenCtaCte.limite_credito))} · Saldo deudor: ${moneda(aCentavos(resumenCtaCte.saldo_deudor))} · Disponible: ${moneda(disponibleCtaCte(resumenCtaCte))}`}
+                      </strong>
+                    </p>
+                  )}
                   {mostrarError && (
                     <p className="cobro-error" role="alert">
                       {erroresLineas[indice]}

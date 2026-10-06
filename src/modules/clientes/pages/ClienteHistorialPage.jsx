@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Papa from 'papaparse'
-import { DollarSign, Download, FileText, Globe, ShoppingCart } from 'lucide-react'
+import { CreditCard, DollarSign, Download, FileText, Globe, ShoppingCart } from 'lucide-react'
 import Button from '../../../components/ui/Button'
 import EmptyState from '../../../components/ui/EmptyState'
 import Feedback from '../../../components/ui/Feedback'
@@ -12,12 +12,20 @@ import {
   getHistorialCliente,
   obtenerDetalleVenta,
 } from '../api/historialClienteApi'
+import {
+  listarMovimientosCtaCte,
+  listarVentasPendientesCtaCte,
+  obtenerResumenCtaCte,
+} from '../api/cuentaCorrienteClienteApi'
+import ModalReciboCobranza from '../components/ModalReciboCobranza'
+import ModalConfigurarCredito from '../components/ModalConfigurarCredito'
 
 const SOLAPAS = [
   ['ventas', 'Ventas'],
   ['comprobantes', 'Comprobantes'],
   ['cobros', 'Cobros'],
   ['pedidosWeb', 'Pedidos web'],
+  ['cuentaCorriente', 'Cuenta corriente'],
   ['acopios', 'Acopios'],
 ]
 
@@ -26,6 +34,7 @@ const VACIOS = {
   comprobantes: 'No hay comprobantes en el período',
   cobros: 'No hay cobros en el período',
   pedidosWeb: 'No hay pedidos web en el período',
+  cuentaCorriente: 'No hay movimientos de cuenta corriente en el período',
 }
 
 const moneda = new Intl.NumberFormat('es-AR', {
@@ -212,6 +221,73 @@ function TablaPedidosWeb({ pedidos }) {
   )
 }
 
+function TablaCuentaCorriente({ movimientos }) {
+  if (!movimientos.length) return <EstadoVacio tipo="cuentaCorriente" />
+  return (
+    <div className="data-table-card">
+      <div className="data-table-scroll-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Tipo</th>
+              <th>Comprobante</th>
+              <th>Referencia / Detalle</th>
+              <th style={{ textAlign: 'right' }}>Debe (+)</th>
+              <th style={{ textAlign: 'right' }}>Haber (-)</th>
+              <th style={{ textAlign: 'right' }}>Saldo acumulado</th>
+            </tr>
+          </thead>
+          <tbody>
+            {movimientos.map((m, idx) => {
+              const tipoNombre =
+                m.tipo_movimiento === 'factura'
+                  ? 'Factura'
+                  : m.tipo_movimiento === 'recibo'
+                  ? 'Recibo'
+                  : 'Nota de crédito'
+              return (
+                <tr key={m.comprobante_id ? `${m.tipo_movimiento}-${m.comprobante_id}` : idx}>
+                  <td>{formatearFecha(m.fecha)}</td>
+                  <td>
+                    <span
+                      className={`estado-badge ${
+                        m.tipo_movimiento === 'factura'
+                          ? 'estado-badge-inactivo'
+                          : 'estado-badge-activo'
+                      }`}
+                    >
+                      {tipoNombre}
+                    </span>
+                  </td>
+                  <td>
+                    <strong>{m.comprobante}</strong>
+                  </td>
+                  <td>{m.referencia || '—'}</td>
+                  <td style={{ textAlign: 'right' }}>
+                    {Number(m.debe) > 0 ? formatearMoneda(m.debe) : '—'}
+                  </td>
+                  <td
+                    style={{
+                      textAlign: 'right',
+                      color: Number(m.haber) > 0 ? 'var(--color-success, #16a34a)' : 'inherit',
+                    }}
+                  >
+                    {Number(m.haber) > 0 ? formatearMoneda(m.haber) : '—'}
+                  </td>
+                  <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                    {formatearMoneda(m.saldo_acumulado)}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 function ModalDetalleVenta({ venta, onCerrar }) {
   const [detalle, setDetalle] = useState([])
   const [cargando, setCargando] = useState(true)
@@ -324,6 +400,11 @@ export default function ClienteHistorialPage() {
   const [fechas, setFechas] = useState({ desde: '', hasta: '' })
   const [filtros, setFiltros] = useState({ desde: '', hasta: '' })
   const [ventaDetalle, setVentaDetalle] = useState(null)
+  const [resumenCtaCte, setResumenCtaCte] = useState(null)
+  const [movimientosCtaCte, setMovimientosCtaCte] = useState([])
+  const [ventasPendientesCtaCte, setVentasPendientesCtaCte] = useState([])
+  const [mostrarModalRecibo, setMostrarModalRecibo] = useState(false)
+  const [mostrarModalConfigCredito, setMostrarModalConfigCredito] = useState(false)
   const secuenciaBusqueda = useRef(0)
   const secuenciaHistorial = useRef(0)
 
@@ -352,9 +433,30 @@ export default function ClienteHistorialPage() {
     return () => clearTimeout(timer)
   }, [busqueda])
 
+  const cargarCtaCte = useCallback((id, f = filtros) => {
+    if (!id) {
+      setResumenCtaCte(null)
+      setMovimientosCtaCte([])
+      setVentasPendientesCtaCte([])
+      return Promise.resolve()
+    }
+    return Promise.all([
+      obtenerResumenCtaCte(id).catch(() => null),
+      listarMovimientosCtaCte(id, f).catch(() => []),
+      listarVentasPendientesCtaCte(id).catch(() => []),
+    ]).then(([resumen, movs, pendientes]) => {
+      setResumenCtaCte(resumen)
+      setMovimientosCtaCte(Array.isArray(movs) ? movs : [])
+      setVentasPendientesCtaCte(Array.isArray(pendientes) ? pendientes : [])
+    })
+  }, [filtros])
+
   useEffect(() => {
     if (!clienteId) {
       setHistorial(null)
+      setResumenCtaCte(null)
+      setMovimientosCtaCte([])
+      setVentasPendientesCtaCte([])
       setError('')
       setCargando(false)
       return undefined
@@ -378,10 +480,26 @@ export default function ClienteHistorialPage() {
         if (vigente && secuencia === secuenciaHistorial.current) setCargando(false)
       })
 
+    cargarCtaCte(clienteId, filtros)
+
     return () => {
       vigente = false
     }
-  }, [clienteId, filtros])
+  }, [clienteId, filtros, cargarCtaCte])
+
+  function handleReciboRegistrado(recibo) {
+    toast.success(`Recibo N.º ${recibo.numero} registrado con éxito (${formatearMoneda(recibo.total)})`)
+    cargarCtaCte(clienteId, filtros)
+    getHistorialCliente(clienteId, filtros).then(setHistorial)
+  }
+
+  function handleCreditoGuardado(actualizado) {
+    toast.success('Condiciones de crédito actualizadas')
+    setHistorial((actual) =>
+      actual ? { ...actual, cliente: { ...actual.cliente, ...actualizado } } : actual,
+    )
+    cargarCtaCte(clienteId, filtros)
+  }
 
   function aplicarFechas(event) {
     event.preventDefault()
@@ -395,7 +513,12 @@ export default function ClienteHistorialPage() {
   }
 
   const cliente = historial?.cliente
-  const movimientos = Array.isArray(historial?.[solapa]) ? historial[solapa] : []
+  const movimientos =
+    solapa === 'cuentaCorriente'
+      ? movimientosCtaCte
+      : Array.isArray(historial?.[solapa])
+      ? historial[solapa]
+      : []
 
   function exportarCsv() {
     if (!movimientos.length) return
@@ -428,6 +551,21 @@ export default function ClienteHistorialPage() {
         Numero: p.numero,
         Importe: p.total,
         Estado: p.estado,
+      }))
+    } else if (solapa === 'cuentaCorriente') {
+      dataParaCsv = movimientos.map((m) => ({
+        Fecha: formatearFecha(m.fecha),
+        Tipo:
+          m.tipo_movimiento === 'factura'
+            ? 'Factura'
+            : m.tipo_movimiento === 'recibo'
+            ? 'Recibo'
+            : 'Nota de crédito',
+        Comprobante: m.comprobante,
+        Referencia: m.referencia || '',
+        Debe: m.debe,
+        Haber: m.haber,
+        Saldo: m.saldo_acumulado,
       }))
     }
 
@@ -573,6 +711,30 @@ export default function ClienteHistorialPage() {
                       <th>Email</th>
                       <td>{cliente.email || '—'}</td>
                     </tr>
+                    <tr>
+                      <th>Cuenta corriente</th>
+                      <td>
+                        <span
+                          className={`estado-badge ${
+                            (resumenCtaCte?.habilita_cta_cte ?? cliente.habilita_cta_cte)
+                              ? 'estado-badge-activo'
+                              : 'estado-badge-inactivo'
+                          }`}
+                        >
+                          {(resumenCtaCte?.habilita_cta_cte ?? cliente.habilita_cta_cte)
+                            ? 'Habilitada'
+                            : 'Inhabilitada'}
+                        </span>
+                      </td>
+                      <th>Límite de crédito</th>
+                      <td>
+                        {Number(resumenCtaCte?.limite_credito ?? cliente.limite_credito ?? 0) > 0
+                          ? `${formatearMoneda(
+                              resumenCtaCte?.limite_credito ?? cliente.limite_credito,
+                            )} (Plazo: ${resumenCtaCte?.plazo_credito_dias ?? cliente.plazo_credito_dias ?? 30} días)`
+                          : 'Sin límite establecido'}
+                      </td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
@@ -641,6 +803,149 @@ export default function ClienteHistorialPage() {
               {!cargando && !error && solapa === 'pedidosWeb' && (
                 <TablaPedidosWeb pedidos={movimientos} />
               )}
+              {!cargando && !error && solapa === 'cuentaCorriente' && (
+                <div className="cuenta-corriente-tab-content">
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: '1.25rem',
+                      flexWrap: 'wrap',
+                      gap: '0.75rem',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <span
+                        className={`estado-badge ${
+                          (resumenCtaCte?.habilita_cta_cte ?? cliente.habilita_cta_cte)
+                            ? 'estado-badge-activo'
+                            : 'estado-badge-inactivo'
+                        }`}
+                      >
+                        {(resumenCtaCte?.habilita_cta_cte ?? cliente.habilita_cta_cte)
+                          ? 'Cuenta corriente habilitada'
+                          : 'Cuenta corriente inhabilitada'}
+                      </span>
+                      <span style={{ fontSize: '0.875rem' }}>
+                        Plazo acordado: <strong>{resumenCtaCte?.plazo_credito_dias ?? cliente.plazo_credito_dias ?? 30} días</strong>
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => setMostrarModalConfigCredito(true)}
+                      >
+                        Configurar crédito
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={() => setMostrarModalRecibo(true)}
+                      >
+                        <CreditCard size={16} />
+                        Registrar recibo de cobranza
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="kpi-grid" style={{ marginBottom: '1.5rem' }}>
+                    <KpiCard
+                      label="Límite de crédito"
+                      value={
+                        Number(resumenCtaCte?.limite_credito ?? cliente.limite_credito ?? 0) > 0
+                          ? formatearMoneda(resumenCtaCte?.limite_credito ?? cliente.limite_credito)
+                          : 'Sin límite'
+                      }
+                      icon={CreditCard}
+                      tone="neutral"
+                      helperText="Tope máximo financiado"
+                    />
+                    <KpiCard
+                      label="Saldo deudor (Deuda actual)"
+                      value={formatearMoneda(resumenCtaCte?.saldo_deudor ?? 0)}
+                      icon={DollarSign}
+                      tone={Number(resumenCtaCte?.saldo_deudor ?? 0) > 0 ? 'error' : 'success'}
+                      helperText={
+                        Number(resumenCtaCte?.saldo_deudor ?? 0) > 0
+                          ? 'Deuda total acumulada'
+                          : 'Cuenta al día / sin deuda'
+                      }
+                    />
+                    <KpiCard
+                      label="Crédito disponible"
+                      value={
+                        Number(resumenCtaCte?.limite_credito ?? cliente.limite_credito ?? 0) > 0
+                          ? formatearMoneda(resumenCtaCte?.credito_disponible ?? 0)
+                          : 'Ilimitado'
+                      }
+                      icon={DollarSign}
+                      tone="brand"
+                      helperText="Margen para nuevas compras"
+                    />
+                    <KpiCard
+                      label="Facturas pendientes"
+                      value={ventasPendientesCtaCte.length}
+                      icon={FileText}
+                      tone={ventasPendientesCtaCte.length > 0 ? 'warning' : 'neutral'}
+                      helperText="Comprobantes con saldo adeudado"
+                    />
+                  </div>
+
+                  {ventasPendientesCtaCte.length > 0 && (
+                    <div style={{ marginBottom: '1.5rem' }}>
+                      <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.5rem' }}>
+                        Facturas con saldo pendiente de cobro
+                      </h3>
+                      <div className="data-table-card">
+                        <div className="data-table-scroll-container">
+                          <table>
+                            <thead>
+                              <tr>
+                                <th>Fecha</th>
+                                <th>Comprobante</th>
+                                <th>Total venta</th>
+                                <th>Total imputado</th>
+                                <th>Saldo pendiente</th>
+                                <th>Acción</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {ventasPendientesCtaCte.map((v) => (
+                                <tr key={v.venta_id}>
+                                  <td>{v.fecha}</td>
+                                  <td><strong>{v.comprobante}</strong></td>
+                                  <td>{formatearMoneda(v.total_credito)}</td>
+                                  <td>{formatearMoneda(v.total_imputado)}</td>
+                                  <td>
+                                    <strong style={{ color: 'var(--color-error, #dc2626)' }}>
+                                      {formatearMoneda(v.saldo_pendiente)}
+                                    </strong>
+                                  </td>
+                                  <td>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      onClick={() => setMostrarModalRecibo(true)}
+                                    >
+                                      Cobrar factura
+                                    </Button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.5rem' }}>
+                    Libro Mayor de Cuenta Corriente
+                  </h3>
+                  <TablaCuentaCorriente movimientos={movimientosCtaCte} />
+                </div>
+              )}
               {!cargando && !error && solapa === 'acopios' && (
                 <p>Módulo de Acopio pendiente (E04)</p>
               )}
@@ -651,6 +956,26 @@ export default function ClienteHistorialPage() {
 
       {ventaDetalle && (
         <ModalDetalleVenta venta={ventaDetalle} onCerrar={() => setVentaDetalle(null)} />
+      )}
+
+      {mostrarModalRecibo && (
+        <ModalReciboCobranza
+          abierto={mostrarModalRecibo}
+          cliente={cliente}
+          resumenCtaCte={resumenCtaCte}
+          ventasPendientes={ventasPendientesCtaCte}
+          onReciboRegistrado={handleReciboRegistrado}
+          onCerrar={() => setMostrarModalRecibo(false)}
+        />
+      )}
+
+      {mostrarModalConfigCredito && (
+        <ModalConfigurarCredito
+          abierto={mostrarModalConfigCredito}
+          cliente={cliente}
+          onGuardado={handleCreditoGuardado}
+          onCerrar={() => setMostrarModalConfigCredito(false)}
+        />
       )}
     </main>
   )
