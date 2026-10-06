@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { LogOut, Menu, Search, UserRound } from 'lucide-react'
 import Sidebar from './Sidebar'
 import { pageModules, pageTitles } from './navigation'
@@ -15,6 +15,22 @@ export default function AppShell({
 }) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
+  const contentRef = useRef(null)
+
+  useEffect(() => {
+    const content = contentRef.current
+    if (!content?.animate || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+
+    const animation = content.animate(
+      [
+        { transform: 'translateX(10px)', opacity: 0.9 },
+        { transform: 'translateX(0)', opacity: 1 },
+      ],
+      { duration: 170, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' },
+    )
+
+    return () => animation.cancel()
+  }, [activePage])
 
   useEffect(() => {
     setMobileOpen(false)
@@ -102,7 +118,7 @@ export default function AppShell({
           </header>
 
           <main className="app-main">
-            <div className="page-canvas">{children}</div>
+            <div className="page-canvas" ref={contentRef}>{children}</div>
           </main>
         </div>
 
