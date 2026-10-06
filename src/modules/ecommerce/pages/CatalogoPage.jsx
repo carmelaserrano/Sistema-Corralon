@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import {
   Building2,
   Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Eye,
@@ -92,7 +93,7 @@ export function ImagenProducto({ url, nombre, alto = 180 }) {
         gap: 8,
         padding: 16,
         color: 'var(--text-muted)',
-        background: 'linear-gradient(135deg, rgba(230, 167, 0, 0.08) 0%, rgba(0, 0, 0, 0.04) 100%)',
+        background: 'linear-gradient(135deg, rgba(249, 115, 22, 0.08) 0%, rgba(0, 0, 0, 0.04) 100%)',
         border: '1px solid var(--border-default)',
         textAlign: 'center',
       }}
@@ -102,6 +103,50 @@ export function ImagenProducto({ url, nombre, alto = 180 }) {
         {nombre}
       </span>
     </span>
+  )
+}
+
+const MARCAS_INICIALES = 5
+
+/** Sección plegable del panel de filtros. */
+function SeccionFiltro({ id, titulo, abierta, onAlternar, resumen, children }) {
+  const panelId = `filtro-${id}`
+  return (
+    <div className={`tienda-filtro-seccion ${abierta ? 'is-open' : ''}`}>
+      <button
+        type="button"
+        className="tienda-filtro-toggle"
+        aria-expanded={abierta}
+        aria-controls={panelId}
+        onClick={() => onAlternar(id)}
+      >
+        <span className="tienda-filtro-toggle-titulo">{titulo}</span>
+        {!abierta && resumen && <span className="tienda-filtro-resumen">{resumen}</span>}
+        <ChevronDown className="tienda-filtro-chevron" size={16} aria-hidden="true" />
+      </button>
+      {abierta && (
+        <div className="tienda-filtro-contenido" id={panelId}>
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Opción de una lista de filtro; la elegida lleva un tilde. */
+function OpcionFiltro({ activa, onClick, children }) {
+  return (
+    <button
+      type="button"
+      className={`tienda-filtro-item ${activa ? 'is-active' : ''}`}
+      aria-pressed={activa}
+      onClick={onClick}
+    >
+      <span className="tienda-filtro-marca" aria-hidden="true">
+        {activa && <Check size={12} strokeWidth={3} />}
+      </span>
+      <span className="tienda-filtro-item-texto">{children}</span>
+    </button>
   )
 }
 
@@ -137,6 +182,12 @@ export default function CatalogoPage({ onVerProducto, onNotificar }) {
   const [error, setError] = useState('')
   const [reintento, setReintento] = useState(0)
   const [mostrarFiltrosMobile, setMostrarFiltrosMobile] = useState(false)
+  const [seccionesAbiertas, setSeccionesAbiertas] = useState({
+    categorias: true,
+    marcas: true,
+    precio: true,
+  })
+  const [verTodasMarcas, setVerTodasMarcas] = useState(false)
   const [agregandoId, setAgregandoId] = useState(null)
   const [agregadoExitoId, setAgregadoExitoId] = useState(null)
   const ultimaConsulta = useRef(0)
@@ -242,8 +293,16 @@ export default function CatalogoPage({ onVerProducto, onNotificar }) {
     }
   }
 
+  function alternarSeccion(id) {
+    setSeccionesAbiertas((actuales) => ({ ...actuales, [id]: !actuales[id] }))
+  }
+
   const categoriaActual = filtros.categorias.find((c) => c.id === categoriaId)
   const marcaActual = filtros.marcas.find((m) => m.id === marcaId)
+  // La marca elegida se muestra siempre, aunque esté fuera de las primeras.
+  const marcasVisibles = verTodasMarcas
+    ? filtros.marcas
+    : filtros.marcas.filter((m, i) => i < MARCAS_INICIALES || m.id === marcaId)
   const totalPaginas = Math.max(1, Math.ceil(resultado.total / POR_PAGINA))
 
   // Conteo de filtros activos para badge mobile
@@ -271,15 +330,23 @@ export default function CatalogoPage({ onVerProducto, onNotificar }) {
       <section className="tienda-catalogo" aria-labelledby="titulo-catalogo" aria-busy={cargando}>
         <div className="tienda-catalogo-layout">
           {/* SIDEBAR DE FILTROS (Desktop & Mobile Drawer) */}
-          <aside className={`tienda-sidebar-filtros ${mostrarFiltrosMobile ? 'is-open' : ''}`}>
+          <aside
+            className={`tienda-sidebar-filtros ${mostrarFiltrosMobile ? 'is-open' : ''}`}
+            aria-label="Filtros del catálogo"
+          >
             <div className="tienda-sidebar-header">
               <div className="tienda-sidebar-title">
-                <SlidersHorizontal size={18} />
+                <SlidersHorizontal size={18} aria-hidden="true" />
                 <h3>Filtros</h3>
+                {filtrosActivosCount > 0 && (
+                  <span className="tienda-sidebar-contador" aria-label={`${filtrosActivosCount} activos`}>
+                    {filtrosActivosCount}
+                  </span>
+                )}
               </div>
               {filtrosActivosCount > 0 && (
                 <button type="button" className="tienda-btn-limpiar-filtros" onClick={limpiarTodosFiltros}>
-                  <RotateCcw size={13} />
+                  <RotateCcw size={13} aria-hidden="true" />
                   Limpiar
                 </button>
               )}
@@ -293,110 +360,144 @@ export default function CatalogoPage({ onVerProducto, onNotificar }) {
               </button>
             </div>
 
-            {/* Filtro: Disponibilidad */}
+            {/* Filtro: Disponibilidad (interruptor) */}
             <div className="tienda-filtro-seccion">
-              <h4>Disponibilidad</h4>
-              <label className="tienda-checkbox-label">
+              <label className="tienda-switch">
+                <span className="tienda-switch-texto">
+                  <strong>Solo con stock disponible</strong>
+                  <small>Ocultá los productos sin stock</small>
+                </span>
                 <input
                   type="checkbox"
+                  role="switch"
                   checked={soloDisponibles}
                   onChange={(e) => {
                     setSoloDisponibles(e.target.checked)
                     setPagina(1)
                   }}
                 />
-                <span>Solo con stock disponible</span>
+                <span className="tienda-switch-pista" aria-hidden="true" />
               </label>
             </div>
 
             {/* Filtro: Categorías */}
-            <div className="tienda-filtro-seccion">
-              <h4>Categorías</h4>
+            <SeccionFiltro
+              id="categorias"
+              titulo="Categorías"
+              abierta={seccionesAbiertas.categorias}
+              onAlternar={alternarSeccion}
+              resumen={categoriaActual?.nombre}
+            >
               <div className="tienda-filtro-lista">
-                <button
-                  type="button"
-                  className={`tienda-filtro-item ${!categoriaId ? 'is-active' : ''}`}
+                <OpcionFiltro
+                  activa={!categoriaId}
                   onClick={() => {
                     setCategoriaId('')
                     setPagina(1)
                   }}
                 >
                   Todas las categorías
-                </button>
+                </OpcionFiltro>
                 {filtros.categorias.map((cat) => (
-                  <button
+                  <OpcionFiltro
                     key={cat.id}
-                    type="button"
-                    className={`tienda-filtro-item ${categoriaId === cat.id ? 'is-active' : ''}`}
+                    activa={categoriaId === cat.id}
                     onClick={() => {
                       setCategoriaId(cat.id)
                       setPagina(1)
                     }}
                   >
-                    <span>{cat.nombre}</span>
-                  </button>
+                    {cat.nombre}
+                  </OpcionFiltro>
                 ))}
               </div>
-            </div>
+            </SeccionFiltro>
 
-            {/* Filtro: Marcas */}
+            {/* Filtro: Marcas (las primeras 5, el resto con "Ver todas") */}
             {filtros.marcas.length > 0 && (
-              <div className="tienda-filtro-seccion">
-                <h4>Marcas</h4>
+              <SeccionFiltro
+                id="marcas"
+                titulo="Marcas"
+                abierta={seccionesAbiertas.marcas}
+                onAlternar={alternarSeccion}
+                resumen={marcaActual?.nombre}
+              >
                 <div className="tienda-filtro-lista">
-                  <button
-                    type="button"
-                    className={`tienda-filtro-item ${!marcaId ? 'is-active' : ''}`}
+                  <OpcionFiltro
+                    activa={!marcaId}
                     onClick={() => {
                       setMarcaId('')
                       setPagina(1)
                     }}
                   >
                     Todas las marcas
-                  </button>
-                  {filtros.marcas.map((m) => (
-                    <button
+                  </OpcionFiltro>
+                  {marcasVisibles.map((m) => (
+                    <OpcionFiltro
                       key={m.id}
-                      type="button"
-                      className={`tienda-filtro-item ${marcaId === m.id ? 'is-active' : ''}`}
+                      activa={marcaId === m.id}
                       onClick={() => {
                         setMarcaId(m.id)
                         setPagina(1)
                       }}
                     >
-                      <span>{m.nombre}</span>
-                    </button>
+                      {m.nombre}
+                    </OpcionFiltro>
                   ))}
                 </div>
-              </div>
+                {filtros.marcas.length > MARCAS_INICIALES && (
+                  <button
+                    type="button"
+                    className="tienda-filtro-ver-mas"
+                    onClick={() => setVerTodasMarcas((v) => !v)}
+                  >
+                    {verTodasMarcas
+                      ? 'Ver menos'
+                      : `Ver todas (${filtros.marcas.length})`}
+                  </button>
+                )}
+              </SeccionFiltro>
             )}
 
-            {/* Filtro: Rango de Precios */}
-            <div className="tienda-filtro-seccion">
-              <h4>Rango de Precio</h4>
+            {/* Filtro: Rango de precio */}
+            <SeccionFiltro
+              id="precio"
+              titulo="Precio"
+              abierta={seccionesAbiertas.precio}
+              onAlternar={alternarSeccion}
+              resumen={precioMin || precioMax ? 'Rango aplicado' : undefined}
+            >
               <form onSubmit={aplicarRangoPrecio} className="tienda-precio-form">
                 <div className="tienda-precio-inputs">
-                  <input
-                    type="number"
-                    min="0"
-                    placeholder="Mín ($)"
-                    value={precioMinInput}
-                    onChange={(e) => setPrecioMinInput(e.target.value)}
-                  />
-                  <span>—</span>
-                  <input
-                    type="number"
-                    min="0"
-                    placeholder="Máx ($)"
-                    value={precioMaxInput}
-                    onChange={(e) => setPrecioMaxInput(e.target.value)}
-                  />
+                  <label className="tienda-precio-campo">
+                    <span className="sr-only">Precio mínimo</span>
+                    <span aria-hidden="true">$</span>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="Mínimo"
+                      value={precioMinInput}
+                      onChange={(e) => setPrecioMinInput(e.target.value)}
+                    />
+                  </label>
+                  <span className="tienda-precio-sep" aria-hidden="true">—</span>
+                  <label className="tienda-precio-campo">
+                    <span className="sr-only">Precio máximo</span>
+                    <span aria-hidden="true">$</span>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="Máximo"
+                      value={precioMaxInput}
+                      onChange={(e) => setPrecioMaxInput(e.target.value)}
+                    />
+                  </label>
                 </div>
                 <button type="submit" className="tienda-btn-aplicar-precio">
                   Aplicar precio
                 </button>
               </form>
-            </div>
+            </SeccionFiltro>
           </aside>
 
           {/* BACKDROP PARA MOBILE DRAWER */}

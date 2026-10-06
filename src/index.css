@@ -73,6 +73,19 @@
   box-sizing: border-box;
 }
 
+/* Texto solo para lectores de pantalla (no se ve, pero se anuncia). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 html {
   min-width: 320px;
   min-height: 100%;

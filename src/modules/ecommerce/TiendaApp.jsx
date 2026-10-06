@@ -63,117 +63,130 @@ function TiendaHeader({ pagina, onNavigate, onAbrirCarrito }) {
         </div>
       </div>
 
-      {/* Header Principal */}
+      {/* Header principal: marca · navegación · cuenta y carrito, alineados
+          al mismo ancho que el contenido de la página. */}
       <div className="tienda-header-main">
-        <div
-          className="tienda-brand"
-          role="button"
-          tabIndex={0}
-          onClick={() => onNavigate('catalogo')}
-          onKeyDown={(e) => e.key === 'Enter' && onNavigate('catalogo')}
-        >
-          <div className="tienda-brand-logo">
-            <LogoCasco size={38} />
-          </div>
-          <div className="tienda-brand-text">
-            <strong className="marca-nombre">
-              Corralón <span>Norte</span>
-            </strong>
-            <span className="tienda-brand-sub">Tienda de Materiales</span>
-          </div>
-        </div>
-
-        <nav className="tienda-nav" aria-label="Navegación de la tienda">
-          <button
-            type="button"
-            className={`tienda-nav-link ${pagina === 'catalogo' ? 'is-active' : ''}`}
+        <div className="tienda-header-inner">
+          <div
+            className="tienda-brand"
+            role="button"
+            tabIndex={0}
+            aria-label="Corralón Norte, ir al catálogo"
             onClick={() => onNavigate('catalogo')}
+            onKeyDown={(e) => e.key === 'Enter' && onNavigate('catalogo')}
           >
-            <Store size={16} aria-hidden="true" />
-            <span>Catálogo</span>
-          </button>
+            <div className="tienda-brand-logo">
+              <LogoCasco size={38} />
+            </div>
+            <div className="tienda-brand-text">
+              <strong className="marca-nombre">
+                Corralón <span>Norte</span>
+              </strong>
+              <span className="tienda-brand-sub">Tienda de Materiales</span>
+            </div>
+          </div>
 
-          {cliente ? (
-            <div className="tienda-user-group">
+          <nav className="tienda-nav" aria-label="Navegación de la tienda">
+            <button
+              type="button"
+              className={`tienda-nav-link ${pagina === 'catalogo' || pagina === 'producto' ? 'is-active' : ''}`}
+              aria-current={pagina === 'catalogo' ? 'page' : undefined}
+              onClick={() => onNavigate('catalogo')}
+            >
+              <Store size={16} aria-hidden="true" />
+              <span>Catálogo</span>
+            </button>
+            {cliente && (
               <button
                 type="button"
                 className={`tienda-nav-link ${pagina === 'mis-pedidos' ? 'is-active' : ''}`}
+                aria-current={pagina === 'mis-pedidos' ? 'page' : undefined}
                 onClick={() => onNavigate('mis-pedidos')}
               >
                 <Package size={16} aria-hidden="true" />
                 <span>Mis Pedidos</span>
               </button>
+            )}
+          </nav>
 
-              <button
-                type="button"
-                className={`tienda-nav-link ${pagina === 'mis-datos' ? 'is-active' : ''}`}
-                onClick={() => onNavigate('mis-datos')}
-              >
-                <User size={16} aria-hidden="true" />
-                <span>Mis Datos</span>
-              </button>
-
-              <div className="tienda-user-badge">
-                <span className="tienda-user-avatar">
-                  {(cliente.nombre?.[0] || cliente.razon_social?.[0] || 'C').toUpperCase()}
-                </span>
-                <span className="tienda-user-name" title={cliente.nombre || cliente.razon_social}>
-                  {cliente.nombre
-                    ? `${cliente.nombre} ${cliente.apellido || ''}`.trim()
-                    : cliente.razon_social}
-                </span>
+          <div className="tienda-header-acciones">
+            {cliente ? (
+              <div className="tienda-cuenta">
+                <button
+                  type="button"
+                  className={`tienda-cuenta-btn ${pagina === 'mis-datos' ? 'is-active' : ''}`}
+                  onClick={() => onNavigate('mis-datos')}
+                  title="Mis Datos"
+                >
+                  <span className="tienda-user-avatar" aria-hidden="true">
+                    {(cliente.nombre?.[0] || cliente.razon_social?.[0] || 'C').toUpperCase()}
+                  </span>
+                  <span className="tienda-cuenta-texto">
+                    <small>Hola,</small>
+                    <strong>
+                      {cliente.nombre
+                        ? `${cliente.nombre} ${cliente.apellido || ''}`.trim()
+                        : cliente.razon_social}
+                    </strong>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="tienda-nav-btn-logout"
+                  aria-label="Cerrar sesión"
+                  title="Cerrar sesión"
+                  onClick={async () => {
+                    await salir()
+                    onNavigate('catalogo')
+                  }}
+                >
+                  <LogOut size={17} aria-hidden="true" />
+                </button>
               </div>
-
+            ) : (
               <button
                 type="button"
-                className="tienda-nav-btn-logout"
-                title="Cerrar sesión"
-                onClick={async () => {
-                  await salir()
-                  onNavigate('catalogo')
-                }}
+                className={`tienda-cuenta-btn ${
+                  pagina === 'ingresar' || pagina === 'registrarme' ? 'is-active' : ''
+                }`}
+                aria-label="Ingresar / Registrarme"
+                onClick={() => onNavigate('ingresar')}
               >
-                <LogOut size={16} aria-hidden="true" />
-                <span>Salir</span>
+                <span className="tienda-cuenta-icono" aria-hidden="true">
+                  <User size={18} />
+                </span>
+                <span className="tienda-cuenta-texto">
+                  <small>Mi cuenta</small>
+                  <strong>Ingresar</strong>
+                </span>
               </button>
-            </div>
-          ) : (
+            )}
+
             <button
               type="button"
-              className={`tienda-nav-link tienda-nav-btn-login ${
-                pagina === 'ingresar' || pagina === 'registrarme' ? 'is-active' : ''
-              }`}
-              onClick={() => onNavigate('ingresar')}
+              className={`tienda-cart-btn ${pagina === 'carrito' ? 'is-active' : ''}`}
+              onClick={() => {
+                if (pagina === 'checkout') {
+                  onNavigate('carrito')
+                } else {
+                  onAbrirCarrito?.()
+                }
+              }}
+              aria-label={`Carrito de compras, ${cantidadTotal} productos`}
             >
-              <User size={16} aria-hidden="true" />
-              <span>Ingresar / Registrarme</span>
+              <div className="tienda-cart-icon-wrap">
+                <ShoppingCart size={19} aria-hidden="true" />
+                {cantidadTotal > 0 && <span className="tienda-cart-badge">{cantidadTotal}</span>}
+              </div>
+              <div className="tienda-cart-info">
+                <span className="tienda-cart-label">Carrito</span>
+                <span className="tienda-cart-total">
+                  {cantidadTotal > 0 ? monedaHeader.format(total) : 'Vacío'}
+                </span>
+              </div>
             </button>
-          )}
-
-          <button
-            type="button"
-            className={`tienda-cart-btn ${pagina === 'carrito' ? 'is-active' : ''}`}
-            onClick={() => {
-              if (pagina === 'checkout') {
-                onNavigate('carrito')
-              } else {
-                onAbrirCarrito?.()
-              }
-            }}
-            aria-label={`Carrito de compras, ${cantidadTotal} productos`}
-          >
-            <div className="tienda-cart-icon-wrap">
-              <ShoppingCart size={18} aria-hidden="true" />
-              {cantidadTotal > 0 && <span className="tienda-cart-badge">{cantidadTotal}</span>}
-            </div>
-            <div className="tienda-cart-info">
-              <span className="tienda-cart-label">Carrito</span>
-              {cantidadTotal > 0 && (
-                <span className="tienda-cart-total">{monedaHeader.format(total)}</span>
-              )}
-            </div>
-          </button>
-        </nav>
+          </div>
+        </div>
       </div>
     </header>
   )
