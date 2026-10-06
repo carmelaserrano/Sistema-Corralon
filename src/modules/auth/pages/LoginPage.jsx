@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useAuth } from '../../../lib/AuthContext'
-import { Boxes, LockKeyhole, Mail } from 'lucide-react'
+import { LockKeyhole, Mail } from 'lucide-react'
+import logoCorralon from '../../../assets/logo-corralon-norte.png'
 import Button from '../../../components/ui/Button'
 import Feedback from '../../../components/ui/Feedback'
 
@@ -22,31 +23,24 @@ export default function LoginPage() {
 
   return (
     <main className="login-page">
-      <section className="login-brand-panel" aria-label="Sistema Corralón">
-        <div className="login-brand">
-          <span className="brand-mark brand-mark-large">
-            <Boxes size={28} strokeWidth={2.2} />
-          </span>
-          <span>
-            <strong>Sistema Corralón</strong>
-            <small>Gestión integral de stock</small>
-          </span>
+      <section className="login-brand-panel" aria-label="Corralón Norte">
+        <div className="login-logo-card">
+          <img src={logoCorralon} alt="Corralón Norte" className="login-logo" />
         </div>
         <div className="login-hero-copy">
-          <span className="eyebrow">OPERACIÓN CENTRALIZADA</span>
-          <h1>Control preciso para cada movimiento.</h1>
+          <span className="eyebrow">BIENVENIDO A CORRALÓN NORTE</span>
+          <h1>Materiales en orden, obras a tiempo.</h1>
           <p>
-            Existencias, recepciones e inventario en una interfaz clara,
-            confiable y preparada para el trabajo diario.
+            El sistema de gestión del corralón: stock, ventas, compras y tienda
+            online. Controlá existencias, pedidos y entregas para que cada cliente
+            reciba lo que necesita cuando lo necesita.
           </p>
-        </div>
-        <span className="login-version">Módulo Stock · Sprint 1</span>
-      </section>
+        </div>      </section>
 
       <section className="login-form-panel">
         <div className="login-card">
           <div className="login-card-heading">
-            <span className="eyebrow">BIENVENIDO</span>
+            <span className="eyebrow">ACCESO AL SISTEMA</span>
             <h2>Ingresar</h2>
             <p>Usá tus credenciales para acceder al sistema.</p>
           </div>

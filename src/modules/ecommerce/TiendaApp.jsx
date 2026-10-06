@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
+import LogoCasco from '../../components/ui/LogoCasco'
 import {
-  Building2,
   Clock,
   LogOut,
   Package,
@@ -73,10 +73,12 @@ function TiendaHeader({ pagina, onNavigate, onAbrirCarrito }) {
           onKeyDown={(e) => e.key === 'Enter' && onNavigate('catalogo')}
         >
           <div className="tienda-brand-logo">
-            <Building2 size={24} aria-hidden="true" />
+            <LogoCasco size={38} />
           </div>
           <div className="tienda-brand-text">
-            <strong>Corralón del Sur</strong>
+            <strong className="marca-nombre">
+              Corralón <span>Norte</span>
+            </strong>
             <span className="tienda-brand-sub">Tienda de Materiales</span>
           </div>
         </div>

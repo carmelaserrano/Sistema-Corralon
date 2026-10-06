@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Boxes, ChevronRight, X } from 'lucide-react'
+import { ChevronRight, X } from 'lucide-react'
+import LogoCasco from '../ui/LogoCasco'
 import { navigationGroups } from './navigation'
 
 // Secciones abiertas por el usuario, para conservarlas al recargar.
@@ -77,12 +78,14 @@ export default function Sidebar({ activePage, isOpen, onClose, onNavigate }) {
       />
       <aside className={`sidebar ${isOpen ? 'is-open' : ''}`} aria-label="Menú principal">
         <div className="sidebar-brand">
-          <span className="brand-mark" aria-hidden="true">
-            <Boxes size={21} strokeWidth={2.2} />
+          <span className="sidebar-logo">
+            <LogoCasco size={40} />
           </span>
           <span>
-            <strong>Sistema Corralón</strong>
-            <small>Gestión de stock</small>
+            <strong className="marca-nombre">
+              Corralón <span>Norte</span>
+            </strong>
+            <small>Sistema de gestión</small>
           </span>
           <button
             className="sidebar-close"

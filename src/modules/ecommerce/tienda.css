@@ -1,5 +1,5 @@
 /* ==========================================================================
-   TIENDA ONLINE - CORRALÓN DEL SUR (DISEÑO & EXPERIENCIA E-COMMERCE)
+   TIENDA ONLINE - CORRALÓN NORTE (DISEÑO & EXPERIENCIA E-COMMERCE)
    ========================================================================== */
 
 .tienda-app {
@@ -14,8 +14,8 @@
    1. TOPBAR (SERVICIOS & ATENCIÓN)
    -------------------------------------------------------------------------- */
 .tienda-topbar {
-  background: #0d0d0c;
-  color: #c4c0b5;
+  background: var(--surface-inverse-strong);
+  color: var(--color-neutral-300);
   font-size: 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
@@ -49,7 +49,7 @@
 }
 
 .tienda-topbar-sep {
-  color: #45433e;
+  color: var(--color-neutral-700);
 }
 
 /* --------------------------------------------------------------------------
@@ -87,15 +87,9 @@
 }
 
 .tienda-brand-logo {
-  width: 42px;
-  height: 42px;
-  background: linear-gradient(135deg, var(--color-brand), #b57a00);
-  color: #121210;
-  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 8px rgba(230, 167, 0, 0.35);
 }
 
 .tienda-brand-text {
@@ -112,7 +106,7 @@
 .tienda-brand-sub {
   font-size: 11px;
   font-weight: 500;
-  color: #a4a095;
+  color: #94a3b8;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -133,7 +127,7 @@
   border-radius: var(--radius-md);
   border: 1px solid transparent;
   background: transparent;
-  color: #dddad2;
+  color: var(--color-neutral-200);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -148,9 +142,9 @@
 }
 
 .tienda-nav-link.is-active {
-  background: rgba(230, 167, 0, 0.12);
+  background: rgba(249, 115, 22, 0.12);
   color: var(--color-brand);
-  border-color: rgba(230, 167, 0, 0.3);
+  border-color: rgba(249, 115, 22, 0.3);
 }
 
 .tienda-nav-btn-login {
@@ -181,7 +175,7 @@
   height: 26px;
   border-radius: 50%;
   background: var(--color-brand);
-  color: #121210;
+  color: var(--text-on-brand);
   font-size: 12px;
   font-weight: 800;
   display: flex;
@@ -226,19 +220,19 @@
   align-items: center;
   gap: 10px;
   padding: 6px 14px 6px 10px;
-  background: linear-gradient(135deg, var(--color-brand), #d69500);
-  color: #121210;
+  background: linear-gradient(135deg, var(--color-brand), var(--color-brand-hover));
+  color: var(--text-on-brand);
   border: none;
   border-radius: var(--radius-md);
   cursor: pointer;
   font-weight: 700;
-  box-shadow: 0 2px 8px rgba(230, 167, 0, 0.3);
+  box-shadow: 0 2px 8px rgba(249, 115, 22, 0.3);
   transition: all 150ms ease;
 }
 
 .tienda-cart-btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(230, 167, 0, 0.45);
+  box-shadow: 0 4px 12px rgba(249, 115, 22, 0.45);
 }
 
 .tienda-cart-btn.is-active {
@@ -256,7 +250,7 @@
   position: absolute;
   top: -8px;
   right: -8px;
-  background: #121210;
+  background: var(--surface-inverse);
   color: var(--color-brand);
   font-size: 10px;
   font-weight: 800;
@@ -285,18 +279,18 @@
 .tienda-cart-total {
   font-size: 11px;
   font-weight: 800;
-  color: #2b2513;
+  color: var(--text-primary);
 }
 
 /* --------------------------------------------------------------------------
    3. HERO BANNER COMERCIAL & CATEGORÍAS RÁPIDAS
    -------------------------------------------------------------------------- */
 .tienda-hero {
-  background: linear-gradient(145deg, #191816 0%, #292621 100%);
+  background: linear-gradient(145deg, var(--surface-inverse-strong) 0%, var(--surface-inverse) 100%);
   color: #fff;
   padding: 44px 20px 36px;
   margin-bottom: 28px;
-  border-bottom: 1px solid rgba(230, 167, 0, 0.2);
+  border-bottom: 1px solid rgba(249, 115, 22, 0.2);
   box-shadow: inset 0 -10px 20px rgba(0, 0, 0, 0.2);
 }
 
@@ -313,9 +307,9 @@
   align-items: center;
   gap: 8px;
   padding: 5px 12px;
-  background: rgba(230, 167, 0, 0.15);
+  background: rgba(249, 115, 22, 0.15);
   color: var(--color-brand);
-  border: 1px solid rgba(230, 167, 0, 0.35);
+  border: 1px solid rgba(249, 115, 22, 0.35);
   border-radius: 999px;
   font-size: 12px;
   font-weight: 700;
@@ -336,7 +330,7 @@
 
 .tienda-hero-desc {
   font-size: clamp(14px, 1.8vw, 17px);
-  color: #c4c0b5;
+  color: var(--color-neutral-300);
   max-width: 720px;
   line-height: 1.6;
   margin: 0 0 24px;
@@ -355,7 +349,7 @@
   gap: 8px;
   font-size: 13px;
   font-weight: 600;
-  color: #eeede9;
+  color: var(--color-neutral-100);
   background: rgba(255, 255, 255, 0.06);
   padding: 6px 14px;
   border-radius: var(--radius-sm);
@@ -379,7 +373,7 @@
 .tienda-hero-cat-label {
   font-size: 13px;
   font-weight: 700;
-  color: #a4a095;
+  color: #94a3b8;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -406,7 +400,7 @@
 }
 
 .tienda-cat-bubble:hover {
-  background: rgba(230, 167, 0, 0.2);
+  background: rgba(249, 115, 22, 0.2);
   border-color: var(--color-brand);
   color: var(--color-brand);
 }
@@ -414,9 +408,9 @@
 .tienda-cat-bubble.is-active {
   background: var(--color-brand);
   border-color: var(--color-brand);
-  color: #121210;
+  color: var(--text-on-brand);
   font-weight: 750;
-  box-shadow: 0 2px 10px rgba(230, 167, 0, 0.4);
+  box-shadow: 0 2px 10px rgba(249, 115, 22, 0.4);
 }
 
 /* --------------------------------------------------------------------------
@@ -477,7 +471,7 @@
 }
 
 .tienda-sidebar-title svg {
-  color: var(--color-brand-hover);
+  color: var(--color-brand-text);
 }
 
 .tienda-btn-limpiar-filtros {
@@ -575,9 +569,9 @@
 
 .tienda-filtro-item.is-active {
   background: var(--color-brand-soft);
-  color: var(--color-brand-hover);
+  color: var(--color-brand-text);
   font-weight: 750;
-  border-color: rgba(230, 167, 0, 0.4);
+  border-color: rgba(249, 115, 22, 0.4);
 }
 
 /* Formulario de Rango de Precio */
@@ -623,7 +617,7 @@
 .tienda-btn-aplicar-precio:hover {
   background: var(--color-brand);
   border-color: var(--color-brand);
-  color: #121210;
+  color: var(--text-on-brand);
 }
 
 /* --------------------------------------------------------------------------
@@ -675,7 +669,7 @@
 .tienda-toolbar-search input:focus {
   background: #fff;
   border-color: var(--color-brand);
-  box-shadow: 0 0 0 3px rgba(230, 167, 0, 0.2);
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.2);
 }
 
 .tienda-search-clear {
@@ -716,7 +710,7 @@
 
 .tienda-filtros-badge {
   background: var(--color-brand);
-  color: #121210;
+  color: var(--text-on-brand);
   font-size: 11px;
   font-weight: 800;
   width: 18px;
@@ -784,7 +778,7 @@
 }
 
 .tienda-filtro-pill strong {
-  color: var(--color-brand-hover);
+  color: var(--color-brand-text);
 }
 
 .tienda-filtro-pill button {
@@ -933,7 +927,7 @@
 
 .tienda-chip-marca {
   background: var(--color-brand-soft);
-  color: var(--color-brand-hover);
+  color: var(--color-brand-text);
 }
 
 .tienda-producto-titulo {
@@ -951,7 +945,7 @@
 }
 
 .tienda-producto-titulo:hover {
-  color: var(--color-brand-hover);
+  color: var(--color-brand-text);
 }
 
 .tienda-producto-sku {
@@ -1027,10 +1021,10 @@
   justify-content: space-between;
   gap: 16px;
   padding: 14px 18px;
-  background: #121210;
+  background: var(--surface-inverse);
   color: #fff;
   border-radius: var(--radius-md);
-  border: 1px solid rgba(230, 167, 0, 0.4);
+  border: 1px solid rgba(249, 115, 22, 0.4);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
   animation: slideUpToast 220ms ease-out forwards;
 }
@@ -1070,7 +1064,7 @@
 
 .tienda-toast-text span {
   font-size: 12px;
-  color: #c4c0b5;
+  color: var(--color-neutral-300);
   max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1089,7 +1083,7 @@
   gap: 6px;
   padding: 6px 12px;
   background: var(--color-brand);
-  color: #121210;
+  color: var(--text-on-brand);
   border: none;
   border-radius: var(--radius-sm);
   font-size: 12px;
@@ -1105,7 +1099,7 @@
 .tienda-toast-close {
   background: transparent;
   border: none;
-  color: #a4a095;
+  color: #94a3b8;
   cursor: pointer;
   display: flex;
   padding: 4px;
@@ -1120,8 +1114,8 @@
    -------------------------------------------------------------------------- */
 .tienda-footer {
   margin-top: auto;
-  background: #141412;
-  color: #dddad2;
+  background: var(--surface-inverse-strong);
+  color: var(--color-neutral-200);
   border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
@@ -1157,7 +1151,7 @@
 .tienda-feature-card p {
   margin: 0;
   font-size: 13px;
-  color: #a4a095;
+  color: #94a3b8;
   line-height: 1.45;
 }
 
@@ -1179,7 +1173,7 @@
 
 .tienda-footer-desc {
   font-size: 13px;
-  color: #a4a095;
+  color: #94a3b8;
   line-height: 1.6;
 }
 
@@ -1195,7 +1189,7 @@
 .tienda-footer-col ul button {
   background: transparent;
   border: none;
-  color: #c4c0b5;
+  color: var(--color-neutral-300);
   padding: 0;
   font-size: 13px;
   cursor: pointer;
@@ -1212,7 +1206,7 @@
   align-items: flex-start;
   gap: 10px;
   font-size: 13px;
-  color: #c4c0b5;
+  color: var(--color-neutral-300);
 }
 
 .tienda-footer-contact svg {
@@ -1223,7 +1217,7 @@
 
 .tienda-footer-pago-desc {
   font-size: 13px;
-  color: #a4a095;
+  color: #94a3b8;
   line-height: 1.5;
   margin-bottom: 14px;
 }
@@ -1249,7 +1243,7 @@
   padding: 18px 20px;
   text-align: center;
   font-size: 12px;
-  color: #77736b;
+  color: var(--color-neutral-500);
   display: flex;
   justify-content: space-between;
   max-width: 1200px;
@@ -1520,7 +1514,7 @@
 
 .tienda-cart-count-chip {
   background: var(--color-brand);
-  color: #121210;
+  color: var(--text-on-brand);
   font-size: 11px;
   font-weight: 800;
   min-width: 20px;
@@ -1535,7 +1529,7 @@
 .tienda-drawer-close-btn {
   background: transparent;
   border: none;
-  color: #a4a095;
+  color: #94a3b8;
   cursor: pointer;
   display: flex;
   padding: 4px;
@@ -1755,9 +1749,9 @@
   justify-content: center;
   font-size: 14px;
   font-weight: 800;
-  background: linear-gradient(135deg, var(--color-brand), #d69500);
-  color: #121210;
-  box-shadow: 0 3px 10px rgba(230, 167, 0, 0.35);
+  background: linear-gradient(135deg, var(--color-brand), var(--color-brand-hover));
+  color: var(--text-on-brand);
+  box-shadow: 0 3px 10px rgba(249, 115, 22, 0.35);
 }
 
 .tienda-cart-secondary-actions {
@@ -1821,7 +1815,7 @@
 .tienda-step.is-active .tienda-step-num {
   background: var(--color-brand);
   border-color: var(--color-brand);
-  color: #121210;
+  color: var(--text-on-brand);
 }
 
 .tienda-step.is-completed .tienda-step-num {
@@ -1912,7 +1906,7 @@
 .tienda-metodo-card.is-selected {
   border-color: var(--color-brand);
   background: #fff;
-  box-shadow: 0 0 0 1px var(--color-brand), 0 4px 14px rgba(230, 167, 0, 0.15);
+  box-shadow: 0 0 0 1px var(--color-brand), 0 4px 14px rgba(249, 115, 22, 0.15);
 }
 
 .tienda-metodo-info {
@@ -1928,7 +1922,7 @@
 }
 
 .tienda-metodo-icon {
-  color: var(--color-brand-hover);
+  color: var(--color-brand-text);
 }
 
 .tienda-metodo-info p {
@@ -2026,7 +2020,7 @@
 
 .tienda-domicilio-ref {
   font-size: 11px;
-  color: var(--color-brand-hover);
+  color: var(--color-brand-text);
   font-weight: 600;
 }
 
@@ -2252,7 +2246,7 @@
 .tienda-total-final {
   font-size: 22px;
   font-weight: 850;
-  color: var(--color-brand-hover);
+  color: var(--color-brand-text);
 }
 
 .tienda-btn-confirmar-pago {
@@ -2261,9 +2255,9 @@
   justify-content: center;
   font-size: 15px;
   font-weight: 800;
-  background: linear-gradient(135deg, var(--color-brand), #d69500);
-  color: #121210;
-  box-shadow: 0 4px 14px rgba(230, 167, 0, 0.4);
+  background: linear-gradient(135deg, var(--color-brand), var(--color-brand-hover));
+  color: var(--text-on-brand);
+  box-shadow: 0 4px 14px rgba(249, 115, 22, 0.4);
   margin-bottom: 16px;
 }
 
@@ -2419,7 +2413,7 @@
   align-items: center;
   gap: 6px;
   padding: 4px 10px;
-  background: var(--surface-bg, #fbfbf9);
+  background: var(--surface-bg, var(--color-neutral-50));
   border: 1px solid var(--border-default);
   border-radius: 6px;
   font-size: 12px;
@@ -2509,9 +2503,9 @@
 }
 
 .tienda-detalle-banner.is-pendiente-de-pago {
-  background: rgba(230, 167, 0, 0.1);
-  border: 1px solid rgba(230, 167, 0, 0.35);
-  color: #8c6200;
+  background: rgba(249, 115, 22, 0.1);
+  border: 1px solid rgba(249, 115, 22, 0.35);
+  color: var(--color-brand-text);
 }
 
 .tienda-detalle-banner.is-cancelado {

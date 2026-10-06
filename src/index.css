@@ -1,30 +1,44 @@
 :root {
+  /* Paleta Corralón Norte: naranja (principal) + azul oscuro (secundario).
+     Neutros en escala pizarra, que acompaña al azul. */
   --color-neutral-0: #fff;
-  --color-neutral-25: #fcfcfb;
-  --color-neutral-50: #f7f7f5;
-  --color-neutral-100: #eeede9;
-  --color-neutral-200: #dddad2;
-  --color-neutral-300: #c4c0b5;
-  --color-neutral-500: #77736b;
-  --color-neutral-700: #45433e;
-  --color-neutral-950: #121210;
-  --color-amber-50: #fff8e6;
-  --color-amber-500: #e6a700;
-  --color-amber-600: #c88900;
+  --color-neutral-25: #fcfdfe;
+  --color-neutral-50: #f8fafc;
+  --color-neutral-100: #f1f5f9;
+  --color-neutral-200: #e2e8f0;
+  --color-neutral-300: #cbd5e1;
+  --color-neutral-500: #64748b;
+  --color-neutral-700: #334155;
+  --color-neutral-950: #172033;
+  --color-orange-50: #fff4eb;
+  --color-orange-500: #f97316;
+  --color-orange-600: #ea580c;
+  --color-orange-700: #c2410c;
+  --color-navy-700: #1e3a5f;
+  --color-navy-800: #172e4c;
+  /* Alias de la paleta anterior: algunos estilos todavía los nombran. */
+  --color-amber-50: var(--color-orange-50);
+  --color-amber-500: var(--color-orange-500);
+  --color-amber-600: var(--color-orange-700);
   --surface-canvas: var(--color-neutral-50);
   --surface-panel: var(--color-neutral-0);
   --surface-subtle: var(--color-neutral-100);
-  --surface-inverse: var(--color-neutral-950);
-  --color-brand: var(--color-amber-500);
-  --color-brand-hover: var(--color-amber-600);
-  --color-brand-soft: var(--color-amber-50);
+  --surface-inverse: var(--color-navy-700);
+  --surface-inverse-strong: var(--color-navy-800);
+  --color-brand: var(--color-orange-500);
+  /* Se usa como fondo al pasar el mouse y también como color de texto
+     (títulos chicos, enlaces): el tono más oscuro mantiene la legibilidad. */
+  --color-brand-hover: var(--color-orange-600);
+  --color-brand-text: var(--color-orange-700);
+  --color-brand-soft: var(--color-orange-50);
   --text-primary: var(--color-neutral-950);
   --text-secondary: var(--color-neutral-700);
   --text-muted: var(--color-neutral-500);
   --text-on-inverse: var(--color-neutral-0);
+  --text-on-brand: var(--color-neutral-950);
   --border-default: var(--color-neutral-200);
   --border-strong: var(--color-neutral-300);
-  --focus-ring: var(--color-amber-500);
+  --focus-ring: var(--color-orange-500);
   --color-danger: #d6453d;
   --color-danger-strong: #a92e29;
   --color-danger-soft: #fff1f0;
@@ -46,8 +60,8 @@
   --control-sm: 36px;
   --control-md: 42px;
   --sidebar-width: 272px;
-  --shadow-1: 0 1px 3px rgb(18 18 16 / 8%);
-  --shadow-2: 0 12px 32px -12px rgb(18 18 16 / 24%);
+  --shadow-1: 0 1px 3px rgb(23 32 51 / 8%);
+  --shadow-2: 0 12px 32px -12px rgb(23 32 51 / 24%);
   color: var(--text-primary);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", sans-serif;
@@ -94,7 +108,7 @@ input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
   border-color: var(--focus-ring);
-  box-shadow: 0 0 0 3px rgb(230 167 0 / 30%);
+  box-shadow: 0 0 0 3px rgb(249 115 22 / 30%);
 }
 
 button {
@@ -190,6 +204,37 @@ button:disabled {
 .login-brand small {
   color: var(--color-neutral-300);
   font-size: 11px;
+}
+
+/* Logo Corralón Norte: casco naranja + nombre con "Norte" en naranja. */
+.sidebar-logo {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+}
+
+.marca-nombre {
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+}
+
+.marca-nombre span {
+  color: var(--color-brand);
+}
+
+.login-logo-card {
+  align-self: flex-start;
+  padding: var(--space-4) var(--space-6);
+  border-radius: var(--radius-lg);
+  background: var(--color-neutral-0);
+  box-shadow: var(--shadow-2);
+}
+
+.login-logo {
+  display: block;
+  width: clamp(150px, 16vw, 210px);
+  height: auto;
 }
 
 .brand-mark {
@@ -403,7 +448,7 @@ button:disabled {
   place-items: center;
   border-radius: 50%;
   background: var(--color-brand-soft);
-  color: var(--color-brand-hover);
+  color: var(--color-brand-text);
 }
 
 .user-copy strong {
@@ -698,7 +743,7 @@ label.checkbox-field {
 
 .movements-header .eyebrow {
   margin-bottom: var(--space-2);
-  color: var(--color-brand-hover);
+  color: var(--color-brand-text);
   font-size: 11px;
   font-weight: 800;
   letter-spacing: .11em;
@@ -737,7 +782,7 @@ label.checkbox-field {
   place-items: center;
   border-radius: 50%;
   background: var(--color-brand-soft);
-  color: var(--color-brand-hover);
+  color: var(--color-brand-text);
   font-weight: 800;
 }
 
@@ -997,7 +1042,7 @@ td button,
   display: grid;
   place-items: center;
   padding: var(--space-5);
-  background: rgb(18 18 16 / 48%);
+  background: rgb(23 32 51 / 48%);
 }
 
 .modal-panel {
@@ -1030,7 +1075,7 @@ td button,
 
 .modal-header .eyebrow {
   margin: 0 0 var(--space-1);
-  color: var(--color-brand-hover);
+  color: var(--color-brand-text);
   font-size: 11px;
   font-weight: 800;
   letter-spacing: .11em;
@@ -1169,7 +1214,7 @@ td button:hover:not(:disabled),
 }
 
 .estado-badge-advertencia {
-  border-color: rgb(230 167 0 / 25%);
+  border-color: rgb(249 115 22 / 25%);
   background: var(--color-amber-50);
   color: var(--color-amber-600);
 }
@@ -1257,7 +1302,7 @@ td button:hover:not(:disabled),
   place-items: center;
   border-radius: 12px;
   background: var(--color-brand-soft);
-  color: var(--color-brand-hover);
+  color: var(--color-brand-text);
 }
 
 .app-loading {
@@ -1298,7 +1343,7 @@ td button:hover:not(:disabled),
   justify-content: space-between;
   padding: clamp(38px, 6vw, 82px);
   overflow: hidden;
-  background: linear-gradient(125deg, rgb(230 167 0 / 10%), transparent 42%), var(--surface-inverse);
+  background: linear-gradient(125deg, rgb(249 115 22 / 10%), transparent 42%), var(--surface-inverse);
   color: var(--text-on-inverse);
 }
 
@@ -1306,10 +1351,18 @@ td button:hover:not(:disabled),
   position: relative;
   z-index: 1;
   max-width: 650px;
+  /* Centrado vertical entre el logo y el pie del panel. */
+  margin-block: auto;
+}
+
+/* Sobre el azul, el naranja de texto habitual queda apagado: se aclara. */
+.login-hero-copy .eyebrow {
+  color: #fb923c;
+  font-size: 14px;
 }
 
 .eyebrow {
-  color: var(--color-brand-hover);
+  color: var(--color-brand-text);
   font-size: 11px;
   font-weight: 850;
   letter-spacing: 0.15em;
@@ -1329,11 +1382,6 @@ td button:hover:not(:disabled),
   color: var(--color-neutral-300);
   font-size: 17px;
   line-height: 1.65;
-}
-
-.login-version {
-  color: var(--color-neutral-500);
-  font-size: 12px;
 }
 
 .login-form-panel {
@@ -1452,14 +1500,14 @@ td button:hover:not(:disabled),
     padding: 0;
     border: 0;
     border-radius: 0;
-    background: rgb(18 18 16 / 55%);
+    background: rgb(23 32 51 / 55%);
     opacity: 0;
     pointer-events: none;
     transition: opacity 180ms ease;
   }
 
   .sidebar-backdrop:hover {
-    background: rgb(18 18 16 / 55%);
+    background: rgb(23 32 51 / 55%);
   }
 
   .sidebar-backdrop.is-visible {
@@ -1495,8 +1543,7 @@ td button:hover:not(:disabled),
     padding: var(--space-6);
   }
 
-  .login-hero-copy,
-  .login-version {
+  .login-hero-copy {
     display: none;
   }
 
