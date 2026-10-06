@@ -63,7 +63,7 @@ with movimientos as (
          'factura'::text as tipo_movimiento,
          v.id as comprobante_id,
          case
-           when comp.id is not null then concat_ws('-', comp.letra, lpad(comp.punto_venta::text, 4, '0'), lpad(comp.numero::text, 8, '0'))
+           when comp.id is not null then concat_ws('-', comp.letra, lpad((select pv.numero from public.puntos_venta pv where pv.id = comp.punto_venta_id), 4, '0'), lpad(comp.numero::text, 8, '0'))
            else concat('Venta #', v.numero)
          end as comprobante,
          concat('Venta #', v.numero) as referencia,
@@ -74,7 +74,7 @@ with movimientos as (
     join public.cobros_venta cv on cv.venta_id = v.id
     join public.detalle_cobro dc on dc.cobro_id = cv.id
     join public.medios_pago mp on mp.id = dc.medio_pago_id and lower(mp.nombre) = 'cuenta corriente'
-    left join public.comprobantes_venta comp on comp.venta_id = v.id and comp.tipo_comprobante = 'factura' and comp.estado <> 'anulado'
+    left join public.comprobantes_venta comp on comp.venta_id = v.id and comp.tipo_comprobante = 'factura' and comp.estado <> 'Anulado'
    where v.estado <> 'Anulada'
 
   union all
@@ -95,14 +95,18 @@ with movimientos as (
   union all
 
   -- 3) Notas de Crédito de ventas a Cuenta Corriente (Haber)
+  -- Una NC total anula la venta (fn_anular_venta_por_nota_credito) y la venta
+  -- anulada ya no suma en el DEBE: su NC tampoco cuenta, o el cliente quedaría
+  -- con saldo a favor por el total. Si la venta se cobró en parte con otros
+  -- medios, la NC acredita como máximo lo que se financió en cuenta corriente.
   select v.cliente_id,
          nc.fecha_emision as fecha,
          'nota_credito'::text as tipo_movimiento,
          nc.id as comprobante_id,
-         concat_ws('-', nc.letra, lpad(nc.punto_venta::text, 4, '0'), lpad(nc.numero::text, 8, '0')) as comprobante,
+         concat_ws('-', nc.letra, lpad((select pv.numero from public.puntos_venta pv where pv.id = nc.punto_venta_id), 4, '0'), lpad(nc.numero::text, 8, '0')) as comprobante,
          concat('NC s/ Venta #', v.numero) as referencia,
          0::numeric(14,2) as debe,
-         nc.total as haber,
+         least(nc.total, dc.monto) as haber,
          nc.created_at
     from public.comprobantes_venta nc
     join public.ventas v on v.id = nc.venta_id
@@ -110,7 +114,8 @@ with movimientos as (
     join public.detalle_cobro dc on dc.cobro_id = cv.id
     join public.medios_pago mp on mp.id = dc.medio_pago_id and lower(mp.nombre) = 'cuenta corriente'
    where nc.tipo_comprobante = 'nota_credito'
-     and nc.estado <> 'anulado'
+     and nc.estado <> 'Anulado'
+     and v.estado <> 'Anulada'
 )
 select m.cliente_id,
        m.fecha,
@@ -127,6 +132,11 @@ select m.cliente_id,
        ) as saldo_acumulado,
        m.created_at
   from movimientos m;
+
+-- La vista aplica la RLS de quien consulta (como v_stock_disponible en 0034):
+-- solo el personal interno ve ventas y cobros. Sin esto correría con los
+-- permisos del dueño y cualquier usuario logueado vería todas las cuentas.
+alter view public.vw_cuenta_corriente_cliente set (security_invoker = true);
 
 -- ----------------------------------------------------------------------------
 -- 4. FUNCIONES DE CÁLCULO DE SALDO Y ESTADO DE CRÉDITO
@@ -160,6 +170,12 @@ declare
   v_disponible numeric(14,2);
   v_pendientes_count integer;
 begin
+  -- SECURITY DEFINER: sin este control cualquier usuario logueado (incluido
+  -- un cliente web) podría consultar el crédito de otro cliente.
+  if not public.es_usuario_interno() then
+    raise exception 'No tenés permiso para consultar cuentas corrientes' using errcode = '42501';
+  end if;
+
   select c.id, c.habilita_cta_cte, c.limite_credito, c.plazo_credito_dias
     into v_cliente
     from public.clientes c
@@ -221,12 +237,16 @@ security definer
 set search_path = public, pg_temp
 as $$
 begin
+  if not public.es_usuario_interno() then
+    raise exception 'No tenés permiso para consultar cuentas corrientes' using errcode = '42501';
+  end if;
+
   return query
   select v.id as venta_id,
          v.numero,
          v.created_at as fecha,
          case
-           when comp.id is not null then concat_ws('-', comp.letra, lpad(comp.punto_venta::text, 4, '0'), lpad(comp.numero::text, 8, '0'))
+           when comp.id is not null then concat_ws('-', comp.letra, lpad((select pv.numero from public.puntos_venta pv where pv.id = comp.punto_venta_id), 4, '0'), lpad(comp.numero::text, 8, '0'))
            else concat('Venta #', v.numero)
          end as comprobante,
          dc.monto as total_credito,
@@ -236,7 +256,7 @@ begin
     join public.cobros_venta cv on cv.venta_id = v.id
     join public.detalle_cobro dc on dc.cobro_id = cv.id
     join public.medios_pago mp on mp.id = dc.medio_pago_id and lower(mp.nombre) = 'cuenta corriente'
-    left join public.comprobantes_venta comp on comp.venta_id = v.id and comp.tipo_comprobante = 'factura' and comp.estado <> 'anulado'
+    left join public.comprobantes_venta comp on comp.venta_id = v.id and comp.tipo_comprobante = 'factura' and comp.estado <> 'Anulado'
     left join (
       select irv.venta_id, sum(irv.monto_imputado) as imputado
         from public.imputacion_recibo_venta irv
@@ -278,7 +298,8 @@ declare
   v_monto_imp numeric(14,2);
   v_saldo_venta numeric(14,2);
 begin
-  if not public.es_usuario_interno() then
+  -- Mismo permiso que el cobro en mostrador (registrar_cobro).
+  if v_usuario is null or not public.usuario_tiene_permiso('ventas.cobrar') then
     raise exception 'No tiene permiso para registrar cobros en cuenta corriente' using errcode = '42501';
   end if;
 
@@ -318,6 +339,18 @@ begin
   end loop;
 
   -- 2) Validar imputaciones si fueron provistas
+  -- Una venta por imputación: cada línea se compara contra el saldo pendiente,
+  -- así que dos líneas a la misma venta podrían imputar más de lo adeudado.
+  if p_imputaciones is not null and jsonb_typeof(p_imputaciones) = 'array' and exists (
+    select 1
+      from jsonb_array_elements(p_imputaciones) as elem
+     where nullif(btrim(elem ->> 'venta_id'), '') is not null
+     group by elem ->> 'venta_id'
+    having count(*) > 1
+  ) then
+    raise exception 'Hay ventas repetidas en las imputaciones: unificá el monto en una sola línea' using errcode = '22023';
+  end if;
+
   if p_imputaciones is not null and jsonb_typeof(p_imputaciones) = 'array' then
     for v_item in select value from jsonb_array_elements(p_imputaciones)
     loop
@@ -442,7 +475,8 @@ declare
   v_cobro_numero bigint;
   v_cobro_fecha timestamptz;
 begin
-  if v_usuario is null or not (public.usuario_tiene_permiso('ventas.cobrar') or public.es_usuario_interno()) then
+  -- Igual que 0041: cobrar exige el permiso granular, no alcanza con ser interno.
+  if v_usuario is null or not public.usuario_tiene_permiso('ventas.cobrar') then
     raise exception 'No tiene permiso para registrar cobros'
       using errcode = '42501';
   end if;
@@ -623,19 +657,74 @@ alter table public.recibos_cobranza_cliente enable row level security;
 alter table public.detalle_medio_recibo enable row level security;
 alter table public.imputacion_recibo_venta enable row level security;
 
+drop policy if exists "recibos_cobranza_select" on public.recibos_cobranza_cliente;
 create policy "recibos_cobranza_select" on public.recibos_cobranza_cliente
   for select to authenticated using (public.es_usuario_interno());
 
+drop policy if exists "detalle_medio_recibo_select" on public.detalle_medio_recibo;
 create policy "detalle_medio_recibo_select" on public.detalle_medio_recibo
   for select to authenticated using (public.es_usuario_interno());
 
+drop policy if exists "imputacion_recibo_venta_select" on public.imputacion_recibo_venta;
 create policy "imputacion_recibo_venta_select" on public.imputacion_recibo_venta
   for select to authenticated using (public.es_usuario_interno());
 
+revoke all on public.vw_cuenta_corriente_cliente from public, anon;
 grant select on public.vw_cuenta_corriente_cliente to authenticated;
-grant execute on function public.fn_saldo_cta_cte_cliente(uuid) to authenticated;
+
+-- Primitiva interna: la usan obtener_resumen_cta_cte_cliente y registrar_cobro.
+revoke all on function public.fn_saldo_cta_cte_cliente(uuid)
+  from public, anon, authenticated;
+
+revoke all on function public.obtener_resumen_cta_cte_cliente(uuid) from public, anon;
 grant execute on function public.obtener_resumen_cta_cte_cliente(uuid) to authenticated;
+revoke all on function public.listar_ventas_pendientes_cta_cte(uuid) from public, anon;
 grant execute on function public.listar_ventas_pendientes_cta_cte(uuid) to authenticated;
+revoke all on function public.registrar_recibo_cobranza(uuid, date, jsonb, jsonb, text) from public, anon;
 grant execute on function public.registrar_recibo_cobranza(uuid, date, jsonb, jsonb, text) to authenticated;
+revoke all on function public.registrar_cobro(uuid, jsonb) from public, anon;
+grant execute on function public.registrar_cobro(uuid, jsonb) to authenticated;
+
+-- ----------------------------------------------------------------------------
+-- 9. EL CLIENTE WEB NO PUEDE CAMBIAR SUS CONDICIONES DE CRÉDITO
+-- ----------------------------------------------------------------------------
+-- Misma función que 0048 más las dos columnas nuevas: la policy clientes_update
+-- deja que el cliente web actualice su propia fila (teléfono y email), y sin
+-- esto podría subirse el límite de crédito o el plazo.
+create or replace function public.fn_restringir_update_cliente_web()
+returns trigger
+language plpgsql
+security invoker
+set search_path = public, pg_temp
+as $$
+begin
+  if public.es_usuario_interno() then
+    return new;
+  end if;
+
+  if (new.usuario_web_id is distinct from old.usuario_web_id
+        and not (old.usuario_web_id is null and new.usuario_web_id = auth.uid()))
+     or new.numero is distinct from old.numero
+     or new.tipo_persona is distinct from old.tipo_persona
+     or new.nombre is distinct from old.nombre
+     or new.apellido is distinct from old.apellido
+     or new.razon_social is distinct from old.razon_social
+     or new.tipo_documento is distinct from old.tipo_documento
+     or new.numero_documento is distinct from old.numero_documento
+     or new.condicion_iva_id is distinct from old.condicion_iva_id
+     or new.tipo_cliente_id is distinct from old.tipo_cliente_id
+     or new.estado is distinct from old.estado
+     or new.origen is distinct from old.origen
+     or new.habilita_cta_cte is distinct from old.habilita_cta_cte
+     or new.limite_credito is distinct from old.limite_credito
+     or new.plazo_credito_dias is distinct from old.plazo_credito_dias
+  then
+    raise exception 'Un cliente web solo puede modificar su teléfono y su email'
+      using errcode = '42501';
+  end if;
+
+  return new;
+end;
+$$;
 
 commit;
