@@ -150,3 +150,7 @@ playwright-report/
 test-results/
 playwright/.auth/
 e2e/.auth/
+.playwright-mcp/
+
+# OS artifacts
+.DS_Store

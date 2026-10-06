@@ -5,6 +5,11 @@ import {
 } from '../api/movimientosApi'
 import { getDepositos } from '../api/depositosApi'
 import { getArticulos } from '../api/articulosApi'
+import PageHeader from '../../../components/ui/PageHeader'
+import KpiCard from '../../../components/ui/KpiCard'
+import { useToast } from '../../../components/ui/ToastContext'
+import Papa from 'papaparse'
+import { History, ArrowLeftRight, Boxes, Warehouse, Download, ArrowLeft } from 'lucide-react'
 
 const filtrosIniciales = {
   articuloId: '',
@@ -16,6 +21,7 @@ const filtrosIniciales = {
 }
 
 function HistorialMovimientosPage({ onVolver }) {
+  const { showToast } = useToast()
   const [movimientos, setMovimientos] = useState([])
   const [depositos, setDepositos] = useState([])
   const [articulos, setArticulos] = useState([])
@@ -138,16 +144,94 @@ function HistorialMovimientosPage({ onVolver }) {
     )
   }
 
+  function exportarCsv() {
+    if (movimientos.length === 0) {
+      showToast({ message: 'No hay movimientos para exportar', tone: 'warning' })
+      return
+    }
+    const datosCsv = movimientos.map((m) => {
+      const renglon = m.detalle?.[0] || {}
+      return {
+        'Fecha y hora': m.fecha ? new Date(m.fecha).toLocaleString('es-AR') : '',
+        Tipo: m.tipo?.nombre || '-',
+        Artículo: renglon.producto?.nombre || renglon.producto?.sku || '-',
+        Cantidad: renglon.cantidad ?? '-',
+        Origen: m.origen?.nombre || '-',
+        Destino: m.destino?.nombre || '-',
+        Usuario: m.created_by || '-',
+        Comprobante: m.comprobante || '-',
+        Observaciones: m.observaciones || '-',
+        Estado: m.estado_movimiento || '-',
+      }
+    })
+    const csv = Papa.unparse(datosCsv)
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const enlace = document.createElement('a')
+    enlace.href = url
+    enlace.setAttribute('download', `historial_movimientos_${new Date().toISOString().slice(0, 10)}.csv`)
+    document.body.appendChild(enlace)
+    enlace.click()
+    document.body.removeChild(enlace)
+    URL.revokeObjectURL(url)
+    showToast({ message: 'Historial de movimientos exportado en CSV', tone: 'success' })
+  }
+
+  const accionesHeader = [
+    onVolver && {
+      label: 'Volver a movimientos',
+      icon: ArrowLeft,
+      onClick: onVolver,
+      variant: 'ghost',
+    },
+    {
+      label: 'Exportar CSV',
+      icon: Download,
+      onClick: exportarCsv,
+      variant: 'secondary',
+      disabled: movimientos.length === 0,
+    },
+  ].filter(Boolean)
+
   return (
     <main className="historial-movimientos-page">
-      <button
-        type="button"
-        onClick={onVolver}
-      >
-        Volver a movimientos
-      </button>
+      <PageHeader
+        title="Historial de movimientos de stock"
+        kicker="Módulo Stock"
+        description="Consulta histórica y trazabilidad de ingresos, egresos, transferencias y ajustes de inventario."
+        actions={accionesHeader}
+      />
 
-      <h1>Historial de movimientos de stock</h1>
+      <div className="kpi-grid">
+        <KpiCard
+          label="Total registrados"
+          value={total}
+          icon={History}
+          tone="brand"
+          helperText="Trazabilidad histórica"
+        />
+        <KpiCard
+          label="En esta página"
+          value={movimientos.length}
+          icon={ArrowLeftRight}
+          tone="info"
+          helperText={`Página ${page} de ${totalPaginas}`}
+        />
+        <KpiCard
+          label="Tipos de movimiento"
+          value={tipos.length}
+          icon={Boxes}
+          tone="neutral"
+          helperText="Operaciones del sistema"
+        />
+        <KpiCard
+          label="Depósitos auditados"
+          value={depositos.length}
+          icon={Warehouse}
+          tone="success"
+          helperText="Almacenes monitoreados"
+        />
+      </div>
 
       <p>
         Consulta histórica de solo lectura. Los
@@ -314,8 +398,10 @@ function HistorialMovimientosPage({ onVolver }) {
           </p>
         ) : (
           <>
-            <table>
-              <thead>
+            <div className="data-table-card">
+              <div className="data-table-scroll-container">
+                <table>
+                  <thead>
                 <tr>
                   <th>Fecha y hora</th>
                   <th>Tipo</th>
@@ -417,6 +503,8 @@ function HistorialMovimientosPage({ onVolver }) {
                 })}
               </tbody>
             </table>
+          </div>
+        </div>
 
             <div>
               <button

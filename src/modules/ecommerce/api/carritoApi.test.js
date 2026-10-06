@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fusionarCarrito, guardarItems, normalizarItems, obtenerCarrito, validarItems } from './carritoApi'
+import { esCantidadEnteraPositiva, fusionarCarrito, guardarItems, normalizarItems, obtenerCarrito, validarItems } from './carritoApi'
 import { supabase } from '../../../lib/supabaseClient'
 
 vi.mock('../../../lib/supabaseClient', () => ({ supabase: { from: vi.fn(), rpc: vi.fn() } }))
@@ -14,11 +14,27 @@ function builder(resultado) {
 beforeEach(() => vi.resetAllMocks())
 
 describe('normalización del carrito', () => {
-  it('acumula productos repetidos y omite las cantidades cero', () => {
-    expect(normalizarItems([{ productoId: 'a', cantidad: 1.5 }, { productoId: 'b', cantidad: 0 }, { productoId: 'a', cantidad: 2 }]))
-      .toEqual([{ producto_id: 'a', cantidad: 3.5 }])
+  it.each([1, 2])('acepta la cantidad entera positiva %s', (cantidad) => {
+    expect(esCantidadEnteraPositiva(cantidad)).toBe(true)
+    expect(normalizarItems([{ productoId: 'a', cantidad }]))
+      .toEqual([{ producto_id: 'a', cantidad }])
   })
-  it.each([null, {}, [{ cantidad: 1 }], [{ productoId: '', cantidad: 1 }], [{ productoId: 'a', cantidad: -1 }], [{ productoId: 'a', cantidad: NaN }], [{ productoId: 'a', cantidad: Infinity }], [{ productoId: 'a', cantidad: '2' }]])('rechaza entradas inválidas: %j', (items) => {
+  it('acumula productos repetidos cuando el resultado sigue siendo entero', () => {
+    expect(normalizarItems([{ productoId: 'a', cantidad: 1 }, { productoId: 'a', cantidad: 2 }]))
+      .toEqual([{ producto_id: 'a', cantidad: 3 }])
+  })
+  it.each([
+    ['decimal', [{ productoId: 'a', cantidad: 1.5 }]],
+    ['cero', [{ productoId: 'a', cantidad: 0 }]],
+    ['negativa', [{ productoId: 'a', cantidad: -1 }]],
+    ['NaN', [{ productoId: 'a', cantidad: NaN }]],
+    ['infinita', [{ productoId: 'a', cantidad: Infinity }]],
+    ['texto', [{ productoId: 'a', cantidad: '2' }]],
+    ['sin producto', [{ cantidad: 1 }]],
+    ['producto vacío', [{ productoId: '', cantidad: 1 }]],
+    ['objeto', {}],
+    ['null', null],
+  ])('rechaza cantidad o entrada inválida: %s', (_caso, items) => {
     expect(() => normalizarItems(items)).toThrow()
   })
   it('rechaza acumulaciones que desbordan', () => {
@@ -27,6 +43,10 @@ describe('normalización del carrito', () => {
 })
 
 describe('validarItems', () => {
+  it.each([1.5, 0, -1, NaN])('rechaza %s antes de invocar la RPC', async (cantidad) => {
+    await expect(validarItems([{ productoId: 'producto-1', cantidad }])).rejects.toThrow('entero mayor a cero')
+    expect(supabase.rpc).not.toHaveBeenCalled()
+  })
   it('no consulta la base para un carrito vacío', async () => {
     expect(await validarItems([])).toEqual([])
     expect(supabase.rpc).not.toHaveBeenCalled()
@@ -36,6 +56,10 @@ describe('validarItems', () => {
     const items = await validarItems([{ productoId: 'producto-1', cantidad: 99 }])
     expect(supabase.rpc).toHaveBeenCalledWith('validar_carrito_web', { p_items: [{ producto_id: 'producto-1', cantidad: 99 }] })
     expect(items[0]).toMatchObject({ cantidad: 3, ajustado: true, precioUnitario: 100.15, subtotal: 300.45, nombre: 'Cemento', imagenUrl: '/cemento.png' })
+  })
+  it('rechaza una respuesta del servidor con cantidad no positiva', async () => {
+    supabase.rpc.mockResolvedValue({ data: [linea({ cantidad: 0, ajustado: true })], error: null })
+    await expect(validarItems([{ productoId: 'producto-1', cantidad: 99 }])).rejects.toThrow('cantidad inválida')
   })
   it('conserva productos no disponibles sin sumarlos al total', async () => {
     supabase.rpc.mockResolvedValue({ data: [linea({ disponible: false, precio: null, motivo: 'Sin precio disponible' })] })

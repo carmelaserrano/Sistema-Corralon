@@ -28,6 +28,8 @@ const COLUMNAS_RESUMEN_CLIENTE = `
   estado,
   origen,
   habilita_cta_cte,
+  limite_credito,
+  plazo_credito_dias,
   tipo_cliente:tipos_cliente(
     id,
     nombre,
@@ -248,6 +250,7 @@ export async function obtenerDetalleVenta(ventaId) {
     .select(`
       id,
       cantidad,
+      cantidad_backorder,
       precio_unitario,
       descuento_pct,
       subtotal,

@@ -10,6 +10,16 @@ vi.mock('../api/consultaVentasApi', () => ({
   getVentaById: vi.fn(),
 }))
 
+vi.mock('../api/cobrosApi', () => ({
+  puedeRegistrarCobros: vi.fn().mockResolvedValue(true),
+  listarMediosPago: vi.fn().mockResolvedValue([]),
+  registrarCobro: vi.fn(),
+  esEfectivo: vi.fn(() => false),
+  esTarjeta: vi.fn(() => false),
+  esTransferencia: vi.fn(() => false),
+  esCuentaCorriente: vi.fn(() => false),
+}))
+
 vi.mock('../api/comprobantesApi', () => ({
   emitirComprobante: vi.fn(),
   descargarComprobantePdf: vi.fn(),

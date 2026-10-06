@@ -1,7 +1,14 @@
 import { useEffect, useState } from 'react'
-import { ChevronRight, X } from 'lucide-react'
+import { ChevronRight, Search, X } from 'lucide-react'
 import LogoCasco from '../ui/LogoCasco'
 import { navigationGroups } from './navigation'
+
+// Etiquetas cortas junto a algunas pantallas.
+const BADGES = {
+  'alertas-stock': { label: 'Alerta', tone: 'warning' },
+  'pedidos-web': { label: 'Web', tone: 'info' },
+  'nueva-venta': { label: 'POS', tone: 'info' },
+}
 
 // Secciones abiertas por el usuario, para conservarlas al recargar.
 const CLAVE_SECCIONES = 'corralon.sidebar.secciones-abiertas'
@@ -27,7 +34,7 @@ function guardarSecciones(ids) {
   }
 }
 
-export default function Sidebar({ activePage, isOpen, onClose, onNavigate }) {
+export default function Sidebar({ activePage, isOpen, onClose, onNavigate, onOpenPalette }) {
   const activeNavigationPage =
     activePage === 'historial-movimientos' ? 'movimientos' : activePage
   const seccionActiva = seccionDePagina(activeNavigationPage)
@@ -97,6 +104,18 @@ export default function Sidebar({ activePage, isOpen, onClose, onNavigate }) {
           </button>
         </div>
 
+        {onOpenPalette && (
+          <div className="sidebar-search">
+            <button type="button" className="topbar-search-trigger" onClick={onOpenPalette}>
+              <span>
+                <Search size={14} aria-hidden="true" />
+                <span>Buscar módulo…</span>
+              </span>
+              <kbd>⌘K</kbd>
+            </button>
+          </div>
+        )}
+
         <nav className="sidebar-nav">
           {navigationGroups.map(({ id: grupoId, label: grupoLabel, icon: GrupoIcon, items }) => {
             const abierta = abiertas.has(grupoId)
@@ -150,6 +169,14 @@ export default function Sidebar({ activePage, isOpen, onClose, onNavigate }) {
                         >
                           <Icon size={16} aria-hidden="true" />
                           <span>{label}</span>
+                          {BADGES[id] && (
+                            <span
+                              className={`nav-badge nav-badge-${BADGES[id].tone}`}
+                              aria-hidden="true"
+                            >
+                              {BADGES[id].label}
+                            </span>
+                          )}
                         </button>
                       )
                     })}

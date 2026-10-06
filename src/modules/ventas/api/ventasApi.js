@@ -1,8 +1,11 @@
 import { supabase } from '../../../lib/supabaseClient'
 import {
   errorDeApi,
+  CODIGO_DUPLICADO,
   CODIGO_PERMISO_INSUFICIENTE,
 } from '../../stock/api/errores'
+
+export const CODIGO_PRECIO_DESACTUALIZADO = 'PRECIO_DESACTUALIZADO'
 
 /**
  * Redondea un valor numérico a 2 decimales para precisión monetaria.
@@ -415,6 +418,27 @@ export async function registrarVenta(cabecera, items) {
     }
     if (error.code === CODIGO_PERMISO_INSUFICIENTE || error.message?.includes('permiso')) {
       throw errorDeApi('No tenés permiso para registrar ventas', 403)
+    }
+    // La base incluye ids internos en estos mensajes: se traducen para el cajero.
+    if (error.message?.includes(CODIGO_PRECIO_DESACTUALIZADO)) {
+      const err = errorDeApi(
+        'El precio de un artículo cambió. Actualizamos los precios; revisá la venta y confirmá nuevamente.',
+        409,
+      )
+      err.code = CODIGO_PRECIO_DESACTUALIZADO
+      throw err
+    }
+    if (error.message?.includes('no tiene un precio válido')) {
+      throw errorDeApi(
+        'Hay un artículo sin precio válido en la lista del cliente. Quitalo o cargale precio.',
+        400,
+      )
+    }
+    if (error.code === CODIGO_DUPLICADO) {
+      throw errorDeApi(
+        'Hay artículos repetidos en la venta: unificá las cantidades en una sola línea.',
+        400,
+      )
     }
     throw errorDeApi(error.message || 'Error al registrar la venta', 400)
   }

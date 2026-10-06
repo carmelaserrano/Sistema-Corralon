@@ -28,6 +28,11 @@ import {
 import Button from '../../../components/ui/Button'
 import EmptyState from '../../../components/ui/EmptyState'
 import Feedback from '../../../components/ui/Feedback'
+import PageHeader from '../../../components/ui/PageHeader'
+import KpiCard from '../../../components/ui/KpiCard'
+import { useToast } from '../../../components/ui/ToastContext'
+import Papa from 'papaparse'
+import { FileText, DollarSign, Clock, CheckCircle2, Download, Plus } from 'lucide-react'
 
 function formatearFechaCorta(isoDateString) {
   if (!isoDateString) return '—'
@@ -80,6 +85,7 @@ const filtrosIniciales = {
 }
 
 export default function FacturasProveedorPage() {
+  const { showToast } = useToast()
   const [vista, setVista] = useState('listado') // 'listado', 'nueva', 'detalle'
 
   // Listado
@@ -202,10 +208,8 @@ export default function FacturasProveedorPage() {
   }
 
   async function cargarDetalle(id) {
-    const [data, notas] = await Promise.all([
-      getFacturaById(id),
-      getNotasDisponiblesDelProveedor(id)
-    ])
+    const data = await getFacturaById(id)
+    const notas = await getNotasDisponiblesDelProveedor(data.proveedor_id)
     setFacturaActiva(data)
     setNotasVinculables(Array.isArray(notas) ? notas : (notas?.notas || []))
   }
@@ -624,15 +628,95 @@ export default function FacturasProveedorPage() {
     )
   }
 
+  function exportarCsv() {
+    if (!facturas || facturas.length === 0) {
+      showToast({ message: 'No hay facturas para exportar', tone: 'warning' })
+      return
+    }
+    const datosCsv = facturas.map((f) => ({
+      Comprobante: `${f.letra} ${f.sucursal}-${f.numero}`,
+      Proveedor: f.proveedor?.razon_social || '',
+      'Fecha Emisión': f.fecha_emision || '',
+      'Fecha Vencimiento': f.fecha_vencimiento || '',
+      'Importe Neto': f.importe_neto || 0,
+      Impuestos: f.impuestos || 0,
+      'Importe Total': f.importe_total || 0,
+      'Saldo Pendiente': f.saldo_pendiente || 0,
+      Estado: ETIQUETAS_ESTADO[f.estado] || f.estado || '',
+    }))
+    const csv = Papa.unparse(datosCsv)
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const enlace = document.createElement('a')
+    enlace.href = url
+    enlace.setAttribute('download', `facturas_proveedor_${new Date().toISOString().slice(0, 10)}.csv`)
+    document.body.appendChild(enlace)
+    enlace.click()
+    document.body.removeChild(enlace)
+    URL.revokeObjectURL(url)
+    showToast({ message: 'Facturas de proveedor exportadas en CSV', tone: 'success' })
+  }
+
+  const totalFacturado = facturas?.reduce((acc, f) => acc + (Number(f.importe_total) || 0), 0) || 0
+  const totalPendiente = facturas?.reduce((acc, f) => acc + (Number(f.saldo_pendiente) || 0), 0) || 0
+  const pagadasCount = facturas?.filter((f) => f.estado === 'pagada').length || 0
+
+  const accionesHeader = [
+    puedeRegistrar && {
+      label: 'Nueva Factura',
+      icon: Plus,
+      onClick: irANueva,
+      variant: 'primary',
+    },
+    {
+      label: 'Exportar CSV',
+      icon: Download,
+      onClick: exportarCsv,
+      variant: 'secondary',
+      disabled: !facturas || facturas.length === 0,
+    },
+  ].filter(Boolean)
+
   // --- RENDER: LISTADO ---
   return (
     <main>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-        <h1>Facturas de Proveedor</h1>
-        {puedeRegistrar && (
-          <Button type="button" onClick={irANueva}>Nueva Factura</Button>
-        )}
-      </header>
+      <PageHeader
+        title="Facturas de Proveedor"
+        kicker="Módulo Tesorería"
+        description="Registro y control de comprobantes fiscales de compra, imputaciones de notas y saldos."
+        actions={accionesHeader}
+      />
+
+      <div className="kpi-grid">
+        <KpiCard
+          label="Total facturas"
+          value={facturas?.length || 0}
+          icon={FileText}
+          tone="brand"
+          helperText="En el período consultado"
+        />
+        <KpiCard
+          label="Total facturado"
+          value={formatearMoneda(totalFacturado)}
+          icon={DollarSign}
+          tone="neutral"
+          helperText="Monto bruto emitido"
+        />
+        <KpiCard
+          label="Saldo a pagar"
+          value={formatearMoneda(totalPendiente)}
+          icon={Clock}
+          tone={totalPendiente > 0 ? 'warning' : 'success'}
+          helperText="Compromisos pendientes"
+        />
+        <KpiCard
+          label="Facturas pagadas"
+          value={pagadasCount}
+          icon={CheckCircle2}
+          tone="success"
+          helperText="Canceladas en su totalidad"
+        />
+      </div>
 
       {error && <Feedback tone="error">{error}</Feedback>}
       {aviso && <Feedback tone="success">{aviso}</Feedback>}
@@ -672,34 +756,38 @@ export default function FacturasProveedorPage() {
         )}
 
         {!loadingListado && facturas?.length > 0 && (
-          <table>
-            <thead>
-              <tr>
-                <th>Comprobante</th>
-                <th>Proveedor</th>
-                <th>Fecha Emisión</th>
-                <th style={{ textAlign: 'right' }}>Total</th>
-                <th style={{ textAlign: 'right' }}>Saldo Pendiente</th>
-                <th>Estado</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {facturas?.map((factura) => (
-                <tr key={factura.id}>
-                  <td><strong>{factura.letra} {factura.sucursal}-{factura.numero}</strong></td>
-                  <td>{factura.proveedor?.razon_social}</td>
-                  <td>{formatearFechaCorta(factura.fecha_emision)}</td>
-                  <td style={{ textAlign: 'right' }}>{formatearMoneda(factura.importe_total)}</td>
-                  <td style={{ textAlign: 'right' }}>{formatearMoneda(factura.saldo_pendiente)}</td>
-                  <td><EstadoBadge estado={factura.estado} /></td>
-                  <td style={{ textAlign: 'right' }}>
-                    <Button type="button" variant="ghost" onClick={() => verDetalle(factura.id)}>Ver detalle</Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="data-table-card">
+            <div className="data-table-scroll-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Comprobante</th>
+                    <th>Proveedor</th>
+                    <th>Fecha Emisión</th>
+                    <th style={{ textAlign: 'right' }}>Total</th>
+                    <th style={{ textAlign: 'right' }}>Saldo Pendiente</th>
+                    <th>Estado</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {facturas?.map((factura) => (
+                    <tr key={factura.id}>
+                      <td><strong>{factura.letra} {factura.sucursal}-{factura.numero}</strong></td>
+                      <td>{factura.proveedor?.razon_social}</td>
+                      <td>{formatearFechaCorta(factura.fecha_emision)}</td>
+                      <td style={{ textAlign: 'right' }}>{formatearMoneda(factura.importe_total)}</td>
+                      <td style={{ textAlign: 'right' }}>{formatearMoneda(factura.saldo_pendiente)}</td>
+                      <td><EstadoBadge estado={factura.estado} /></td>
+                      <td style={{ textAlign: 'right' }}>
+                        <Button type="button" variant="ghost" onClick={() => verDetalle(factura.id)}>Ver detalle</Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
       </section>
     </main>

@@ -9,6 +9,8 @@ import {
   determinarLetraComprobante,
   calcularDesgloseIva,
 } from '../api/comprobantesApi'
+import { puedeRegistrarCobros } from '../api/cobrosApi'
+import ModalCobro from '../components/ModalCobro'
 import Button from '../../../components/ui/Button'
 import Feedback from '../../../components/ui/Feedback'
 
@@ -60,6 +62,8 @@ export default function VentaDetalle({ ventaId, onCerrar, onComprobanteEmitido }
 
   const [puedeFacturar, setPuedeFacturar] = useState(true)
   const [puedeAnular, setPuedeAnular] = useState(true)
+  const [puedeCobrar, setPuedeCobrar] = useState(true)
+  const [mostrarCobro, setMostrarCobro] = useState(false)
 
   // Sub-estados para acciones
   const [mostrarConfirmarFactura, setMostrarConfirmarFactura] = useState(false)
@@ -90,25 +94,30 @@ export default function VentaDetalle({ ventaId, onCerrar, onComprobanteEmitido }
     cerrarRef.current?.focus()
     cargarDatos()
 
-    Promise.all([puedeFacturarVentas(), puedeAnularVentas()])
-      .then(([facturar, anular]) => {
+    Promise.all([puedeFacturarVentas(), puedeAnularVentas(), puedeRegistrarCobros()])
+      .then(([facturar, anular, cobrar]) => {
         setPuedeFacturar(facturar)
         setPuedeAnular(anular)
+        setPuedeCobrar(cobrar)
       })
       .catch(() => {
+        // La base vuelve a validar cada permiso; si falla la consulta no se
+        // oculta la acción.
         setPuedeFacturar(true)
         setPuedeAnular(true)
+        setPuedeCobrar(true)
       })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ventaId])
 
   useEffect(() => {
     function manejarTecla(event) {
-      if (event.key === 'Escape') onCerrar()
+      // Con el modal de cobro abierto, Escape cierra sólo ese modal.
+      if (event.key === 'Escape' && !mostrarCobro) onCerrar()
     }
     document.addEventListener('keydown', manejarTecla)
     return () => document.removeEventListener('keydown', manejarTecla)
-  }, [onCerrar])
+  }, [onCerrar, mostrarCobro])
 
   // CA-02: Determinación de la letra según la condición IVA del cliente
   const condicionIvaNombre = venta?.cliente?.condicion_iva?.nombre || ''
@@ -121,6 +130,11 @@ export default function VentaDetalle({ ventaId, onCerrar, onComprobanteEmitido }
     (venta?.estaCobrada || venta?.tieneCuentaCorriente) &&
     puedeFacturar
 
+  // CA-04: el cobro es todo o nada (registrar_cobro exige el total) y único por venta.
+  const tieneCobro = (venta?.cobros ?? []).length > 0
+  const tieneBackorder = (venta?.detalle ?? []).some((i) => Number(i.cantidad_backorder) > 0)
+  const puedeRegistrarCobro = venta?.estado === 'Pendiente' && !tieneCobro && puedeCobrar
+
   // CA-05: Nota de Crédito para ventas Facturadas
   const facturaEmitida = (venta?.comprobantes ?? []).find(
     (c) => c.tipo_comprobante === 'factura' && c.estado === 'Emitido',
@@ -131,6 +145,14 @@ export default function VentaDetalle({ ventaId, onCerrar, onComprobanteEmitido }
   const totalNcEmitidas = ncsEmitidas.reduce((acc, c) => acc + Number(c.total || 0), 0)
   const saldoFactura = facturaEmitida ? Math.max(0, Number(facturaEmitida.total || 0) - totalNcEmitidas) : 0
   const puedeEmitirNc = venta?.estado === 'Facturada' && puedeAnular && saldoFactura > 0
+
+  async function handleCobroRegistrado(cobro) {
+    setMostrarCobro(false)
+    setError('')
+    setAviso(`Cobro Nº ${cobro.numero} registrado por ${formatearMoneda(cobro.total)}`)
+    await cargarDatos()
+    if (onComprobanteEmitido) onComprobanteEmitido()
+  }
 
   async function handleFacturar() {
     try {
@@ -285,8 +307,22 @@ export default function VentaDetalle({ ventaId, onCerrar, onComprobanteEmitido }
           </p>
         </div>
 
+        {tieneBackorder && (
+          <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '0 0 12px' }}>
+            Esta venta tiene artículos en backorder: no se puede marcar como entregada hasta
+            reponerlos.
+          </p>
+        )}
+
         {/* ACCIONES PRINCIPALES */}
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '20px' }}>
+          {/* BOTÓN REGISTRAR COBRO (CA-04) */}
+          {puedeRegistrarCobro && (
+            <Button type="button" onClick={() => setMostrarCobro(true)} disabled={procesando}>
+              Registrar cobro
+            </Button>
+          )}
+
           {/* BOTÓN FACTURAR (CA-01) */}
           {venta.estado === 'Pendiente' && (
             <div>
@@ -434,89 +470,104 @@ export default function VentaDetalle({ ventaId, onCerrar, onComprobanteEmitido }
             No se han emitido comprobantes fiscales para esta venta todavía.
           </p>
         ) : (
-          <table style={{ width: '100%', marginBottom: '20px' }}>
-            <thead>
-              <tr>
-                <th>Tipo y Letra</th>
-                <th>Número</th>
-                <th>Fecha Emisión</th>
-                <th>Neto</th>
-                <th>IVA 21%</th>
-                <th>Total</th>
-                <th>CAE</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(venta.comprobantes ?? []).map((comp) => (
-                <tr key={comp.id}>
-                  <td>
-                    <strong>
-                      {comp.tipo_comprobante === 'factura'
-                        ? 'Factura'
-                        : comp.tipo_comprobante === 'nota_credito'
-                          ? 'Nota de Crédito'
-                          : 'Nota de Débito'}{' '}
-                      {comp.letra}
-                    </strong>
-                  </td>
-                  <td>{formatearComprobanteNumero(comp.punto_venta, comp.numero)}</td>
-                  <td>{formatearFecha(comp.fecha_emision)}</td>
-                  <td>{formatearMoneda(comp.neto)}</td>
-                  <td>{formatearMoneda(comp.iva)}</td>
-                  <td><strong>{formatearMoneda(comp.total)}</strong></td>
-                  <td>
-                    <span style={{ fontSize: '11px', background: '#e0e0e0', padding: '2px 6px', borderRadius: '4px' }}>
-                      {comp.cae || 'HOMOLOGACIÓN'}
-                    </span>
-                  </td>
-                  <td>
-                    {/* BOTÓN DESCARGAR PDF (CA-04) */}
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={() => handleDescargarPdf(comp.id)}
-                      loading={descargandoId === comp.id}
-                      loadingLabel="Generando…"
-                      title="Descargar comprobante en PDF"
-                    >
-                      <Download size={14} style={{ marginRight: '4px' }} />
-                      Descargar PDF
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="data-table-card" style={{ marginBottom: '20px' }}>
+            <div className="data-table-scroll-container">
+              <table style={{ width: '100%' }}>
+                <thead>
+                  <tr>
+                    <th>Tipo y Letra</th>
+                    <th>Número</th>
+                    <th>Fecha Emisión</th>
+                    <th>Neto</th>
+                    <th>IVA 21%</th>
+                    <th>Total</th>
+                    <th>CAE</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(venta.comprobantes ?? []).map((comp) => (
+                    <tr key={comp.id}>
+                      <td>
+                        <strong>
+                          {comp.tipo_comprobante === 'factura'
+                            ? 'Factura'
+                            : comp.tipo_comprobante === 'nota_credito'
+                              ? 'Nota de Crédito'
+                              : 'Nota de Débito'}{' '}
+                          {comp.letra}
+                        </strong>
+                      </td>
+                      <td>{formatearComprobanteNumero(comp.punto_venta, comp.numero)}</td>
+                      <td>{formatearFecha(comp.fecha_emision)}</td>
+                      <td>{formatearMoneda(comp.neto)}</td>
+                      <td>{formatearMoneda(comp.iva)}</td>
+                      <td><strong>{formatearMoneda(comp.total)}</strong></td>
+                      <td>
+                        <span style={{ fontSize: '11px', background: '#e0e0e0', padding: '2px 6px', borderRadius: '4px' }}>
+                          {comp.cae || 'HOMOLOGACIÓN'}
+                        </span>
+                      </td>
+                      <td>
+                        {/* BOTÓN DESCARGAR PDF (CA-04) */}
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => handleDescargarPdf(comp.id)}
+                          loading={descargandoId === comp.id}
+                          loadingLabel="Generando…"
+                          title="Descargar comprobante en PDF"
+                        >
+                          <Download size={14} style={{ marginRight: '4px' }} />
+                          Descargar PDF
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
 
         {/* DETALLE DE ARTÍCULOS */}
         <h3>Artículos de la venta</h3>
-        <table style={{ width: '100%', marginBottom: '20px' }}>
-          <thead>
-            <tr>
-              <th>Artículo</th>
-              <th>Cantidad</th>
-              <th>Precio Unit.</th>
-              <th>Descuento</th>
-              <th>Subtotal</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(venta.detalle ?? []).map((item) => (
-              <tr key={item.id}>
-                <td>
-                  {item.producto?.sku ? `[${item.producto.sku}] ` : ''}
-                  {item.producto?.nombre || 'Artículo'}
-                </td>
-                <td>{item.cantidad}</td>
-                <td>{formatearMoneda(item.precio_unitario)}</td>
-                <td>{item.descuento_pct > 0 ? `${item.descuento_pct}%` : '—'}</td>
-                <td><strong>{formatearMoneda(item.subtotal)}</strong></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="data-table-card" style={{ marginBottom: '20px' }}>
+          <div className="data-table-scroll-container">
+            <table style={{ width: '100%' }}>
+              <thead>
+                <tr>
+                  <th>Artículo</th>
+                  <th>Cantidad</th>
+                  <th>Precio Unit.</th>
+                  <th>Descuento</th>
+                  <th>Subtotal</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(venta.detalle ?? []).map((item) => (
+                  <tr key={item.id}>
+                    <td>
+                      {item.producto?.sku ? `[${item.producto.sku}] ` : ''}
+                      {item.producto?.nombre || 'Artículo'}
+                    </td>
+                    <td>
+                      {item.cantidad}
+                      {Number(item.cantidad_backorder) > 0 && (
+                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                          {item.cantidad_backorder} en backorder
+                        </div>
+                      )}
+                    </td>
+                    <td>{formatearMoneda(item.precio_unitario)}</td>
+                    <td>{item.descuento_pct > 0 ? `${item.descuento_pct}%` : '—'}</td>
+                    <td><strong>{formatearMoneda(item.subtotal)}</strong></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
 
         {/* DETALLE DE COBROS */}
         <h3>Cobros registrados</h3>
@@ -525,32 +576,47 @@ export default function VentaDetalle({ ventaId, onCerrar, onComprobanteEmitido }
             No registra cobros cargados.
           </p>
         ) : (
-          <table style={{ width: '100%' }}>
-            <thead>
-              <tr>
-                <th>Nº Cobro</th>
-                <th>Fecha</th>
-                <th>Medio de Pago</th>
-                <th>Monto</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(venta.cobros ?? []).map((cobro) => (
-                <tr key={cobro.id}>
-                  <td>Cobro #{cobro.numero || '1'}</td>
-                  <td>{formatearFecha(cobro.created_at)}</td>
-                  <td>
-                    {(cobro.detalle ?? [])
-                      .map((d) => d.medio_pago?.nombre || 'Efectivo')
-                      .join(', ') || 'Efectivo'}
-                  </td>
-                  <td><strong>{formatearMoneda(cobro.total)}</strong></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="data-table-card">
+            <div className="data-table-scroll-container">
+              <table style={{ width: '100%' }}>
+                <thead>
+                  <tr>
+                    <th>Nº Cobro</th>
+                    <th>Fecha</th>
+                    <th>Medio de Pago</th>
+                    <th>Monto</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(venta.cobros ?? []).map((cobro) => (
+                    <tr key={cobro.id}>
+                      <td>Cobro #{cobro.numero || '1'}</td>
+                      <td>{formatearFecha(cobro.created_at)}</td>
+                      <td>
+                        {(cobro.detalle ?? [])
+                          .map((d) => d.medio_pago?.nombre || 'Efectivo')
+                          .join(', ') || 'Efectivo'}
+                      </td>
+                      <td><strong>{formatearMoneda(cobro.total)}</strong></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
       </section>
+
+      {/* El modal de cobro vive dentro del backdrop del detalle: se corta la
+          propagación para que un clic en él no cierre también el detalle. */}
+      <div onMouseDown={(event) => event.stopPropagation()}>
+        <ModalCobro
+          abierto={mostrarCobro}
+          venta={{ ...venta, cobrada: tieneCobro }}
+          onCobrado={handleCobroRegistrado}
+          onCancelar={() => setMostrarCobro(false)}
+        />
+      </div>
     </div>
   )
 }

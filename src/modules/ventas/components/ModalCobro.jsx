@@ -7,6 +7,7 @@ import {
   esTarjeta,
   esTransferencia,
   listarMediosPago,
+  obtenerResumenCtaCte,
   registrarCobro,
 } from '../api/cobrosApi'
 
@@ -53,7 +54,18 @@ function calcularResumenCobro(total, lineas, medios) {
   }
 }
 
-function validarLinea(linea, medio, clienteHabilitado) {
+/**
+ * Crédito disponible del cliente en centavos, o null si no tiene límite
+ * (limite_credito = 0 significa "sin límite", igual que registrar_cobro).
+ */
+function disponibleCtaCte(resumenCtaCte) {
+  const limite = Number(resumenCtaCte?.limite_credito) || 0
+  if (limite <= 0) return null
+  const saldo = Number(resumenCtaCte?.saldo_deudor) || 0
+  return Math.max(0, aCentavos(limite) - aCentavos(saldo))
+}
+
+function validarLinea(linea, medio, clienteHabilitado, resumenCtaCte) {
   if (!medio) return 'Seleccione un medio de pago'
   if (aCentavos(linea.monto) <= 0) return 'El importe debe ser mayor a 0'
 
@@ -71,11 +83,35 @@ function validarLinea(linea, medio, clienteHabilitado) {
     return 'La referencia de la transferencia es obligatoria'
   }
 
-  if (esCuentaCorriente(medio) && !clienteHabilitado) {
-    return 'El cliente no está habilitado para cuenta corriente'
+  if (esCuentaCorriente(medio)) {
+    if (!clienteHabilitado) {
+      return 'El cliente no está habilitado para cuenta corriente'
+    }
+    // La base vuelve a validar el límite (CV007); esto solo avisa antes.
+    const disponible = disponibleCtaCte(resumenCtaCte)
+    if (disponible !== null && aCentavos(linea.monto) > disponible) {
+      return `Supera el límite de crédito disponible (${moneda(disponible)})`
+    }
   }
 
   return ''
+}
+
+/** Explicación corta de qué cargar según el medio elegido. */
+function ayudaMedio(medio) {
+  if (esEfectivo(medio)) {
+    return 'Ingresá el importe que se cobra en efectivo y cuánto dinero entregó el cliente. Si entregó de más, el sistema calcula el vuelto.'
+  }
+  if (esTarjeta(medio)) {
+    return 'Ingresá el importe cobrado con tarjeta y los últimos 4 dígitos de la tarjeta, tal como figuran en el ticket del posnet.'
+  }
+  if (esTransferencia(medio)) {
+    return 'Ingresá el importe transferido y el número de operación o comprobante que figura en la transferencia.'
+  }
+  if (esCuentaCorriente(medio)) {
+    return 'El importe queda como deuda en la cuenta corriente del cliente. No hace falta cargar otros datos.'
+  }
+  return 'Ingresá el importe. Este medio no requiere datos adicionales.'
 }
 
 /**
@@ -90,6 +126,7 @@ export default function ModalCobro({ abierto, venta, onCobrado, onCancelar }) {
   const [cobroConfirmado, setCobroConfirmado] = useState(false)
   const [error, setError] = useState('')
   const [exito, setExito] = useState('')
+  const [resumenCtaCte, setResumenCtaCte] = useState(null)
   const siguienteId = useRef(2)
   const enviando = useRef(false)
 
@@ -129,10 +166,23 @@ export default function ModalCobro({ abierto, venta, onCobrado, onCancelar }) {
         if (vigente) setCargandoMedios(false)
       })
 
+    // Saldo y límite de cuenta corriente para avisar antes de confirmar. Si la
+    // consulta falla no se bloquea: registrar_cobro valida el límite igual.
+    setResumenCtaCte(null)
+    const clienteId = venta?.cliente?.id ?? venta?.cliente_id
+    if (clienteId && clienteHabilitado) {
+      obtenerResumenCtaCte(clienteId)
+        .then((resultado) => {
+          if (vigente) setResumenCtaCte(resultado)
+        })
+        .catch(() => {})
+    }
+
     return () => {
       vigente = false
     }
-  }, [abierto, venta?.id])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [abierto, venta?.id, clienteHabilitado])
 
   useEffect(() => {
     if (!abierto) return undefined
@@ -153,6 +203,7 @@ export default function ModalCobro({ abierto, venta, onCobrado, onCancelar }) {
       linea,
       medios.find((medio) => medio.id === linea.medio_pago_id),
       clienteHabilitado,
+      resumenCtaCte,
     ),
   )
   const ventaPendiente = venta?.estado === 'Pendiente'
@@ -195,6 +246,13 @@ export default function ModalCobro({ abierto, venta, onCobrado, onCancelar }) {
       ...actuales,
       { ...LINEA_INICIAL, id: siguienteId.current++ },
     ])
+  }
+
+  // Completa el importe de una línea con lo que todavía falta asignar.
+  function completarRestante(linea) {
+    const restante = resumen.diferenciaCentavos + Math.max(0, aCentavos(linea.monto))
+    if (restante <= 0) return
+    actualizarLinea(linea.id, 'monto', (restante / 100).toFixed(2))
   }
 
   function quitarLinea(id) {
@@ -242,7 +300,7 @@ export default function ModalCobro({ abierto, venta, onCobrado, onCancelar }) {
       }}
     >
       <section
-        className="modal-panel page-canvas"
+        className="modal-panel page-canvas cobro-panel"
         role="dialog"
         aria-modal="true"
         aria-labelledby="titulo-cobro"
@@ -279,159 +337,195 @@ export default function ModalCobro({ abierto, venta, onCobrado, onCancelar }) {
         {error && <Feedback tone="error">{error}</Feedback>}
         {exito && <Feedback tone="success">{exito}</Feedback>}
 
-        <form onSubmit={confirmarCobro}>
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Medio de pago</th>
-                  <th>Importe aplicado</th>
-                  <th>Datos del medio</th>
-                  <th>Acción</th>
-                </tr>
-              </thead>
-              <tbody>
-                {lineas.map((linea, indice) => {
-                  const medio = medios.find(
-                    (item) => item.id === linea.medio_pago_id,
-                  )
-                  const vuelto = Math.max(
-                    0,
-                    aCentavos(linea.monto_recibido) - aCentavos(linea.monto),
-                  )
+        <form className="cobro-form" onSubmit={confirmarCobro}>
+          <ol className="cobro-pasos">
+            <li>Elegí el medio de pago.</li>
+            <li>Ingresá el importe que se cobra con ese medio.</li>
+            <li>Completá los datos que pide cada medio.</li>
+          </ol>
+          <p className="cobro-nota">
+            Si el cliente paga con más de un medio, usá «Agregar medio de pago». La suma
+            de los importes tiene que ser igual al total de la venta.
+          </p>
 
-                  return (
-                    <tr key={linea.id}>
-                      <td>
-                        <label>
-                          <span className="sr-only">Medio de pago {indice + 1}</span>
-                          <select
-                            aria-label={`Medio de pago ${indice + 1}`}
-                            value={linea.medio_pago_id}
-                            onChange={(evento) =>
-                              cambiarMedio(linea.id, evento.target.value)
-                            }
-                            disabled={guardando || cargandoMedios}
+          <div className="cobro-lineas">
+            {lineas.map((linea, indice) => {
+              const medio = medios.find(
+                (item) => item.id === linea.medio_pago_id,
+              )
+              const vuelto = Math.max(
+                0,
+                aCentavos(linea.monto_recibido) - aCentavos(linea.monto),
+              )
+              // El error se muestra recién cuando la línea empezó a cargarse.
+              const mostrarError =
+                Boolean(linea.medio_pago_id || linea.monto) && erroresLineas[indice]
+              const restanteLinea =
+                resumen.diferenciaCentavos + Math.max(0, aCentavos(linea.monto))
+
+              return (
+                <div
+                  key={linea.id}
+                  className={`cobro-linea${mostrarError ? ' cobro-linea--error' : ''}`}
+                >
+                  <div className="cobro-linea-header">
+                    <strong>
+                      Pago {indice + 1}
+                      {medio ? ` · ${medio.nombre}` : ''}
+                    </strong>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => quitarLinea(linea.id)}
+                      disabled={guardando || lineas.length === 1}
+                      aria-label={`Quitar medio ${indice + 1}`}
+                    >
+                      Quitar
+                    </Button>
+                  </div>
+
+                  <div className="cobro-campos">
+                    <label>
+                      Medio de pago
+                      <select
+                        aria-label={`Medio de pago ${indice + 1}`}
+                        value={linea.medio_pago_id}
+                        onChange={(evento) =>
+                          cambiarMedio(linea.id, evento.target.value)
+                        }
+                        disabled={guardando || cargandoMedios}
+                      >
+                        <option value="">Seleccionar</option>
+                        {medios.map((item) => (
+                          <option
+                            key={item.id}
+                            value={item.id}
+                            disabled={esCuentaCorriente(item) && !clienteHabilitado}
                           >
-                            <option value="">Seleccionar</option>
-                            {medios.map((item) => (
-                              <option
-                                key={item.id}
-                                value={item.id}
-                                disabled={
-                                  esCuentaCorriente(item) && !clienteHabilitado
-                                }
-                              >
-                                {item.nombre}
-                                {esCuentaCorriente(item) && !clienteHabilitado
-                                  ? ' (no habilitado)'
-                                  : ''}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                      </td>
-                      <td>
+                            {item.nombre}
+                            {esCuentaCorriente(item) && !clienteHabilitado
+                              ? ' (no habilitado)'
+                              : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <div className="cobro-campo">
+                      <label>
+                        Importe a cobrar con este medio
+                        <input
+                          aria-label={`Importe ${indice + 1}`}
+                          type="number"
+                          min="0.01"
+                          step="0.01"
+                          placeholder="0,00"
+                          value={linea.monto}
+                          onChange={(evento) =>
+                            actualizarLinea(linea.id, 'monto', evento.target.value)
+                          }
+                          disabled={guardando}
+                        />
+                      </label>
+                      {restanteLinea > 0 && aCentavos(linea.monto) !== restanteLinea && (
+                        <button
+                          type="button"
+                          className="cobro-link"
+                          onClick={() => completarRestante(linea)}
+                          disabled={guardando}
+                        >
+                          Usar lo que falta ({moneda(restanteLinea)})
+                        </button>
+                      )}
+                    </div>
+
+                    {esEfectivo(medio) && (
+                      <div className="cobro-campo">
                         <label>
-                          <span className="sr-only">Importe {indice + 1}</span>
+                          Dinero entregado por el cliente
                           <input
-                            aria-label={`Importe ${indice + 1}`}
+                            aria-label={`Monto recibido ${indice + 1}`}
                             type="number"
                             min="0.01"
                             step="0.01"
-                            value={linea.monto}
+                            placeholder="Ej.: 10000"
+                            value={linea.monto_recibido}
                             onChange={(evento) =>
-                              actualizarLinea(linea.id, 'monto', evento.target.value)
+                              actualizarLinea(
+                                linea.id,
+                                'monto_recibido',
+                                evento.target.value,
+                              )
                             }
                             disabled={guardando}
                           />
                         </label>
-                      </td>
-                      <td>
-                        {esEfectivo(medio) && (
-                          <>
-                            <label>
-                              Monto recibido
-                              <input
-                                aria-label={`Monto recibido ${indice + 1}`}
-                                type="number"
-                                min="0.01"
-                                step="0.01"
-                                value={linea.monto_recibido}
-                                onChange={(evento) =>
-                                  actualizarLinea(
-                                    linea.id,
-                                    'monto_recibido',
-                                    evento.target.value,
-                                  )
-                                }
-                                disabled={guardando}
-                              />
-                            </label>
-                            <small>Vuelto: {moneda(vuelto)}</small>
-                          </>
-                        )}
-                        {esTarjeta(medio) && (
-                          <label>
-                            Últimos 4 dígitos
-                            <input
-                              aria-label={`Últimos 4 dígitos ${indice + 1}`}
-                              inputMode="numeric"
-                              maxLength={4}
-                              value={linea.referencia}
-                              onChange={(evento) =>
-                                actualizarLinea(
-                                  linea.id,
-                                  'referencia',
-                                  evento.target.value.replace(/\D/g, '').slice(-4),
-                                )
-                              }
-                              disabled={guardando}
-                            />
-                          </label>
-                        )}
-                        {esTransferencia(medio) && (
-                          <label>
-                            Referencia
-                            <input
-                              aria-label={`Referencia ${indice + 1}`}
-                              maxLength={100}
-                              value={linea.referencia}
-                              onChange={(evento) =>
-                                actualizarLinea(
-                                  linea.id,
-                                  'referencia',
-                                  evento.target.value,
-                                )
-                              }
-                              disabled={guardando}
-                            />
-                          </label>
-                        )}
-                        {!esEfectivo(medio) &&
-                          !esTarjeta(medio) &&
-                          !esTransferencia(medio) &&
-                          medio && <span>No requiere datos adicionales</span>}
-                        {erroresLineas[indice] && (
-                          <small role="alert">{erroresLineas[indice]}</small>
-                        )}
-                      </td>
-                      <td>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          onClick={() => quitarLinea(linea.id)}
-                          disabled={guardando || lineas.length === 1}
-                          aria-label={`Quitar medio ${indice + 1}`}
-                        >
-                          Quitar
-                        </Button>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+                        <small className="cobro-vuelto">Vuelto: {moneda(vuelto)}</small>
+                      </div>
+                    )}
+                    {esTarjeta(medio) && (
+                      <label>
+                        Últimos 4 dígitos de la tarjeta
+                        <input
+                          aria-label={`Últimos 4 dígitos ${indice + 1}`}
+                          inputMode="numeric"
+                          maxLength={4}
+                          placeholder="1234"
+                          value={linea.referencia}
+                          onChange={(evento) =>
+                            actualizarLinea(
+                              linea.id,
+                              'referencia',
+                              evento.target.value.replace(/\D/g, '').slice(-4),
+                            )
+                          }
+                          disabled={guardando}
+                        />
+                      </label>
+                    )}
+                    {esTransferencia(medio) && (
+                      <label>
+                        N.º de operación o comprobante
+                        <input
+                          aria-label={`Referencia ${indice + 1}`}
+                          maxLength={100}
+                          placeholder="Ej.: 000123456789"
+                          value={linea.referencia}
+                          onChange={(evento) =>
+                            actualizarLinea(
+                              linea.id,
+                              'referencia',
+                              evento.target.value,
+                            )
+                          }
+                          disabled={guardando}
+                        />
+                      </label>
+                    )}
+                  </div>
+
+                  <p className="cobro-ayuda">
+                    {medio
+                      ? ayudaMedio(medio)
+                      : 'Empezá eligiendo cómo paga el cliente esta parte.'}
+                  </p>
+                  {esCuentaCorriente(medio) && clienteHabilitado && resumenCtaCte && (
+                    <p className="cobro-ayuda">
+                      <strong>
+                        {disponibleCtaCte(resumenCtaCte) === null
+                          ? `Sin límite de crédito · Saldo deudor actual: ${moneda(aCentavos(resumenCtaCte.saldo_deudor))}`
+                          : `Límite: ${moneda(aCentavos(resumenCtaCte.limite_credito))} · Saldo deudor: ${moneda(aCentavos(resumenCtaCte.saldo_deudor))} · Disponible: ${moneda(disponibleCtaCte(resumenCtaCte))}`}
+                      </strong>
+                    </p>
+                  )}
+                  {mostrarError && (
+                    <p className="cobro-error" role="alert">
+                      {erroresLineas[indice]}
+                    </p>
+                  )}
+                </div>
+              )
+            })}
           </div>
 
           <Button
@@ -443,20 +537,45 @@ export default function ModalCobro({ abierto, venta, onCobrado, onCancelar }) {
             Agregar medio de pago
           </Button>
 
-          <dl>
-            <div>
-              <dt>Total aplicado</dt>
-              <dd>{moneda(resumen.aplicadoCentavos)}</dd>
-            </div>
-            <div>
-              <dt>{resumen.diferenciaCentavos >= 0 ? 'Restante' : 'Excedente'}</dt>
-              <dd>{moneda(Math.abs(resumen.diferenciaCentavos))}</dd>
-            </div>
-            <div>
-              <dt>Vuelto total</dt>
-              <dd>{moneda(resumen.vueltoCentavos)}</dd>
-            </div>
-          </dl>
+          <div className="cobro-resumen">
+            <dl>
+              <div>
+                <dt>Total de la venta</dt>
+                <dd>{moneda(resumen.totalCentavos)}</dd>
+              </div>
+              <div>
+                <dt>Total aplicado</dt>
+                <dd>{moneda(resumen.aplicadoCentavos)}</dd>
+              </div>
+              <div>
+                <dt>{resumen.diferenciaCentavos >= 0 ? 'Restante' : 'Excedente'}</dt>
+                <dd>{moneda(Math.abs(resumen.diferenciaCentavos))}</dd>
+              </div>
+              <div>
+                <dt>Vuelto total</dt>
+                <dd>{moneda(resumen.vueltoCentavos)}</dd>
+              </div>
+            </dl>
+            <p
+              className={`cobro-estado cobro-estado--${
+                formularioValido
+                  ? 'ok'
+                  : resumen.diferenciaCentavos < 0
+                    ? 'error'
+                    : 'pendiente'
+              }`}
+              aria-live="polite"
+            >
+              {resumen.diferenciaCentavos > 0 &&
+                `Falta asignar ${moneda(resumen.diferenciaCentavos)} para cubrir el total.`}
+              {resumen.diferenciaCentavos < 0 &&
+                `Los importes superan el total por ${moneda(-resumen.diferenciaCentavos)}. Si el cliente entregó de más en efectivo, cargalo en «Dinero entregado por el cliente».`}
+              {resumen.diferenciaCentavos === 0 &&
+                (formularioValido
+                  ? 'El total está cubierto. Ya podés confirmar el cobro.'
+                  : 'El total está cubierto. Revisá los datos marcados en cada pago.')}
+            </p>
+          </div>
 
           <div className="modal-actions">
             <Button

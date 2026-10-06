@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import {
+  Building2,
   Check,
   ChevronLeft,
   ChevronRight,
   Eye,
   Filter,
-  ImageOff,
   RotateCcw,
   Search,
   ShoppingCart,
@@ -32,15 +32,77 @@ const OPCIONES_ORDEN = [
 /** Imagen del producto con una genérica si falta o no carga (CA-07). */
 export function ImagenProducto({ url, nombre, alto = 180 }) {
   const [fallo, setFallo] = useState(false)
-  useEffect(() => { setFallo(false) }, [url])
-  const marco = { width: '100%', height: alto, borderRadius: 8, background: 'var(--surface-subtle)' }
-  return url && !fallo
-    ? <img src={url} alt={nombre} loading="lazy" style={{ ...marco, objectFit: 'contain' }} onError={() => setFallo(true)} />
-    : (
-      <span role="img" aria-label={`${nombre}: sin imagen`} style={{ ...marco, display: 'grid', placeItems: 'center', color: 'var(--text-muted)' }}>
-        <ImageOff size={36} aria-hidden="true" />
+  const [cargado, setCargado] = useState(false)
+
+  useEffect(() => {
+    setFallo(false)
+    setCargado(false)
+  }, [url])
+
+  const marco = {
+    width: '100%',
+    height: alto,
+    borderRadius: 8,
+    position: 'relative',
+    overflow: 'hidden',
+    background: 'var(--surface-subtle)',
+  }
+
+  return url && !fallo ? (
+    <div style={marco}>
+      <img
+        src={url}
+        alt={nombre}
+        loading="lazy"
+        onLoad={() => setCargado(true)}
+        onError={() => setFallo(true)}
+        style={{
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+          opacity: cargado ? 1 : 0,
+          transition: 'opacity 250ms ease, transform 300ms ease',
+        }}
+      />
+      {!cargado && (
+        <span
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'grid',
+            placeItems: 'center',
+            color: 'var(--text-muted)',
+            background: 'var(--surface-subtle)',
+          }}
+        >
+          <Building2 size={32} style={{ opacity: 0.3 }} />
+        </span>
+      )}
+    </div>
+  ) : (
+    <span
+      role="img"
+      aria-label={`${nombre}: materiales de corralón`}
+      style={{
+        ...marco,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        padding: 16,
+        color: 'var(--text-muted)',
+        background: 'linear-gradient(135deg, rgba(230, 167, 0, 0.08) 0%, rgba(0, 0, 0, 0.04) 100%)',
+        border: '1px solid var(--border-default)',
+        textAlign: 'center',
+      }}
+    >
+      <Building2 size={36} style={{ color: 'var(--color-brand)', opacity: 0.85 }} />
+      <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', maxWidth: '90%' }}>
+        {nombre}
       </span>
-    )
+    </span>
+  )
 }
 
 export function EtiquetaDisponibilidad({ disponible }) {

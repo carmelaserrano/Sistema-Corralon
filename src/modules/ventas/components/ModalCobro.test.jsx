@@ -7,6 +7,7 @@ import { listarMediosPago, registrarCobro } from '../api/cobrosApi'
 vi.mock('../api/cobrosApi', () => ({
   listarMediosPago: vi.fn(),
   registrarCobro: vi.fn(),
+  obtenerResumenCtaCte: vi.fn(),
   esEfectivo: (medio) => medio?.nombre?.trim().toLowerCase() === 'efectivo',
   esTarjeta: (medio) => medio?.nombre?.trim().toLowerCase().startsWith('tarjeta'),
   esTransferencia: (medio) =>
@@ -189,6 +190,31 @@ describe('ModalCobro', () => {
     ingresarImporte(1, '1000')
 
     expect(screen.getByRole('button', { name: 'Confirmar cobro' })).toBeEnabled()
+  })
+
+  it('bloquea cuenta corriente si el monto supera el límite de crédito disponible', async () => {
+    const { obtenerResumenCtaCte } = await import('../api/cobrosApi')
+    obtenerResumenCtaCte.mockResolvedValueOnce({
+      cliente_id: 'cliente-1',
+      habilita_cta_cte: true,
+      limite_credito: 1000,
+      saldo_deudor: 400,
+      credito_disponible: 600,
+    })
+
+    renderModal({
+      ...ventaPendiente,
+      total: 800,
+      cliente: { id: 'cliente-1', habilita_cta_cte: true },
+    })
+
+    await seleccionarMedio(1, 'cuenta')
+    ingresarImporte(1, '800')
+
+    await waitFor(() => {
+      expect(screen.getByText(/Supera el límite de crédito disponible/)).toBeInTheDocument()
+    })
+    expect(screen.getByRole('button', { name: 'Confirmar cobro' })).toBeDisabled()
   })
 
   it('informa diferencia y no confirma si la suma no coincide', async () => {

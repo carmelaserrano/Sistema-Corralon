@@ -17,6 +17,11 @@ import ContactosProveedor from '../components/ContactosProveedor'
 import Button from '../../../components/ui/Button'
 import EmptyState from '../../../components/ui/EmptyState'
 import Feedback from '../../../components/ui/Feedback'
+import PageHeader from '../../../components/ui/PageHeader'
+import KpiCard from '../../../components/ui/KpiCard'
+import { useToast } from '../../../components/ui/ToastContext'
+import Papa from 'papaparse'
+import { Building2, CheckCircle2, XCircle, Download, Tags } from 'lucide-react'
 
 function formatearFecha(iso) {
   if (!iso) return '—'
@@ -48,6 +53,7 @@ const proveedorInicial = {
 }
 
 function ProveedoresPage() {
+  const { showToast } = useToast()
   const [proveedores, setProveedores] = useState([])
   const [rubros, setRubros] = useState([])
   const [form, setForm] = useState(proveedorInicial)
@@ -420,9 +426,87 @@ function ProveedoresPage() {
     Boolean(filtroRubroId) ||
     filtroEstado !== 'activo'
 
+  function exportarCsv() {
+    if (proveedores.length === 0) {
+      showToast({ message: 'No hay proveedores para exportar', tone: 'warning' })
+      return
+    }
+    const datosCsv = proveedores.map((p) => ({
+      'Razón Social': p.razon_social || '',
+      'Nombre Fantasía': p.nombre_fantasia || '',
+      CUIT: p.cuit || '',
+      'Condición Fiscal': CONDICIONES_FISCALES.find((c) => c.value === p.condicion_fiscal)?.label || p.condicion_fiscal || '',
+      'Condición de Pago': CONDICIONES_PAGO.find((c) => c.value === p.condicion_pago_habitual)?.label || p.condicion_pago_habitual || '',
+      Rubro: p.rubro?.nombre || '',
+      Localidad: p.localidad || '',
+      Provincia: p.provincia || '',
+      Teléfono: p.telefono || '',
+      Email: p.email || '',
+      Estado: p.estado === 'activo' ? 'Activo' : 'Inactivo',
+    }))
+    const csv = Papa.unparse(datosCsv)
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const enlace = document.createElement('a')
+    enlace.href = url
+    enlace.setAttribute('download', `proveedores_${new Date().toISOString().slice(0, 10)}.csv`)
+    document.body.appendChild(enlace)
+    enlace.click()
+    document.body.removeChild(enlace)
+    URL.revokeObjectURL(url)
+    showToast({ message: 'Listado de proveedores exportado en CSV', tone: 'success' })
+  }
+
+  const totalActivos = proveedores.filter((p) => p.estado === 'activo').length
+  const totalInactivos = proveedores.filter((p) => p.estado === 'inactivo').length
+
   return (
     <main>
-      <h1>Proveedores</h1>
+      <PageHeader
+        title="Proveedores"
+        kicker="Módulo Proveedores"
+        description="Padrón de proveedores comerciales, datos fiscales y condiciones de pago habituales."
+        actions={[
+          {
+            label: 'Exportar CSV',
+            icon: Download,
+            onClick: exportarCsv,
+            variant: 'secondary',
+            disabled: proveedores.length === 0,
+          },
+        ]}
+      />
+
+      <div className="kpi-grid">
+        <KpiCard
+          label="Total registrados"
+          value={total}
+          icon={Building2}
+          tone="brand"
+          helperText="En base de datos"
+        />
+        <KpiCard
+          label="Activos en vista"
+          value={totalActivos}
+          icon={CheckCircle2}
+          tone="success"
+          helperText="Proveedores operativos"
+        />
+        <KpiCard
+          label="Inactivos en vista"
+          value={totalInactivos}
+          icon={XCircle}
+          tone={totalInactivos > 0 ? 'warning' : 'neutral'}
+          helperText="Desactivados temporalmente"
+        />
+        <KpiCard
+          label="Rubros disponibles"
+          value={rubros.length}
+          icon={Tags}
+          tone="info"
+          helperText="Categorías asignables"
+        />
+      </div>
 
       {error && <Feedback tone="error">{error}</Feedback>}
       {aviso && <Feedback tone="success">{aviso}</Feedback>}
@@ -870,74 +954,78 @@ function ProveedoresPage() {
         )}
 
         {!loading && !error && proveedores.length > 0 && (
-          <table>
-            <thead>
-              <tr>
-                <th>Razón Social</th>
-                <th>CUIT</th>
-                <th>Condición Fiscal</th>
-                <th>Condición de Pago</th>
-                <th>Rubro</th>
-                <th>Localidad</th>
-                <th>Estado</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {proveedores.map((proveedor) => (
-                <tr key={proveedor.id}>
-                  <td>{proveedor.razon_social}</td>
-                  <td>{formatearCuit(proveedor.cuit)}</td>
-                  <td>
-                    {CONDICIONES_FISCALES.find(
-                      (opcion) => opcion.value === proveedor.condicion_fiscal,
-                    )?.label ?? proveedor.condicion_fiscal}
-                  </td>
-                  <td>
-                    {CONDICIONES_PAGO.find(
-                      (opcion) =>
-                        opcion.value === proveedor.condicion_pago_habitual,
-                    )?.label ?? '—'}
-                  </td>
-                  <td>{proveedor.rubro?.nombre ?? '—'}</td>
-                  <td>{proveedor.localidad || '—'}</td>
-                  <td>
-                    <EstadoBadge estado={proveedor.estado} />
-                  </td>
-                  <td>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={() => verDetalle(proveedor)}
-                    >
-                      Ver detalle
-                    </Button>
-                    {puedeModificar && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => comenzarEdicion(proveedor)}
-                      >
-                        Editar
-                      </Button>
-                    )}
+          <div className="data-table-card">
+            <div className="data-table-scroll-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Razón Social</th>
+                    <th>CUIT</th>
+                    <th>Condición Fiscal</th>
+                    <th>Condición de Pago</th>
+                    <th>Rubro</th>
+                    <th>Localidad</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {proveedores.map((proveedor) => (
+                    <tr key={proveedor.id}>
+                      <td>{proveedor.razon_social}</td>
+                      <td>{formatearCuit(proveedor.cuit)}</td>
+                      <td>
+                        {CONDICIONES_FISCALES.find(
+                          (opcion) => opcion.value === proveedor.condicion_fiscal,
+                        )?.label ?? proveedor.condicion_fiscal}
+                      </td>
+                      <td>
+                        {CONDICIONES_PAGO.find(
+                          (opcion) =>
+                            opcion.value === proveedor.condicion_pago_habitual,
+                        )?.label ?? '—'}
+                      </td>
+                      <td>{proveedor.rubro?.nombre ?? '—'}</td>
+                      <td>{proveedor.localidad || '—'}</td>
+                      <td>
+                        <EstadoBadge estado={proveedor.estado} />
+                      </td>
+                      <td>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => verDetalle(proveedor)}
+                        >
+                          Ver detalle
+                        </Button>
+                        {puedeModificar && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => comenzarEdicion(proveedor)}
+                          >
+                            Editar
+                          </Button>
+                        )}
 
-                    {puedeCambiarEstado && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => cambiarEstado(proveedor)}
-                      >
-                        {proveedor.estado === 'activo' ? 'Desactivar' : 'Activar'}
-                      </Button>
-                    )}
+                        {puedeCambiarEstado && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => cambiarEstado(proveedor)}
+                          >
+                            {proveedor.estado === 'activo' ? 'Desactivar' : 'Activar'}
+                          </Button>
+                        )}
 
-                    {!puedeModificar && !puedeCambiarEstado && <span>—</span>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                        {!puedeModificar && !puedeCambiarEstado && <span>—</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
 
         {!loading && !error && totalPaginas > 1 && (

@@ -137,7 +137,8 @@ describe('Sidebar', () => {
     const opciones = Array.from(grupo('E-commerce').querySelectorAll('.nav-item'))
     const enlaceTienda = screen.getByRole('link', { name: 'Ver tienda' })
 
-    expect(opciones.map((opcion) => opcion.textContent)).toEqual([
+    // El badge (p. ej. «Web») no forma parte del nombre de la opción.
+    expect(opciones.map((opcion) => opcion.querySelector('span:not(.nav-badge)').textContent)).toEqual([
       'Ver tienda',
       'Publicación web',
       'Pedidos web',

@@ -28,6 +28,40 @@ const COLUMNAS_PEDIDO_BACKOFFICE = `
   cliente:clientes(id, tipo_persona, nombre, apellido, razon_social)
 `
 
+const COLUMNAS_DETALLE_PEDIDO_BACKOFFICE = `
+  ${COLUMNAS_PEDIDO},
+  referencia_pago,
+  cliente:clientes(
+    id,
+    tipo_persona,
+    nombre,
+    apellido,
+    razon_social,
+    tipo_documento,
+    numero_documento,
+    telefono,
+    email
+  ),
+  domicilio:domicilios_cliente(
+    id,
+    alias,
+    calle,
+    numero,
+    localidad,
+    provincia,
+    codigo_postal,
+    referencias
+  )
+`
+
+const COLUMNAS_ITEMS_PEDIDO = `
+  id,
+  cantidad,
+  precio_unitario,
+  subtotal,
+  producto:productos(id, nombre, sku)
+`
+
 /**
  * Transiciones que una persona puede hacer desde el backoffice. Espejo de
  * transicion_pedido_permitida (0051): la base es la que decide, esto solo
@@ -41,7 +75,7 @@ export function siguientesEstados(pedido) {
     case 'Pendiente de pago':
       return ['Cancelado']
     case 'Pagado':
-      return ['En preparación', 'Cancelado']
+      return ['En preparación']
     case 'En preparación':
       return [pedido.tipo_entrega === 'envio' ? 'Enviado' : 'Listo para retirar']
     case 'Listo para retirar':
@@ -149,7 +183,7 @@ export async function obtenerSeguimientoPedido(pedidoId) {
   const [items, historial] = await Promise.all([
     supabase
       .from('detalle_pedido_web')
-      .select('id, cantidad, precio_unitario, subtotal, producto:productos(id, nombre, sku)')
+      .select(COLUMNAS_ITEMS_PEDIDO)
       .eq('pedido_id', pedidoId),
     listarHistorialPedido(pedidoId),
   ])
@@ -188,6 +222,67 @@ export async function listarPedidosWeb({ estado } = {}) {
   const { data, error } = await consulta.order('created_at', { ascending: false })
   if (error) throw error
   return data ?? []
+}
+
+/**
+ * Notifica altas y cambios de pedidos visibles para el usuario interno.
+ * El consumidor vuelve a consultar la lista para conservar filtros, joins y
+ * orden autoritativos en lugar de mezclar payloads parciales de Realtime.
+ *
+ * @param {(payload: Object) => void} onCambio
+ * @returns {() => void} Limpieza de la suscripción.
+ */
+let suscripcionesPedidos = 0
+
+export function suscribirPedidosWeb(onCambio) {
+  if (typeof onCambio !== 'function') throw new TypeError('Falta el manejador de cambios de pedidos')
+
+  // Nombre único: removeChannel es asíncrono y supabase-js reutiliza un canal
+  // ya suscrito con el mismo topic, lo que haría fallar el .on() siguiente.
+  const canal = supabase
+    .channel(`backoffice-pedidos-web-${++suscripcionesPedidos}`)
+    .on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'pedidos_web',
+    }, onCambio)
+    .subscribe()
+
+  return () => {
+    void supabase.removeChannel(canal)
+  }
+}
+
+/**
+ * Detalle operativo de un pedido para el backoffice. La consulta queda
+ * protegida por las policies de lectura interna de pedido, cliente, domicilio,
+ * detalle, productos e historial.
+ *
+ * @param {string} pedidoId
+ * @returns {Promise<{pedido: Object, items: Array<Object>, historial: Array<Object>}|null>}
+ * @throws {Error} Error de Supabase al consultar cualquiera de las relaciones.
+ */
+export async function obtenerDetallePedidoBackoffice(pedidoId) {
+  if (!pedidoId) return null
+
+  const { data: pedido, error } = await supabase
+    .from('pedidos_web')
+    .select(COLUMNAS_DETALLE_PEDIDO_BACKOFFICE)
+    .eq('id', pedidoId)
+    .maybeSingle()
+  if (error) throw error
+  if (!pedido) return null
+
+  const [items, historial] = await Promise.all([
+    supabase
+      .from('detalle_pedido_web')
+      .select(COLUMNAS_ITEMS_PEDIDO)
+      .eq('pedido_id', pedidoId),
+    listarHistorialPedido(pedidoId),
+  ])
+  if (items.error) throw items.error
+
+  return { pedido, items: items.data ?? [], historial }
 }
 
 /**

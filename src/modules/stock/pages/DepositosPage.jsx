@@ -6,6 +6,11 @@ import {
   getTiposDeposito,
   updateDeposito,
 } from '../api/depositosApi'
+import PageHeader from '../../../components/ui/PageHeader'
+import KpiCard from '../../../components/ui/KpiCard'
+import { useToast } from '../../../components/ui/ToastContext'
+import Papa from 'papaparse'
+import { Warehouse, Layers, Boxes, MapPin, Download, RefreshCw } from 'lucide-react'
 
 const depositoInicial = {
   nombre: '',
@@ -16,6 +21,7 @@ const depositoInicial = {
 }
 
 function DepositosPage() {
+  const { showToast } = useToast()
   const [depositos, setDepositos] = useState([])
   const [tipos, setTipos] = useState([])
   const [form, setForm] = useState(depositoInicial)
@@ -88,8 +94,13 @@ function DepositosPage() {
 
       limpiarFormulario()
       await cargarDatos()
+      showToast({
+        message: editandoId ? 'Depósito actualizado exitosamente' : 'Depósito creado exitosamente',
+        tone: 'success',
+      })
     } catch (err) {
       setError(err.message || 'No se pudo guardar el depósito')
+      showToast({ message: err.message || 'Error al guardar depósito', tone: 'danger' })
     }
   }
 
@@ -104,22 +115,105 @@ function DepositosPage() {
       setError('')
       await deleteDeposito(deposito.id)
       await cargarDatos()
+      showToast({ message: `Depósito "${deposito.nombre}" eliminado`, tone: 'info' })
     } catch (err) {
       const mensaje = err.message || 'No se pudo eliminar el depósito'
 
       setError(mensaje)
+      showToast({ message: mensaje, tone: 'danger' })
       window.alert(mensaje)
     }
 
+  }
+
+  function exportarCsv() {
+    if (depositos.length === 0) {
+      showToast({ message: 'No hay depósitos para exportar', tone: 'warning' })
+      return
+    }
+    const datosCsv = depositos.map((d) => ({
+      Nombre: d.nombre || '',
+      Dirección: d.direccion || '',
+      Localidad: d.localidad || '',
+      Tipo: d.tipo?.nombre || '-',
+      'Capacidad máxima': d.capacidad_maxima ?? '',
+    }))
+    const csv = Papa.unparse(datosCsv)
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const enlace = document.createElement('a')
+    enlace.href = url
+    enlace.setAttribute('download', `depositos_${new Date().toISOString().slice(0, 10)}.csv`)
+    document.body.appendChild(enlace)
+    enlace.click()
+    document.body.removeChild(enlace)
+    URL.revokeObjectURL(url)
+    showToast({ message: 'Depósitos exportados en CSV', tone: 'success' })
   }
 
   if (loading) {
     return <p>Cargando depósitos...</p>
   }
 
+  const capacidadTotal = depositos.reduce((acc, d) => acc + (Number(d.capacidad_maxima) || 0), 0)
+  const localidadesCubiertas = new Set(depositos.map((d) => d.localidad).filter(Boolean)).size
+
   return (
     <main>
-      <h1>Gestión de depósitos</h1>
+      <PageHeader
+        title="Gestión de depósitos"
+        kicker="Módulo Stock"
+        description="Administración de depósitos físicos, capacidades máximas de almacenamiento y sucursales."
+        actions={[
+          {
+            label: 'Actualizar',
+            icon: RefreshCw,
+            onClick: () => {
+              cargarDatos()
+              showToast({ message: 'Depósitos actualizados', tone: 'info' })
+            },
+            variant: 'ghost',
+          },
+          {
+            label: 'Exportar CSV',
+            icon: Download,
+            onClick: exportarCsv,
+            variant: 'secondary',
+            disabled: depositos.length === 0,
+          },
+        ]}
+      />
+
+      <div className="kpi-grid">
+        <KpiCard
+          label="Depósitos activos"
+          value={depositos.length}
+          icon={Warehouse}
+          tone="brand"
+          helperText="Almacenes registrados"
+        />
+        <KpiCard
+          label="Capacidad total"
+          value={capacidadTotal.toLocaleString('es-AR')}
+          icon={Layers}
+          tone="info"
+          helperText="Unidades de acopio"
+        />
+        <KpiCard
+          label="Tipos definidos"
+          value={tipos.length}
+          icon={Boxes}
+          tone="neutral"
+          helperText="Clasificación logística"
+        />
+        <KpiCard
+          label="Localidades"
+          value={localidadesCubiertas}
+          icon={MapPin}
+          tone="success"
+          helperText="Cobertura geográfica"
+        />
+      </div>
 
       {error && <p role="alert">{error}</p>}
 
@@ -210,45 +304,49 @@ function DepositosPage() {
         {depositos.length === 0 ? (
           <p>No hay depósitos registrados.</p>
         ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>Nombre</th>
-                <th>Dirección</th>
-                <th>Localidad</th>
-                <th>Tipo</th>
-                <th>Capacidad máxima</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
+          <div className="data-table-card">
+            <div className="data-table-scroll-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Nombre</th>
+                    <th>Dirección</th>
+                    <th>Localidad</th>
+                    <th>Tipo</th>
+                    <th>Capacidad máxima</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
 
-            <tbody>
-              {depositos.map((deposito) => (
-                <tr key={deposito.id}>
-                  <td>{deposito.nombre}</td>
-                  <td>{deposito.direccion}</td>
-                  <td>{deposito.localidad}</td>
-                  <td>{deposito.tipo?.nombre || '-'}</td>
-                  <td>{deposito.capacidad_maxima}</td>
-                  <td>
-                    <button
-                      type="button"
-                      onClick={() => comenzarEdicion(deposito)}
-                    >
-                      Editar
-                    </button>
+                <tbody>
+                  {depositos.map((deposito) => (
+                    <tr key={deposito.id}>
+                      <td>{deposito.nombre}</td>
+                      <td>{deposito.direccion}</td>
+                      <td>{deposito.localidad}</td>
+                      <td>{deposito.tipo?.nombre || '-'}</td>
+                      <td>{deposito.capacidad_maxima}</td>
+                      <td>
+                        <button
+                          type="button"
+                          onClick={() => comenzarEdicion(deposito)}
+                        >
+                          Editar
+                        </button>
 
-                    <button
-                      type="button"
-                      onClick={() => eliminarDeposito(deposito)}
-                    >
-                      Eliminar
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                        <button
+                          type="button"
+                          onClick={() => eliminarDeposito(deposito)}
+                        >
+                          Eliminar
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
       </section>
     </main>

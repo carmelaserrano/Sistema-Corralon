@@ -182,23 +182,21 @@ describe('facturasProveedorApi', () => {
     })
 
     it('no exige confirmación si no se cargó neto ni impuestos', async () => {
-      const builder = crearQueryBuilder({
+      supabase.rpc.mockResolvedValueOnce({
         data: { id: 'f1', letra: 'A', sucursal: '0001', numero: '00001234' },
         error: null,
       })
-      supabase.from.mockReturnValue(builder)
 
       const creada = await createFactura(datosValidos)
 
       expect(creada.id).toBe('f1')
-      expect(builder.insert).toHaveBeenCalledWith(
-        expect.objectContaining({ sucursal: '0001', numero: '00001234' }),
-      )
+      expect(supabase.rpc).toHaveBeenCalledWith('registrar_factura_proveedor', expect.objectContaining({
+        p_sucursal: '0001', p_numero: '00001234',
+      }))
     })
 
     it('guarda igual si se pasa forzarDiferencia (CA 7)', async () => {
-      const builder = crearQueryBuilder({ data: { id: 'f1' }, error: null })
-      supabase.from.mockReturnValue(builder)
+      supabase.rpc.mockResolvedValueOnce({ data: { id: 'f1' }, error: null })
 
       const creada = await createFactura({
         ...datosValidos,
@@ -212,11 +210,10 @@ describe('facturasProveedorApi', () => {
     })
 
     it('traduce el duplicado (23505) al mensaje de la historia (CA 5)', async () => {
-      const builder = crearQueryBuilder({
+      supabase.rpc.mockResolvedValueOnce({
         data: null,
         error: { code: '23505', message: 'duplicate key value' },
       })
-      supabase.from.mockReturnValue(builder)
 
       await expect(createFactura(datosValidos)).rejects.toMatchObject({
         message: 'La factura ya fue registrada',
@@ -225,11 +222,10 @@ describe('facturasProveedorApi', () => {
     })
 
     it('traduce la violación de chk_factura_letra', async () => {
-      const builder = crearQueryBuilder({
+      supabase.rpc.mockResolvedValueOnce({
         data: null,
         error: { code: '23514', message: 'violates check constraint "chk_factura_letra"' },
       })
-      supabase.from.mockReturnValue(builder)
 
       await expect(createFactura(datosValidos)).rejects.toMatchObject({
         message: 'La letra debe ser A, B, C o M',

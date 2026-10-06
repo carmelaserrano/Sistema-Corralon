@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+
 import { useAuth } from './lib/AuthContext'
 import LoginPage from './modules/auth/pages/LoginPage'
 import StockPage from './modules/stock/pages/StockPage'
@@ -34,7 +35,29 @@ import AppShell from './components/layout/AppShell'
 
 function App() {
   const { session, loading, signOut } = useAuth()
-  const [pagina, setPagina] = useState('stock')
+  const [pagina, setPagina] = useState(() => {
+    const hash = window.location.hash.replace(/^#\/?/, '')
+    return hash || 'stock'
+  })
+
+  useEffect(() => {
+    function onHashChange() {
+      const hash = window.location.hash.replace(/^#\/?/, '')
+      if (hash && hash !== pagina) {
+        setPagina(hash)
+      }
+    }
+
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
+  }, [pagina])
+
+  function navegar(nuevaPagina) {
+    setPagina(nuevaPagina)
+    if (window.location.hash.replace(/^#\/?/, '') !== nuevaPagina) {
+      window.location.hash = '#' + nuevaPagina
+    }
+  }
 
   if (loading) {
     return (
@@ -50,9 +73,10 @@ function App() {
     <AppShell
       activePage={pagina}
       email={session.user.email}
-      onNavigate={setPagina}
+      onNavigate={navegar}
       onSignOut={signOut}
     >
+
       {pagina === 'stock' && <StockPage />}
       {pagina === 'depositos' && <DepositosPage />}
       {pagina === 'categorias' && <CategoriasPage />}
@@ -61,12 +85,12 @@ function App() {
       {pagina === 'articulos' && <ArticulosPage />}
       {pagina === 'movimientos' && (
         <MovimientosPage
-          onVerHistorial={() => setPagina('historial-movimientos')}
+          onVerHistorial={() => navegar('historial-movimientos')}
         />
       )}
       {pagina === 'historial-movimientos' && (
         <HistorialMovimientosPage
-          onVolver={() => setPagina('movimientos')}
+          onVolver={() => navegar('movimientos')}
         />
       )}
       {pagina === 'configuracion-stock' && <ConfiguracionStockPage />}

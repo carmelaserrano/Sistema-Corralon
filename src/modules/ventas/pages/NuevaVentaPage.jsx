@@ -6,15 +6,23 @@ import {
   Search,
   ShoppingCart,
   User,
+  RotateCcw,
+  Receipt,
 } from 'lucide-react'
 import Button from '../../../components/ui/Button'
 import Feedback from '../../../components/ui/Feedback'
+import PageHeader from '../../../components/ui/PageHeader'
+import KpiCard from '../../../components/ui/KpiCard'
+import { useToast } from '../../../components/ui/ToastContext'
 import LineasVenta from '../components/LineasVenta'
 import {
   listarDepositos,
   buscarClientes,
   registrarVenta,
+  calcularPrecioVenta,
   calcularTotalesVenta,
+  redondear,
+  CODIGO_PRECIO_DESACTUALIZADO,
 } from '../api/ventasApi'
 
 function formatearMoneda(valor) {
@@ -43,6 +51,7 @@ function nombreCompletoCliente(c) {
  * 5. Confirmar venta (transaccional)
  */
 export default function NuevaVentaPage() {
+  const toast = useToast()
   // 1. Estado de Depósito
   const [depositos, setDepositos] = useState([])
   const [depositoId, setDepositoId] = useState('')
@@ -164,6 +173,8 @@ function handleNuevaVenta() {
 
   // Calcular totales de la venta (CA-04)
   const { total: totalVenta, totalArticulos } = calcularTotalesVenta(lineas)
+  const totalItemsUnicos = lineas.length
+  const depositoActual = depositos.find((d) => d.id === depositoId)
 
   const lineasConStockInsuficiente = lineas.filter(
     (l) => l.cantidad > l.stock_disponible,
@@ -183,6 +194,29 @@ function handleNuevaVenta() {
     !lineasSinPrecio &&
     !recalculandoPrecios &&
     !guardando
+
+  // Tras un PRECIO_DESACTUALIZADO se vuelven a pedir los precios a la base
+  // para que el cajero vea los vigentes antes de confirmar de nuevo.
+  async function refrescarPreciosLineas() {
+    try {
+      const actualizadas = await Promise.all(
+        lineas.map(async (linea) => {
+          const precio = await calcularPrecioVenta(linea.producto_id, cliente.id, linea.cantidad)
+          if (precio === null) return linea
+          return {
+            ...linea,
+            precio_unitario: precio,
+            subtotal: redondear(
+              linea.cantidad * precio * (1 - (linea.descuento_pct || 0) / 100),
+            ),
+          }
+        }),
+      )
+      setLineas(actualizadas)
+    } catch {
+      // Si no se pudo consultar, el mensaje de error ya pide revisar la venta.
+    }
+  }
 
   // Confirmar venta transaccional (CA-06)
   async function handleConfirmarVenta(e) {
@@ -211,11 +245,17 @@ function handleNuevaVenta() {
       const ventaCreada = await registrarVenta(cabecera, items)
       setLineasStockError([])
       setVentaConfirmada(ventaCreada)
+      toast?.success?.(`¡Venta #${ventaCreada.numero} registrada con éxito!`)
     } catch (err) {
       if (err.code === 'STOCK_INSUFICIENTE') {
         setLineasStockError(err.details || [])
       }
-      setErrorEnvio(err.message || 'Ocurrió un error al registrar la venta')
+      if (err.code === CODIGO_PRECIO_DESACTUALIZADO) {
+        await refrescarPreciosLineas()
+      }
+      const msg = err.message || 'Ocurrió un error al registrar la venta'
+      setErrorEnvio(msg)
+      toast?.error?.(msg)
     } finally {
       setGuardando(false)
     }
@@ -314,14 +354,58 @@ function handleNuevaVenta() {
 
   return (
     <div className="page-canvas nueva-venta-page">
-      <header className="page-header" style={{ marginBottom: '24px' }}>
-        <div>
-          <h1>Nueva venta (POS)</h1>
-          <p style={{ color: 'var(--text-secondary)', margin: '4px 0 0' }}>
-            Registro de venta en mostrador: selección de depósito, cliente y artículos con control de stock.
-          </p>
-        </div>
-      </header>
+      <PageHeader
+        title="Nueva venta (POS)"
+        breadcrumbs={[
+          { label: 'Ventas', to: '/#/ventas' },
+          { label: 'Punto de Venta' },
+        ]}
+        description="Registro de venta en mostrador: selección de depósito, cliente y artículos con control de stock en tiempo real."
+        actions={
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <Button
+              type="button"
+              variant="outline"
+              icon={RotateCcw}
+              onClick={handleNuevaVenta}
+              disabled={guardando || (!depositoId && !cliente && lineas.length === 0)}
+            >
+              Reiniciar
+            </Button>
+          </div>
+        }
+      />
+
+      <div className="kpi-grid" style={{ marginBottom: '24px' }}>
+        <KpiCard
+          label="Depósito Operativo"
+          value={depositoActual ? depositoActual.nombre : 'Sin seleccionar'}
+          icon={Building2}
+          tone={depositoId ? 'brand' : 'neutral'}
+          helperText={depositoActual ? (depositoActual.localidad || 'Sede activa') : 'Paso 1 requerido'}
+        />
+        <KpiCard
+          label="Cliente Mostrador"
+          value={cliente ? (cliente.razon_social || cliente.nombre || 'Asignado') : 'Sin seleccionar'}
+          icon={User}
+          tone={cliente ? 'success' : 'neutral'}
+          helperText={cliente ? (cliente.tipo_cliente?.nombre || 'Habilitado') : 'Paso 2 requerido'}
+        />
+        <KpiCard
+          label="Ítems en Carrito"
+          value={`${totalItemsUnicos} (${totalArticulos} u.)`}
+          icon={ShoppingCart}
+          tone="info"
+          helperText="Productos añadidos a la orden"
+        />
+        <KpiCard
+          label="Total Preventa"
+          value={formatearMoneda(totalVenta)}
+          icon={Receipt}
+          tone="brand"
+          helperText="Importe a cobrar calculado"
+        />
+      </div>
 
       {errorEnvio && (
         <div style={{ marginBottom: '16px' }}>
