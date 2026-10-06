@@ -695,26 +695,64 @@ label.checkbox-field {
   background: #faf0d4;
 }
 
+/* Tablas de listado. Antes el encabezado y el cuerpo eran dos tablas
+   separadas con columnas de igual ancho y sin salto de línea: el texto largo
+   (un nombre de producto, una categoría) se montaba sobre la columna vecina.
+   Ahora es una tabla común: cada columna toma el ancho que necesita y el texto
+   largo pasa a una segunda línea. En pantallas angostas se vuelve al
+   desplazamiento horizontal (ver la media query más abajo). */
 .page-canvas table {
-  display: block;
+  display: table;
   width: 100%;
   margin: var(--space-4) 0 var(--space-5);
-  overflow-x: auto;
   border: 1px solid var(--border-default);
   border-radius: var(--radius-lg);
   border-collapse: separate;
   border-spacing: 0;
   background: var(--surface-panel);
   box-shadow: var(--shadow-1);
+  table-layout: auto;
+}
+
+.page-canvas th {
   white-space: nowrap;
 }
 
-.page-canvas thead,
-.page-canvas tbody {
-  display: table;
-  width: 100%;
-  min-width: 760px;
-  table-layout: fixed;
+.page-canvas td {
+  overflow-wrap: break-word;
+}
+
+/* Con border-collapse: separate el borde redondeado no recorta el fondo de
+   las celdas de las esquinas: se redondean ellas. */
+.page-canvas table > :first-child > tr:first-child > :first-child {
+  border-top-left-radius: var(--radius-lg);
+}
+
+.page-canvas table > :first-child > tr:first-child > :last-child {
+  border-top-right-radius: var(--radius-lg);
+}
+
+.page-canvas table > :last-child > tr:last-child > :first-child {
+  border-bottom-left-radius: var(--radius-lg);
+}
+
+.page-canvas table > :last-child > tr:last-child > :last-child {
+  border-bottom-right-radius: var(--radius-lg);
+}
+
+@media (max-width: 800px) {
+  .page-canvas table {
+    display: block;
+    overflow-x: auto;
+  }
+
+  .page-canvas thead,
+  .page-canvas tbody {
+    display: table;
+    width: 100%;
+    min-width: 760px;
+    table-layout: fixed;
+  }
 }
 
 /* CORR-02: flujo guiado de movimientos multiartículo */

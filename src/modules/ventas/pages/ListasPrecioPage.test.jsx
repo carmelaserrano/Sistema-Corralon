@@ -53,8 +53,10 @@ describe('ListasPrecioPage', () => {
     expect(
       await screen.findByRole('heading', { name: 'Precios de General' }),
     ).toBeInTheDocument()
-    expect(screen.getByText('Sin precio')).toBeInTheDocument()
-    expect(screen.getByText('Consumidor final')).toBeInTheDocument()
+    // Los precios llegan después del título: se esperan para no depender de
+    // la velocidad de la máquina (el test fallaba de forma intermitente).
+    expect(await screen.findByText('Sin precio')).toBeInTheDocument()
+    expect(await screen.findByText('Consumidor final')).toBeInTheDocument()
 
     expect(screen.queryByRole('heading', { name: 'Nueva lista' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Editar' })).not.toBeInTheDocument()
