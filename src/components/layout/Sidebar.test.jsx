@@ -1,7 +1,8 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import Sidebar from './Sidebar'
+import { navigationGroups, pageModules } from './navigation'
 
 function renderSidebar(overrides = {}) {
   const props = {
@@ -14,6 +15,21 @@ function renderSidebar(overrides = {}) {
   return { props, ...render(<Sidebar {...props} />) }
 }
 
+// El título de cada sección es el botón que tiene aria-expanded.
+function seccion(nombre) {
+  return screen
+    .getAllByRole('button', { name: nombre })
+    .find((boton) => boton.hasAttribute('aria-expanded'))
+}
+
+function grupo(nombre) {
+  return seccion(nombre).closest('.nav-group')
+}
+
+beforeEach(() => {
+  localStorage.clear()
+})
+
 describe('Sidebar', () => {
   it('CORR-03: mantiene el acceso a Movimientos sin un menú de pendientes', () => {
     const { props } = renderSidebar()
@@ -24,14 +40,75 @@ describe('Sidebar', () => {
     expect(props.onNavigate).toHaveBeenCalledWith('movimientos')
   })
 
-  it('agrupa todas las opciones de navegación', () => {
-    renderSidebar()
+  it('muestra las siete secciones y abre solo la de la página actual', () => {
+    renderSidebar({ activePage: 'ventas' })
 
-    expect(screen.getByText('Operación')).toBeInTheDocument()
-    expect(screen.getByText('Catálogos')).toBeInTheDocument()
-    expect(screen.getByText('Control')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Stock' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Reportes' })).toBeInTheDocument()
+    const titulos = navigationGroups.map((g) => g.label)
+    expect(titulos).toEqual([
+      'Stock',
+      'Artículos',
+      'Control y ajustes',
+      'Compras',
+      'Clientes',
+      'Ventas',
+      'E-commerce',
+    ])
+    for (const titulo of titulos) {
+      expect(seccion(titulo)).toHaveAttribute(
+        'aria-expanded',
+        titulo === 'Ventas' ? 'true' : 'false',
+      )
+    }
+    expect(screen.getByRole('button', { name: 'Nueva venta' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Proveedores' })).not.toBeInTheDocument()
+  })
+
+  it('despliega y pliega una sección con su flecha, y permite varias abiertas', () => {
+    renderSidebar({ activePage: 'stock' })
+
+    fireEvent.click(seccion('Compras'))
+    expect(seccion('Compras')).toHaveAttribute('aria-expanded', 'true')
+    expect(
+      within(grupo('Compras')).getAllByRole('button').map((b) => b.textContent),
+    ).toEqual([
+      'Compras',
+      'Proveedores',
+      'Rubros',
+      'Órdenes de Compra',
+      'Recepciones',
+      'Notas de Crédito/Débito',
+      'Facturas de Proveedor',
+      'Órdenes de Pago',
+    ])
+    // Stock sigue abierta: se pueden tener varias secciones desplegadas.
+    expect(seccion('Stock')).toHaveAttribute('aria-expanded', 'true')
+
+    fireEvent.click(seccion('Compras'))
+    expect(seccion('Compras')).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('button', { name: 'Rubros' })).not.toBeInTheDocument()
+  })
+
+  it('recuerda las secciones abiertas al volver a montar el menú', () => {
+    const { unmount } = renderSidebar({ activePage: 'stock' })
+    fireEvent.click(seccion('Clientes'))
+    unmount()
+
+    renderSidebar({ activePage: 'stock' })
+    expect(seccion('Clientes')).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('abre la sección de la página activa aunque estuviera cerrada', () => {
+    const { rerender, props } = renderSidebar({ activePage: 'stock' })
+    expect(seccion('Ventas')).toHaveAttribute('aria-expanded', 'false')
+
+    rerender(<Sidebar {...props} activePage="descuentos" />)
+
+    expect(seccion('Ventas')).toHaveAttribute('aria-expanded', 'true')
+    expect(grupo('Ventas')).toHaveClass('has-active')
+    expect(screen.getByRole('button', { name: 'Descuentos' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
   })
 
   it('marca la página activa y agrupa el historial con Movimientos', () => {
@@ -41,21 +118,23 @@ describe('Sidebar', () => {
       'aria-current',
       'page',
     )
+    expect(grupo('Stock')).toHaveClass('has-active')
   })
 
   it('navega y cierra el drawer al seleccionar una opción', () => {
     const { props } = renderSidebar({ isOpen: true })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Artículos' }))
+    fireEvent.click(seccion('Artículos'))
+    fireEvent.click(within(grupo('Artículos')).getByRole('button', { name: 'Marcas' }))
 
-    expect(props.onNavigate).toHaveBeenCalledWith('articulos')
+    expect(props.onNavigate).toHaveBeenCalledWith('marcas')
     expect(props.onClose).toHaveBeenCalled()
   })
 
   it('abre la tienda en una pestaña nueva sin reemplazar la navegación del backoffice', () => {
     const { props } = renderSidebar({ isOpen: true })
-    const grupoEcommerce = screen.getByText('E-commerce').closest('.nav-group')
-    const opciones = Array.from(grupoEcommerce.querySelectorAll('.nav-item'))
+    fireEvent.click(seccion('E-commerce'))
+    const opciones = Array.from(grupo('E-commerce').querySelectorAll('.nav-item'))
     const enlaceTienda = screen.getByRole('link', { name: 'Ver tienda' })
 
     expect(opciones.map((opcion) => opcion.textContent)).toEqual([
@@ -71,6 +150,14 @@ describe('Sidebar', () => {
 
     expect(props.onNavigate).not.toHaveBeenCalled()
     expect(props.onClose).toHaveBeenCalled()
+  })
+
+  it('conserva el módulo del encabezado de las pantallas que cambiaron de sección', () => {
+    expect(pageModules.recepciones).toBe('Compras')
+    expect(pageModules.proveedores).toBe('Proveedores')
+    expect(pageModules['ordenes-pago']).toBe('Tesorería')
+    expect(pageModules['alertas-stock']).toBe('Stock')
+    expect(pageModules['historial-movimientos']).toBe('Stock')
   })
 
   it('expone la apertura móvil y permite cerrarla', () => {

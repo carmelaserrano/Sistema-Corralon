@@ -26,18 +26,26 @@ import {
   Wallet,
 } from 'lucide-react'
 
+// Secciones del menú lateral. Cada sección se despliega con su flecha (ver
+// Sidebar.jsx). `module` es el módulo que muestra el encabezado de la página;
+// un ítem puede sobrescribirlo cuando la sección junta pantallas de varios
+// módulos (por ejemplo, Compras incluye Proveedores y Tesorería).
 export const navigationGroups = [
   {
-    label: 'Operación',
+    id: 'stock',
+    label: 'Stock',
+    icon: Boxes,
     module: 'Stock',
     items: [
       { id: 'stock', label: 'Stock', icon: Boxes },
       { id: 'movimientos', label: 'Movimientos', icon: Layers3 },
-      { id: 'recepciones', label: 'Recepciones', icon: PackageCheck },
+      { id: 'alertas-stock', label: 'Alertas', icon: AlertTriangle },
     ],
   },
   {
-    label: 'Catálogos',
+    id: 'articulos',
+    label: 'Artículos',
+    icon: PackageOpen,
     module: 'Stock',
     items: [
       { id: 'articulos', label: 'Artículos', icon: PackageOpen },
@@ -47,50 +55,36 @@ export const navigationGroups = [
     ],
   },
   {
-    label: 'Control',
+    id: 'control',
+    label: 'Control y ajustes',
+    icon: Settings2,
     module: 'Stock',
     items: [
-      { id: 'depositos', label: 'Depósitos', icon: Building2 },
-      {
-        id: 'configuracion-stock',
-        label: 'Configuración',
-        icon: Settings2,
-      },
-      {
-        id: 'inventario-fisico',
-        label: 'Inventario',
-        icon: ClipboardCheck,
-      },
-      { id: 'alertas-stock', label: 'Alertas', icon: AlertTriangle },
+      { id: 'inventario-fisico', label: 'Inventario físico', icon: ClipboardCheck },
       { id: 'reportes', label: 'Reportes', icon: FileBarChart },
+      { id: 'depositos', label: 'Depósitos', icon: Building2 },
+      { id: 'configuracion-stock', label: 'Configuración', icon: Settings2 },
     ],
   },
   {
-    label: 'Proveedores',
-    module: 'Proveedores',
-    items: [
-      { id: 'proveedores', label: 'Proveedores', icon: Truck },
-      { id: 'rubros', label: 'Rubros', icon: FolderTree },
-    ],
-  },
-  {
+    id: 'compras',
     label: 'Compras',
+    icon: ShoppingCart,
     module: 'Compras',
     items: [
+      { id: 'proveedores', label: 'Proveedores', icon: Truck, module: 'Proveedores' },
+      { id: 'rubros', label: 'Rubros', icon: FolderTree, module: 'Proveedores' },
       { id: 'ordenes-compra', label: 'Órdenes de Compra', icon: ShoppingCart },
+      { id: 'recepciones', label: 'Recepciones', icon: PackageCheck },
       { id: 'notas-proveedor', label: 'Notas de Crédito/Débito', icon: FileStack },
+      { id: 'facturas-proveedor', label: 'Facturas de Proveedor', icon: Receipt, module: 'Tesorería' },
+      { id: 'ordenes-pago', label: 'Órdenes de Pago', icon: Wallet, module: 'Tesorería' },
     ],
   },
   {
-    label: 'Tesorería',
-    module: 'Tesorería',
-    items: [
-      { id: 'facturas-proveedor', label: 'Facturas de Proveedor', icon: Receipt },
-      { id: 'ordenes-pago', label: 'Órdenes de Pago', icon: Wallet },
-    ],
-  },
-  {
+    id: 'clientes',
     label: 'Clientes',
+    icon: Users,
     module: 'Clientes',
     items: [
       { id: 'clientes', label: 'Clientes', icon: Users },
@@ -99,7 +93,9 @@ export const navigationGroups = [
     ],
   },
   {
+    id: 'ventas',
     label: 'Ventas',
+    icon: Receipt,
     module: 'Ventas',
     items: [
       { id: 'nueva-venta', label: 'Nueva venta', icon: ShoppingCart },
@@ -110,7 +106,9 @@ export const navigationGroups = [
     ],
   },
   {
+    id: 'ecommerce',
     label: 'E-commerce',
+    icon: Store,
     module: 'E-commerce',
     items: [
       { id: 'ver-tienda', label: 'Ver tienda', icon: Store, href: '/tienda', newTab: true },
@@ -130,7 +128,7 @@ pageTitles['historial-movimientos'] = 'Historial de movimientos'
 
 export const pageModules = Object.fromEntries(
   navigationGroups.flatMap((group) =>
-    group.items.map((item) => [item.id, group.module]),
+    group.items.map((item) => [item.id, item.module ?? group.module]),
   ),
 )
 

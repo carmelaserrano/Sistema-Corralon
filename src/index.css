@@ -213,23 +213,85 @@ button:disabled {
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: var(--space-5);
-  padding: var(--space-6) 0;
+  gap: var(--space-1);
+  padding: var(--space-5) 0;
 }
 
+/* Secciones desplegables: el título abre y cierra sus pantallas. */
 .nav-group {
   display: grid;
-  gap: 3px;
+  gap: 2px;
+}
+
+.nav-group-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 40px;
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-neutral-300);
+  font-size: 13px;
+  font-weight: 750;
+  text-align: left;
+  cursor: pointer;
+}
+
+.nav-group-toggle:hover {
+  background: rgb(255 255 255 / 7%);
+  color: var(--text-on-inverse);
 }
 
 .nav-group-label {
-  margin: 0 0 var(--space-2);
-  padding: 0 var(--space-3);
+  flex: 1;
+}
+
+.nav-group-chevron {
+  flex: 0 0 auto;
   color: var(--color-neutral-500);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  transition: transform 160ms ease;
+}
+
+.nav-group.is-expanded .nav-group-chevron {
+  transform: rotate(90deg);
+}
+
+/* La sección de la página actual se distingue aunque esté cerrada. */
+.nav-group.has-active .nav-group-toggle {
+  color: var(--text-on-inverse);
+}
+
+.nav-group.has-active .nav-group-toggle > svg:first-child {
+  color: var(--color-brand);
+}
+
+.nav-group-items {
+  display: grid;
+  gap: 2px;
+  margin: 0 0 var(--space-2) var(--space-5);
+  padding-left: var(--space-2);
+  border-left: 1px solid rgb(255 255 255 / 10%);
+  animation: nav-seccion-abrir 160ms ease-out;
+}
+
+.nav-group-items .nav-item {
+  min-height: 36px;
+  font-size: 12.5px;
+}
+
+@keyframes nav-seccion-abrir {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .nav-item,
