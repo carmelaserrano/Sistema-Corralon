@@ -56,6 +56,14 @@ function manejarErrorCambioEstado(error) {
     if (error.message?.includes('motivo es obligatorio')) {
       throw errorConCampo('El motivo es obligatorio para anular', 400, 'motivo')
     }
+    // Una restricción de stock violada significa que la reserva de la venta no
+    // coincide con el depósito: no es un error de datos del usuario.
+    if (error.message?.includes('stock_x_deposito')) {
+      throw errorDeApi(
+        'No se pudo ajustar el stock de la venta. Avisá a un administrador para revisar el stock del depósito.',
+        409,
+      )
+    }
     throw errorDeApi('Revisá los datos: no cumplen una validación del sistema', 400)
   }
 

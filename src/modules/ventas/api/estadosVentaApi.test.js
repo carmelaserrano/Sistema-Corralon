@@ -257,6 +257,57 @@ describe('estadosVentaApi', () => {
       )
     })
 
+    it('una restricción de stock violada no se presenta como error de datos del usuario', async () => {
+      supabase.rpc.mockReturnValue(
+        crearQueryBuilder({
+          data: null,
+          error: errorPg(
+            '23514',
+            'new row for relation "stock_x_deposito" violates check constraint "stock_x_deposito_comprometido_nonneg"',
+          ),
+        }),
+      )
+
+      await expect(anularVenta('v1', 'algo')).rejects.toMatchObject({
+        status: 409,
+        message: expect.stringMatching(/revisar el stock del depósito/),
+      })
+    })
+
+    it('anular una Pendiente con cobro indica la Nota de Crédito (requiereNotaCredito)', async () => {
+      supabase.rpc.mockReturnValue(
+        crearQueryBuilder({
+          data: null,
+          error: errorPg(
+            '22023',
+            'La venta tiene un cobro registrado: facturala y emití una Nota de Crédito por el total para anularla',
+          ),
+        }),
+      )
+
+      await expect(anularVenta('v1', 'motivo')).rejects.toMatchObject({
+        status: 409,
+        requiereNotaCredito: true,
+      })
+    })
+
+    it('entregar una venta con backorder pendiente devuelve 409 con el motivo de la base', async () => {
+      supabase.rpc.mockReturnValue(
+        crearQueryBuilder({
+          data: null,
+          error: errorPg(
+            '22023',
+            'La venta tiene artículos en backorder pendientes de reposición: no se puede marcar como entregada',
+          ),
+        }),
+      )
+
+      await expect(marcarEntregada('v1')).rejects.toMatchObject({
+        status: 409,
+        message: expect.stringMatching(/backorder pendientes/),
+      })
+    })
+
     it('CA-05: anular una Facturada marca el error con requiereNotaCredito', async () => {
       supabase.rpc.mockReturnValue(
         crearQueryBuilder({

@@ -248,6 +248,7 @@ export async function obtenerDetalleVenta(ventaId) {
     .select(`
       id,
       cantidad,
+      cantidad_backorder,
       precio_unitario,
       descuento_pct,
       subtotal,
