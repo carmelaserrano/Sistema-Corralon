@@ -63,7 +63,7 @@ function App() {
     return (
       <div className="app-loading" role="status">
         <span className="loading-mark" />
-        <strong>Cargando Sistema Corralón…</strong>
+        <strong>Cargando Corralón Norte…</strong>
       </div>
     )
   }

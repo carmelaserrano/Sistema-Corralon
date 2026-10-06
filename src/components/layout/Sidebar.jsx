@@ -1,35 +1,78 @@
-import { useState } from 'react'
-import { Boxes, ChevronDown, Search, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { ChevronRight, Search, X } from 'lucide-react'
+import LogoCasco from '../ui/LogoCasco'
 import { navigationGroups } from './navigation'
 
+// Etiquetas cortas junto a algunas pantallas.
 const BADGES = {
   'alertas-stock': { label: 'Alerta', tone: 'warning' },
   'pedidos-web': { label: 'Web', tone: 'info' },
   'nueva-venta': { label: 'POS', tone: 'info' },
 }
 
-export default function Sidebar({
-  activePage,
-  isOpen,
-  onClose,
-  onNavigate,
-  onOpenPalette,
-}) {
-  const [collapsed, setCollapsed] = useState({})
+// Secciones abiertas por el usuario, para conservarlas al recargar.
+const CLAVE_SECCIONES = 'corralon.sidebar.secciones-abiertas'
 
+function seccionDePagina(pageId) {
+  return navigationGroups.find((group) => group.items.some((item) => item.id === pageId))?.id
+}
+
+function leerSecciones() {
+  try {
+    const guardadas = JSON.parse(localStorage.getItem(CLAVE_SECCIONES) || 'null')
+    return Array.isArray(guardadas) ? guardadas : null
+  } catch {
+    return null
+  }
+}
+
+function guardarSecciones(ids) {
+  try {
+    localStorage.setItem(CLAVE_SECCIONES, JSON.stringify(ids))
+  } catch {
+    // Sin almacenamiento el menú funciona igual; solo no recuerda el estado.
+  }
+}
+
+export default function Sidebar({ activePage, isOpen, onClose, onNavigate, onOpenPalette }) {
   const activeNavigationPage =
     activePage === 'historial-movimientos' ? 'movimientos' : activePage
+  const seccionActiva = seccionDePagina(activeNavigationPage)
+
+  // Varias secciones pueden estar abiertas a la vez. La primera vez se abre
+  // solo la de la página actual.
+  const [abiertas, setAbiertas] = useState(() => {
+    const guardadas = leerSecciones()
+    const iniciales = new Set(guardadas ?? [])
+    if (seccionActiva) iniciales.add(seccionActiva)
+    return iniciales
+  })
+
+  // Al llegar a una página de una sección cerrada (por ejemplo, desde un
+  // botón de otra pantalla), la sección se abre para mostrar dónde estás.
+  useEffect(() => {
+    if (!seccionActiva) return
+    setAbiertas((actuales) => {
+      if (actuales.has(seccionActiva)) return actuales
+      const nuevas = new Set(actuales).add(seccionActiva)
+      guardarSecciones([...nuevas])
+      return nuevas
+    })
+  }, [seccionActiva])
+
+  function alternarSeccion(id) {
+    setAbiertas((actuales) => {
+      const nuevas = new Set(actuales)
+      if (nuevas.has(id)) nuevas.delete(id)
+      else nuevas.add(id)
+      guardarSecciones([...nuevas])
+      return nuevas
+    })
+  }
 
   function navigate(pageId) {
     onNavigate(pageId)
     onClose()
-  }
-
-  function toggleGroup(label) {
-    setCollapsed((prev) => ({
-      ...prev,
-      [label]: !prev[label],
-    }))
   }
 
   return (
@@ -42,12 +85,14 @@ export default function Sidebar({
       />
       <aside className={`sidebar ${isOpen ? 'is-open' : ''}`} aria-label="Menú principal">
         <div className="sidebar-brand">
-          <span className="brand-mark" aria-hidden="true">
-            <Boxes size={21} strokeWidth={2.2} />
+          <span className="sidebar-logo">
+            <LogoCasco size={40} />
           </span>
           <span>
-            <strong>Sistema Corralón</strong>
-            <small>Gestión de stock</small>
+            <strong className="marca-nombre">
+              Corralón <span>Norte</span>
+            </strong>
+            <small>Sistema de gestión</small>
           </span>
           <button
             className="sidebar-close"
@@ -60,15 +105,10 @@ export default function Sidebar({
         </div>
 
         {onOpenPalette && (
-          <div style={{ padding: '12px 4px 4px' }}>
-            <button
-              type="button"
-              className="topbar-search-trigger"
-              style={{ width: '100%', justifyContent: 'space-between', minHeight: '34px' }}
-              onClick={onOpenPalette}
-            >
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                <Search size={14} />
+          <div className="sidebar-search">
+            <button type="button" className="topbar-search-trigger" onClick={onOpenPalette}>
+              <span>
+                <Search size={14} aria-hidden="true" />
                 <span>Buscar módulo…</span>
               </span>
               <kbd>⌘K</kbd>
@@ -77,75 +117,71 @@ export default function Sidebar({
         )}
 
         <nav className="sidebar-nav">
-          {navigationGroups.map((group) => {
-            const hasActiveItem = group.items.some((item) => item.id === activeNavigationPage)
-            const isGroupCollapsed = Boolean(collapsed[group.label]) && !hasActiveItem
+          {navigationGroups.map(({ id: grupoId, label: grupoLabel, icon: GrupoIcon, items }) => {
+            const abierta = abiertas.has(grupoId)
+            const contieneActiva = seccionActiva === grupoId
+            const panelId = `nav-seccion-${grupoId}`
 
             return (
-              <div className="nav-group" key={group.label}>
-                <p
-                  className="nav-group-label"
-                  style={{
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    userSelect: 'none',
-                  }}
-                  onClick={() => toggleGroup(group.label)}
-                  title="Haz clic para contraer o expandir este grupo"
+              <div
+                className={`nav-group ${abierta ? 'is-expanded' : ''} ${contieneActiva ? 'has-active' : ''}`}
+                key={grupoId}
+              >
+                <button
+                  className="nav-group-toggle"
+                  type="button"
+                  aria-expanded={abierta}
+                  aria-controls={panelId}
+                  onClick={() => alternarSeccion(grupoId)}
                 >
-                  <span>{group.label}</span>
-                  <ChevronDown
-                    size={12}
-                    style={{
-                      transform: isGroupCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
-                      transition: 'transform 150ms ease',
-                    }}
-                    aria-hidden="true"
-                  />
-                </p>
+                  <GrupoIcon size={18} aria-hidden="true" />
+                  <span className="nav-group-label">{grupoLabel}</span>
+                  <ChevronRight className="nav-group-chevron" size={16} aria-hidden="true" />
+                </button>
 
-                {!isGroupCollapsed &&
-                  group.items.map(({ id, label, icon: Icon, href, newTab }) => {
-                    const active = activeNavigationPage === id
-                    const badge = BADGES[id]
-
-                    if (href) {
+                {abierta && (
+                  <div className="nav-group-items" id={panelId}>
+                    {items.map(({ id, label, icon: Icon, href, newTab }) => {
+                      const active = activeNavigationPage === id
+                      if (href) {
+                        return (
+                          <a
+                            className="nav-item"
+                            href={href}
+                            key={id}
+                            style={{ textDecoration: 'none' }}
+                            target={newTab ? '_blank' : undefined}
+                            rel={newTab ? 'noopener noreferrer' : undefined}
+                            onClick={onClose}
+                          >
+                            <Icon size={16} aria-hidden="true" />
+                            <span>{label}</span>
+                          </a>
+                        )
+                      }
                       return (
-                        <a
-                          className="nav-item"
-                          href={href}
+                        <button
+                          className={`nav-item ${active ? 'is-active' : ''}`}
+                          type="button"
                           key={id}
-                          style={{ textDecoration: 'none' }}
-                          target={newTab ? '_blank' : undefined}
-                          rel={newTab ? 'noopener noreferrer' : undefined}
-                          onClick={onClose}
+                          aria-current={active ? 'page' : undefined}
+                          onClick={() => navigate(id)}
                         >
-                          <Icon size={18} aria-hidden="true" />
+                          <Icon size={16} aria-hidden="true" />
                           <span>{label}</span>
-                        </a>
+                          {BADGES[id] && (
+                            <span
+                              className={`nav-badge nav-badge-${BADGES[id].tone}`}
+                              aria-hidden="true"
+                            >
+                              {BADGES[id].label}
+                            </span>
+                          )}
+                        </button>
                       )
-                    }
-
-                    return (
-                      <button
-                        className={`nav-item ${active ? 'is-active' : ''}`}
-                        type="button"
-                        key={id}
-                        aria-current={active ? 'page' : undefined}
-                        onClick={() => navigate(id)}
-                      >
-                        <Icon size={18} aria-hidden="true" />
-                        <span>{label}</span>
-                        {badge && (
-                          <span className={`nav-badge nav-badge-${badge.tone}`}>
-                            {badge.label}
-                          </span>
-                        )}
-                      </button>
-                    )
-                  })}
+                    })}
+                  </div>
+                )}
               </div>
             )
           })}

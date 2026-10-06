@@ -40,7 +40,8 @@ test('QA: login, Stock y Movimientos sin editar datos', async ({ page }, testInf
 
     const menu = page.getByRole('complementary', { name: 'Menú principal' })
     await expect(menu).toBeVisible()
-    await menu.getByRole('button', { name: 'Stock', exact: true }).click()
+    // "Stock" es a la vez el título de la sección y la pantalla: se busca la pantalla.
+    await menu.locator('.nav-group-items').getByRole('button', { name: 'Stock', exact: true }).click()
     await expect(page.getByRole('heading', { name: 'Stock por depósito', exact: true })).toBeVisible()
     await expect(page.getByRole('main').getByRole('table')).toBeVisible()
     await expect(page.locator('.feedback-error')).toHaveCount(0)
