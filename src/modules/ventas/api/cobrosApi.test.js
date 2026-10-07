@@ -127,6 +127,10 @@ describe('cobrosApi', () => {
         data: null,
         error: { code: 'CV003', message: 'La venta ya tiene un cobro registrado' },
       })
+      .mockResolvedValueOnce({
+        data: null,
+        error: { code: 'CV008', message: 'Debe abrir una caja antes de registrar un cobro' },
+      })
     supabase.rpc.mockReturnValue({ single })
     const detalle = [{ medio_pago_id: 'm1', monto: 100 }]
 
@@ -137,6 +141,10 @@ describe('cobrosApi', () => {
     await expect(registrarCobro('v1', detalle)).rejects.toMatchObject({
       status: 409,
       message: 'La venta ya tiene un cobro registrado',
+    })
+    await expect(registrarCobro('v1', detalle)).rejects.toMatchObject({
+      status: 409,
+      message: 'Debe abrir una caja antes de registrar un cobro',
     })
   })
 
