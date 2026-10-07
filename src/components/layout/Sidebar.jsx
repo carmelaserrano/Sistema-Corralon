@@ -10,25 +10,26 @@ const BADGES = {
   'nueva-venta': { label: 'POS', tone: 'info' },
 }
 
-// Secciones abiertas por el usuario, para conservarlas al recargar.
+// Sección abierta por el usuario, para conservarla al recargar.
 const CLAVE_SECCIONES = 'corralon.sidebar.secciones-abiertas'
 
 function seccionDePagina(pageId) {
   return navigationGroups.find((group) => group.items.some((item) => item.id === pageId))?.id
 }
 
-function leerSecciones() {
+function leerSeccion() {
   try {
     const guardadas = JSON.parse(localStorage.getItem(CLAVE_SECCIONES) || 'null')
-    return Array.isArray(guardadas) ? guardadas : null
+    const ids = Array.isArray(guardadas) ? guardadas : [guardadas]
+    return ids.find((id) => navigationGroups.some((group) => group.id === id)) ?? null
   } catch {
     return null
   }
 }
 
-function guardarSecciones(ids) {
+function guardarSeccion(id) {
   try {
-    localStorage.setItem(CLAVE_SECCIONES, JSON.stringify(ids))
+    localStorage.setItem(CLAVE_SECCIONES, JSON.stringify(id))
   } catch {
     // Sin almacenamiento el menú funciona igual; solo no recuerda el estado.
   }
@@ -39,35 +40,20 @@ export default function Sidebar({ activePage, isOpen, onClose, onNavigate, onOpe
     activePage === 'historial-movimientos' ? 'movimientos' : activePage
   const seccionActiva = seccionDePagina(activeNavigationPage)
 
-  // Varias secciones pueden estar abiertas a la vez. La primera vez se abre
-  // solo la de la página actual.
-  const [abiertas, setAbiertas] = useState(() => {
-    const guardadas = leerSecciones()
-    const iniciales = new Set(guardadas ?? [])
-    if (seccionActiva) iniciales.add(seccionActiva)
-    return iniciales
-  })
+  // La página actual tiene prioridad sobre el estado guardado.
+  const [seccionAbierta, setSeccionAbierta] = useState(() => seccionActiva ?? leerSeccion())
 
-  // Al llegar a una página de una sección cerrada (por ejemplo, desde un
-  // botón de otra pantalla), la sección se abre para mostrar dónde estás.
+  // La navegación abre exclusivamente la sección de la nueva página.
   useEffect(() => {
-    if (!seccionActiva) return
-    setAbiertas((actuales) => {
-      if (actuales.has(seccionActiva)) return actuales
-      const nuevas = new Set(actuales).add(seccionActiva)
-      guardarSecciones([...nuevas])
-      return nuevas
-    })
-  }, [seccionActiva])
+    if (seccionActiva) setSeccionAbierta(seccionActiva)
+  }, [activeNavigationPage, seccionActiva])
+
+  useEffect(() => {
+    guardarSeccion(seccionAbierta)
+  }, [seccionAbierta])
 
   function alternarSeccion(id) {
-    setAbiertas((actuales) => {
-      const nuevas = new Set(actuales)
-      if (nuevas.has(id)) nuevas.delete(id)
-      else nuevas.add(id)
-      guardarSecciones([...nuevas])
-      return nuevas
-    })
+    setSeccionAbierta((actual) => (actual === id ? null : id))
   }
 
   function navigate(pageId) {
@@ -118,19 +104,19 @@ export default function Sidebar({ activePage, isOpen, onClose, onNavigate, onOpe
 
         <nav className="sidebar-nav">
           {navigationGroups.map(({ id: grupoId, label: grupoLabel, icon: GrupoIcon, items }) => {
-            const abierta = abiertas.has(grupoId)
+            const expandida = seccionAbierta === grupoId
             const contieneActiva = seccionActiva === grupoId
             const panelId = `nav-seccion-${grupoId}`
 
             return (
               <div
-                className={`nav-group ${abierta ? 'is-expanded' : ''} ${contieneActiva ? 'has-active' : ''}`}
+                className={`nav-group ${expandida ? 'is-expanded' : ''} ${contieneActiva ? 'has-active' : ''}`}
                 key={grupoId}
               >
                 <button
                   className="nav-group-toggle"
                   type="button"
-                  aria-expanded={abierta}
+                  aria-expanded={expandida}
                   aria-controls={panelId}
                   onClick={() => alternarSeccion(grupoId)}
                 >
@@ -139,49 +125,56 @@ export default function Sidebar({ activePage, isOpen, onClose, onNavigate, onOpe
                   <ChevronRight className="nav-group-chevron" size={16} aria-hidden="true" />
                 </button>
 
-                {abierta && (
-                  <div className="nav-group-items" id={panelId}>
-                    {items.map(({ id, label, icon: Icon, href, newTab }) => {
-                      const active = activeNavigationPage === id
-                      if (href) {
+                <div
+                  className="nav-group-panel"
+                  id={panelId}
+                  aria-hidden={!expandida}
+                  inert={expandida ? undefined : ''}
+                >
+                  <div className="nav-group-content">
+                    <div className="nav-group-items">
+                      {items.map(({ id, label, icon: Icon, href, newTab }) => {
+                        const active = activeNavigationPage === id
+                        if (href) {
+                          return (
+                            <a
+                              className="nav-item"
+                              href={href}
+                              key={id}
+                              style={{ textDecoration: 'none' }}
+                              target={newTab ? '_blank' : undefined}
+                              rel={newTab ? 'noopener noreferrer' : undefined}
+                              onClick={onClose}
+                            >
+                              <Icon size={16} aria-hidden="true" />
+                              <span>{label}</span>
+                            </a>
+                          )
+                        }
                         return (
-                          <a
-                            className="nav-item"
-                            href={href}
+                          <button
+                            className={`nav-item ${active ? 'is-active' : ''}`}
+                            type="button"
                             key={id}
-                            style={{ textDecoration: 'none' }}
-                            target={newTab ? '_blank' : undefined}
-                            rel={newTab ? 'noopener noreferrer' : undefined}
-                            onClick={onClose}
+                            aria-current={active ? 'page' : undefined}
+                            onClick={() => navigate(id)}
                           >
                             <Icon size={16} aria-hidden="true" />
                             <span>{label}</span>
-                          </a>
+                            {BADGES[id] && (
+                              <span
+                                className={`nav-badge nav-badge-${BADGES[id].tone}`}
+                                aria-hidden="true"
+                              >
+                                {BADGES[id].label}
+                              </span>
+                            )}
+                          </button>
                         )
-                      }
-                      return (
-                        <button
-                          className={`nav-item ${active ? 'is-active' : ''}`}
-                          type="button"
-                          key={id}
-                          aria-current={active ? 'page' : undefined}
-                          onClick={() => navigate(id)}
-                        >
-                          <Icon size={16} aria-hidden="true" />
-                          <span>{label}</span>
-                          {BADGES[id] && (
-                            <span
-                              className={`nav-badge nav-badge-${BADGES[id].tone}`}
-                              aria-hidden="true"
-                            >
-                              {BADGES[id].label}
-                            </span>
-                          )}
-                        </button>
-                      )
-                    })}
+                      })}
+                    </div>
                   </div>
-                )}
+                </div>
               </div>
             )
           })}
