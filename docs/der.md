@@ -410,3 +410,65 @@ erDiagram
 - `carritos.cliente_id` UNIQUE
 - `domicilios_cliente`: único índice parcial por `(cliente_id)` con
   `es_principal and activo`, y por `(cliente_id, alias)` con `activo`
+
+## Tesorería — cajas y sesiones (0062)
+
+```mermaid
+erDiagram
+  CAJAS {
+    uuid id PK
+    text nombre
+    uuid punto_venta_id FK
+    uuid usuario_asignado_id FK
+    boolean activa
+  }
+
+  SESIONES_CAJA {
+    uuid id PK
+    uuid caja_id FK
+    uuid usuario_id FK
+    text estado
+    numeric saldo_inicial
+    numeric monto_declarado
+    numeric saldo_teorico
+    numeric diferencia
+    timestamptz abierta_at
+    timestamptz cerrada_at
+  }
+
+  MOVIMIENTOS_CAJA {
+    uuid id PK
+    uuid sesion_caja_id FK
+    uuid medio_pago_id FK
+    uuid venta_id FK
+    text tipo
+    text origen
+    numeric monto
+    text motivo
+    text comprobante
+  }
+
+  COBROS_VENTA {
+    uuid sesion_caja_id FK
+  }
+
+  PUNTOS_VENTA ||--o{ CAJAS : "punto_venta_id"
+  USUARIOS_INTERNOS o|--o{ CAJAS : "usuario_asignado_id"
+  CAJAS ||--o{ SESIONES_CAJA : "caja_id"
+  USUARIOS_INTERNOS ||--o{ SESIONES_CAJA : "usuario_id"
+  SESIONES_CAJA ||--o{ MOVIMIENTOS_CAJA : "sesion_caja_id"
+  MEDIOS_PAGO ||--o{ MOVIMIENTOS_CAJA : "medio_pago_id"
+  VENTAS o|--o{ MOVIMIENTOS_CAJA : "venta_id"
+  SESIONES_CAJA ||--o{ COBROS_VENTA : "sesion_caja_id"
+```
+
+- Los índices parciales permiten como máximo una sesión abierta por caja y
+  por cajero. Los cobros asocian la sesión abierta del operador y generan un
+  movimiento por cada medio de pago.
+- El saldo teórico de efectivo parte del fondo inicial y suma/resta los
+  movimientos en efectivo; la diferencia del arqueo es el monto declarado
+  menos el saldo teórico.
+- Los movimientos son inmutables y una sesión cerrada no se puede modificar.
+  La lectura de cajas, sesiones y movimientos está restringida mediante RLS
+  y los permisos `cajas.abrir`, `cajas.cerrar`, `cajas.operar` y
+  `cajas.administrar`.

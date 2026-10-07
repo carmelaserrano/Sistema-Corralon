@@ -2095,6 +2095,151 @@ td button:hover:not(:disabled),
   color: var(--text-muted);
 }
 
+.cajas-section {
+  margin-top: var(--space-6);
+}
+
+.cajas-section > h2,
+.cajas-panel > h2 {
+  margin: 0 0 var(--space-4);
+  font-size: 19px;
+}
+
+.cajas-panel {
+  margin-bottom: var(--space-4);
+  padding: var(--space-5);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--surface-panel);
+  box-shadow: var(--shadow-1);
+}
+
+.cajas-panel h3 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-4);
+  font-size: 16px;
+}
+
+.cajas-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  align-items: end;
+  gap: var(--space-4);
+  margin: 0;
+}
+
+.cajas-form label,
+.caja-inline-form label {
+  display: grid;
+  gap: var(--space-2);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.cajas-form input:not([type="checkbox"]),
+.cajas-form select,
+.caja-inline-form input {
+  width: 100%;
+  min-height: var(--control-md);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-panel);
+  color: var(--text-primary);
+}
+
+.cajas-checkbox {
+  display: flex !important;
+  align-items: center;
+  gap: var(--space-2) !important;
+  min-height: var(--control-md);
+}
+
+.cajas-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-4);
+}
+
+.caja-card {
+  margin: 0;
+}
+
+.caja-card-heading,
+.cajas-section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.caja-card-heading h3,
+.cajas-section-heading h2 {
+  margin: 0 0 var(--space-1);
+}
+
+.caja-card-heading p,
+.cajas-section-heading p,
+.caja-asignado {
+  margin: 0 0 var(--space-3);
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.caja-inline-form {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.caja-inline-form label {
+  flex: 1 1 220px;
+}
+
+.cajas-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.cajas-saldos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.cajas-saldos div {
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--surface-subtle);
+}
+
+.cajas-saldos dt {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.cajas-saldos dd {
+  margin: var(--space-1) 0 0;
+  font-weight: 800;
+}
+
+@media (max-width: 600px) {
+  .cajas-panel {
+    padding: var(--space-4);
+  }
+
+  .cajas-section-heading {
+    align-items: flex-start;
+  }
+}
+
 /* DataTable Wrapper */
 .data-table-card {
   border: 1px solid var(--border-default);
@@ -2618,4 +2763,3 @@ td button:hover:not(:disabled),
   background: var(--color-info);
   color: var(--color-neutral-0);
 }
-

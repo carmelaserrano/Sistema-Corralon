@@ -103,6 +103,7 @@ export const navigationGroups = [
       { id: 'supervision-ventas', label: 'Supervisión de ventas', icon: ClipboardList },
       { id: 'listas-precio', label: 'Listas de precios', icon: Tags },
       { id: 'descuentos', label: 'Descuentos', icon: Percent },
+      { id: 'cajas', label: 'Cajas', icon: Wallet, module: 'Tesorería' },
     ],
   },
   {
@@ -133,4 +134,3 @@ export const pageModules = Object.fromEntries(
 )
 
 pageModules['historial-movimientos'] = 'Stock'
-

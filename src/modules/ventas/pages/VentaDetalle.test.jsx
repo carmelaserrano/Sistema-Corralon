@@ -10,6 +10,7 @@ import {
   puedeAnularVentas,
 } from '../api/comprobantesApi'
 import { puedeRegistrarCobros, listarMediosPago, registrarCobro } from '../api/cobrosApi'
+import { obtenerSesionCajaActiva } from '../../tesoreria/api/cajasApi'
 
 vi.mock('../api/consultaVentasApi', () => ({
   getVentaById: vi.fn(),
@@ -23,6 +24,10 @@ vi.mock('../api/cobrosApi', () => ({
   esTarjeta: vi.fn(() => false),
   esTransferencia: vi.fn(() => false),
   esCuentaCorriente: vi.fn(() => false),
+}))
+
+vi.mock('../../tesoreria/api/cajasApi', () => ({
+  obtenerSesionCajaActiva: vi.fn(),
 }))
 
 vi.mock('../api/comprobantesApi', () => ({
@@ -69,6 +74,7 @@ describe('VentaDetalle', () => {
     puedeFacturarVentas.mockResolvedValue(true)
     puedeAnularVentas.mockResolvedValue(true)
     puedeRegistrarCobros.mockResolvedValue(true)
+    obtenerSesionCajaActiva.mockResolvedValue({ id: 's-1', estado: 'abierta' })
     listarMediosPago.mockResolvedValue([{ id: 'm-1', nombre: 'Efectivo', activo: true }])
   })
 
@@ -168,6 +174,16 @@ describe('VentaDetalle', () => {
       render(<VentaDetalle ventaId="v-10" onCerrar={vi.fn()} />)
 
       expect(await screen.findByRole('button', { name: 'Registrar cobro' })).toBeEnabled()
+    })
+
+    it('impide el cobro y avisa cuando el cajero no tiene una caja abierta', async () => {
+      obtenerSesionCajaActiva.mockResolvedValue(null)
+      getVentaById.mockResolvedValue({ ...ventaBase })
+
+      render(<VentaDetalle ventaId="v-10" onCerrar={vi.fn()} />)
+
+      expect(await screen.findByText(/No tenés una caja abierta/)).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Registrar cobro' })).toBeDisabled()
     })
 
     it('oculta el botón si la venta ya tiene cobro, no está Pendiente o falta el permiso', async () => {

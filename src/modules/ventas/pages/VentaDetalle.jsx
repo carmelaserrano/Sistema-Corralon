@@ -10,6 +10,7 @@ import {
   calcularDesgloseIva,
 } from '../api/comprobantesApi'
 import { puedeRegistrarCobros } from '../api/cobrosApi'
+import { obtenerSesionCajaActiva } from '../../tesoreria/api/cajasApi'
 import ModalCobro from '../components/ModalCobro'
 import Button from '../../../components/ui/Button'
 import Feedback from '../../../components/ui/Feedback'
@@ -63,6 +64,9 @@ export default function VentaDetalle({ ventaId, onCerrar, onComprobanteEmitido }
   const [puedeFacturar, setPuedeFacturar] = useState(true)
   const [puedeAnular, setPuedeAnular] = useState(true)
   const [puedeCobrar, setPuedeCobrar] = useState(true)
+  const [sesionCaja, setSesionCaja] = useState(null)
+  const [cargandoCaja, setCargandoCaja] = useState(true)
+  const [errorCaja, setErrorCaja] = useState('')
   const [mostrarCobro, setMostrarCobro] = useState(false)
 
   // Sub-estados para acciones
@@ -94,18 +98,29 @@ export default function VentaDetalle({ ventaId, onCerrar, onComprobanteEmitido }
     cerrarRef.current?.focus()
     cargarDatos()
 
-    Promise.all([puedeFacturarVentas(), puedeAnularVentas(), puedeRegistrarCobros()])
-      .then(([facturar, anular, cobrar]) => {
+    Promise.all([
+      puedeFacturarVentas(),
+      puedeAnularVentas(),
+      puedeRegistrarCobros(),
+      obtenerSesionCajaActiva(),
+    ])
+      .then(([facturar, anular, cobrar, sesion]) => {
         setPuedeFacturar(facturar)
         setPuedeAnular(anular)
         setPuedeCobrar(cobrar)
+        setSesionCaja(sesion)
+        setErrorCaja('')
       })
-      .catch(() => {
+      .catch((err) => {
         // La base vuelve a validar cada permiso; si falla la consulta no se
         // oculta la acción.
         setPuedeFacturar(true)
         setPuedeAnular(true)
         setPuedeCobrar(true)
+        setErrorCaja(err.message || 'No se pudo verificar la caja abierta')
+      })
+      .finally(() => {
+        setCargandoCaja(false)
       })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ventaId])
@@ -134,6 +149,7 @@ export default function VentaDetalle({ ventaId, onCerrar, onComprobanteEmitido }
   const tieneCobro = (venta?.cobros ?? []).length > 0
   const tieneBackorder = (venta?.detalle ?? []).some((i) => Number(i.cantidad_backorder) > 0)
   const puedeRegistrarCobro = venta?.estado === 'Pendiente' && !tieneCobro && puedeCobrar
+  const cajaDisponible = Boolean(sesionCaja) && !errorCaja && !cargandoCaja
 
   // CA-05: Nota de Crédito para ventas Facturadas
   const facturaEmitida = (venta?.comprobantes ?? []).find(
@@ -318,9 +334,19 @@ export default function VentaDetalle({ ventaId, onCerrar, onComprobanteEmitido }
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '20px' }}>
           {/* BOTÓN REGISTRAR COBRO (CA-04) */}
           {puedeRegistrarCobro && (
-            <Button type="button" onClick={() => setMostrarCobro(true)} disabled={procesando}>
+            <Button
+              type="button"
+              onClick={() => setMostrarCobro(true)}
+              disabled={procesando || cargandoCaja || !cajaDisponible}
+              title={!cajaDisponible ? 'Debe abrir una caja antes de registrar el cobro' : undefined}
+            >
               Registrar cobro
             </Button>
+          )}
+          {puedeRegistrarCobro && !cargandoCaja && !cajaDisponible && (
+            <Feedback tone="error">
+              {errorCaja || 'No tenés una caja abierta. Abrí una caja asignada antes de cobrar esta venta.'}
+            </Feedback>
           )}
 
           {/* BOTÓN FACTURAR (CA-01) */}

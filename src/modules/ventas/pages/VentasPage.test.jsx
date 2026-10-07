@@ -20,6 +20,10 @@ vi.mock('../api/cobrosApi', () => ({
   esCuentaCorriente: vi.fn(() => false),
 }))
 
+vi.mock('../../tesoreria/api/cajasApi', () => ({
+  obtenerSesionCajaActiva: vi.fn().mockResolvedValue({ id: 'sesion-caja-1' }),
+}))
+
 vi.mock('../api/comprobantesApi', () => ({
   emitirComprobante: vi.fn(),
   descargarComprobantePdf: vi.fn(),
