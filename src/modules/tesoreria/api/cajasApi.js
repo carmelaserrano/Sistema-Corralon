@@ -72,7 +72,7 @@ export async function listarCajas() {
 export async function listarPuntosVenta() {
   const { data, error } = await supabase
     .from('puntos_venta')
-    .select('id, numero, nombre')
+    .select('id, numero, nombre, deposito_id, deposito:depositos(id, nombre)')
     .eq('activo', true)
     .order('numero')
   if (error) throw error
@@ -130,14 +130,14 @@ export async function listarMovimientosCaja(sesionCajaId) {
 
 export async function guardarCaja({ id, nombre, punto_venta_id, usuario_asignado_id, activa = true }) {
   const nombreNormalizado = nombre?.trim()
-  if (!nombreNormalizado || !punto_venta_id) {
-    throw errorDeApi('El nombre y el punto de venta son obligatorios', 400)
+  if (!nombreNormalizado || !punto_venta_id || !usuario_asignado_id) {
+    throw errorDeApi('El nombre, el punto de venta y un cajero son obligatorios', 400)
   }
 
   const valores = {
     nombre: nombreNormalizado,
     punto_venta_id,
-    usuario_asignado_id: usuario_asignado_id || null,
+    usuario_asignado_id,
     activa,
   }
   const consulta = id

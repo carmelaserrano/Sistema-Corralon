@@ -6,13 +6,12 @@ import {
   Search,
   ShoppingCart,
   User,
+  UserPlus,
   RotateCcw,
-  Receipt,
 } from 'lucide-react'
 import Button from '../../../components/ui/Button'
 import Feedback from '../../../components/ui/Feedback'
 import PageHeader from '../../../components/ui/PageHeader'
-import KpiCard from '../../../components/ui/KpiCard'
 import { useToast } from '../../../components/ui/ToastContext'
 import LineasVenta from '../components/LineasVenta'
 import {
@@ -376,37 +375,6 @@ function handleNuevaVenta() {
         }
       />
 
-      <div className="kpi-grid" style={{ marginBottom: '24px' }}>
-        <KpiCard
-          label="Depósito Operativo"
-          value={depositoActual ? depositoActual.nombre : 'Sin seleccionar'}
-          icon={Building2}
-          tone={depositoId ? 'brand' : 'neutral'}
-          helperText={depositoActual ? (depositoActual.localidad || 'Sede activa') : 'Paso 1 requerido'}
-        />
-        <KpiCard
-          label="Cliente Mostrador"
-          value={cliente ? (cliente.razon_social || cliente.nombre || 'Asignado') : 'Sin seleccionar'}
-          icon={User}
-          tone={cliente ? 'success' : 'neutral'}
-          helperText={cliente ? (cliente.tipo_cliente?.nombre || 'Habilitado') : 'Paso 2 requerido'}
-        />
-        <KpiCard
-          label="Ítems en Carrito"
-          value={`${totalItemsUnicos} (${totalArticulos} u.)`}
-          icon={ShoppingCart}
-          tone="info"
-          helperText="Productos añadidos a la orden"
-        />
-        <KpiCard
-          label="Total Preventa"
-          value={formatearMoneda(totalVenta)}
-          icon={Receipt}
-          tone="brand"
-          helperText="Importe a cobrar calculado"
-        />
-      </div>
-
       {errorEnvio && (
         <div style={{ marginBottom: '16px' }}>
           <Feedback tone="error">{errorEnvio}</Feedback>
@@ -428,7 +396,8 @@ function handleNuevaVenta() {
         </div>
       )}
 
-      <form onSubmit={handleConfirmarVenta} className="stacked-form">
+      <form onSubmit={handleConfirmarVenta} className="stacked-form nueva-venta-form">
+        <div className="nueva-venta-flow">
         {/* PASO 1: SELECCIÓN DE DEPÓSITO (CA-01) */}
         <section style={{ marginBottom: '24px' }}>
           <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '16px' }}>
@@ -471,40 +440,41 @@ function handleNuevaVenta() {
           </p>
 
           {!cliente ? (
-            <div
-              className="buscador-cliente-wrapper"
-              ref={dropdownClienteRef}
-              style={{ position: 'relative', maxWidth: '500px' }}
-            >
-              <label htmlFor="input-buscar-cliente">
-                Buscar cliente
-                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                  <input
-                    id="input-buscar-cliente"
-                    type="text"
-                    value={busquedaCliente}
-                    onChange={(e) => {
-                      setBusquedaCliente(e.target.value)
-                      setDropdownClienteAbierto(true)
-                    }}
-                    onFocus={() => setDropdownClienteAbierto(true)}
-                    placeholder="Escribí nombre, DNI o CUIT…"
-                    disabled={guardando}
-                    style={{ paddingLeft: '36px' }}
-                  />
-                  <Search
-                    size={18}
-                    style={{
-                      position: 'absolute',
-                      left: '10px',
-                      color: 'var(--text-muted)',
-                      pointerEvents: 'none',
-                    }}
-                  />
-                </div>
-              </label>
+            <div className="nueva-venta-cliente-busqueda">
+              <div
+                className="buscador-cliente-wrapper"
+                ref={dropdownClienteRef}
+                style={{ position: 'relative' }}
+              >
+                <label htmlFor="input-buscar-cliente">
+                  Buscar cliente
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <input
+                      id="input-buscar-cliente"
+                      type="text"
+                      value={busquedaCliente}
+                      onChange={(e) => {
+                        setBusquedaCliente(e.target.value)
+                        setDropdownClienteAbierto(true)
+                      }}
+                      onFocus={() => setDropdownClienteAbierto(true)}
+                      placeholder="Escribí nombre, DNI o CUIT…"
+                      disabled={guardando}
+                      style={{ paddingLeft: '36px' }}
+                    />
+                    <Search
+                      size={18}
+                      style={{
+                        position: 'absolute',
+                        left: '10px',
+                        color: 'var(--text-muted)',
+                        pointerEvents: 'none',
+                      }}
+                    />
+                  </div>
+                </label>
 
-              {dropdownClienteAbierto && busquedaCliente.trim() && (
+                {dropdownClienteAbierto && busquedaCliente.trim() && (
                 <div
                   style={{
                     position: 'absolute',
@@ -570,7 +540,19 @@ function handleNuevaVenta() {
                       </div>
                     ))}
                 </div>
-              )}
+                )}
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                icon={UserPlus}
+                onClick={() => {
+                  window.location.hash = '#clientes'
+                }}
+                disabled={guardando}
+              >
+                Crear cliente
+              </Button>
             </div>
           ) : (
             <div
@@ -684,71 +666,65 @@ function handleNuevaVenta() {
             />
           </label>
         </section>
+        </div>
 
-        {/* PASO 5: RESUMEN Y CONFIRMAR (CA-01, CA-06) */}
-        <section
-          style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '20px',
-            background: 'var(--surface-subtle)',
-            padding: '20px 24px',
-            borderRadius: 'var(--radius-lg)',
-            border: '1px solid var(--border-default)',
-          }}
-        >
-          <div>
-            <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-              Total de artículos: <strong>{totalArticulos}</strong> {totalArticulos === 1 ? 'unidad' : 'unidades'} ({lineas.length} {lineas.length === 1 ? 'ítem' : 'ítems'})
-            </div>
-            <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--color-brand)', marginTop: '4px' }}>
-              Total: {formatearMoneda(totalVenta)}
-            </div>
-            {lineasSuperanStock && (
-              <div style={{ color: 'var(--color-danger, #b42318)', fontSize: '12px', marginTop: '4px' }}>
-                Atención: hay artículos que superan el stock disponible en el depósito.
-              </div>
-            )}
-            {lineasConStockInsuficiente.some((l) => l.backorder) && (
-              <div style={{ color: 'var(--text-secondary)', fontSize: '12px', marginTop: '4px' }}>
-                Las líneas marcadas como backorder comprometerán solo lo disponible.
-              </div>
-            )}
-            {lineasSinPrecio && (
-              <div style={{ color: 'var(--color-danger, #b42318)', fontSize: '12px', marginTop: '4px' }}>
-                Atención: hay artículos sin precio asignado en la lista del cliente.
-              </div>
-            )}
-            {recalculandoPrecios && (
-              <div style={{ color: 'var(--text-secondary)', fontSize: '12px', marginTop: '4px' }}>
-                Recalculando precios en tiempo real…
-              </div>
-            )}
+        <aside className="nueva-venta-resumen" aria-label="Resumen de la venta">
+          <div className="nueva-venta-resumen-heading">
+            <ShoppingCart size={18} aria-hidden="true" />
+            <h2>Resumen</h2>
           </div>
 
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={handleNuevaVenta}
-              disabled={guardando || (!depositoId && !cliente && lineas.length === 0)}
-            >
-              Limpiar
-            </Button>
+          <dl className="nueva-venta-resumen-datos">
+            <div>
+              <dt>Depósito</dt>
+              <dd>{depositoActual?.nombre || 'Sin seleccionar'}</dd>
+            </div>
+            <div>
+              <dt>Cliente</dt>
+              <dd>{cliente ? nombreCompletoCliente(cliente) : 'Sin seleccionar'}</dd>
+            </div>
+            <div>
+              <dt>Artículos</dt>
+              <dd>{totalItemsUnicos} {totalItemsUnicos === 1 ? 'ítem' : 'ítems'} · {totalArticulos} {totalArticulos === 1 ? 'unidad' : 'unidades'}</dd>
+            </div>
+          </dl>
 
-            <Button
-              type="submit"
-              variant="primary"
-              loading={guardando}
-              loadingLabel="Confirmando venta…"
-              disabled={!puedeConfirmar}
-            >
-              {recalculandoPrecios ? 'Recalculando precios…' : 'Confirmar venta'}
-            </Button>
+          <div className="nueva-venta-resumen-total">
+            <span>Total de la venta</span>
+            <strong>{formatearMoneda(totalVenta)}</strong>
           </div>
-        </section>
+
+          {lineasSuperanStock && (
+            <p className="nueva-venta-resumen-aviso nueva-venta-resumen-error">
+              Hay artículos que superan el stock disponible.
+            </p>
+          )}
+          {lineasConStockInsuficiente.some((l) => l.backorder) && (
+            <p className="nueva-venta-resumen-aviso">
+              Los artículos en backorder comprometerán solo lo disponible.
+            </p>
+          )}
+          {lineasSinPrecio && (
+            <p className="nueva-venta-resumen-aviso nueva-venta-resumen-error">
+              Hay artículos sin precio asignado.
+            </p>
+          )}
+          {recalculandoPrecios && (
+            <p className="nueva-venta-resumen-aviso" role="status">
+              Recalculando precios…
+            </p>
+          )}
+
+          <Button
+            type="submit"
+            variant="primary"
+            loading={guardando}
+            loadingLabel="Confirmando venta…"
+            disabled={!puedeConfirmar}
+          >
+            {recalculandoPrecios ? 'Recalculando precios…' : 'Confirmar venta'}
+          </Button>
+        </aside>
       </form>
     </div>
   )

@@ -254,6 +254,7 @@ erDiagram
   PUNTOS_VENTA {
     uuid id PK
     text numero UK
+    uuid deposito_id FK UK
   }
 
   NUMERACION_COMPROBANTES {
@@ -363,6 +364,7 @@ erDiagram
   CLIENTES ||--o{ HISTORIAL_ESTADO_CLIENTE : "cliente_id"
   CLIENTES ||--o{ DOMICILIOS_CLIENTE : "cliente_id"
   LISTAS_PRECIO ||--o{ PRECIOS_LISTA : "lista_precio_id"
+  DEPOSITOS o|--o| PUNTOS_VENTA : "deposito_id"
   PUNTOS_VENTA ||--o{ NUMERACION_COMPROBANTES : "punto_venta_id"
   CLIENTES ||--o{ VENTAS : "cliente_id"
   VENTAS ||--o{ DETALLE_VENTA : "venta_id"
@@ -411,7 +413,7 @@ erDiagram
 - `domicilios_cliente`: único índice parcial por `(cliente_id)` con
   `es_principal and activo`, y por `(cliente_id, alias)` con `activo`
 
-## Tesorería — cajas y sesiones (0062)
+## Tesorería — cajas y sesiones (0062, 0064)
 
 ```mermaid
 erDiagram
@@ -472,3 +474,8 @@ erDiagram
   La lectura de cajas, sesiones y movimientos está restringida mediante RLS
   y los permisos `cajas.abrir`, `cajas.cerrar`, `cajas.operar` y
   `cajas.administrar`.
+- Cada sucursal tiene como máximo un punto de venta asociado; las facturas
+  usan el punto de venta del depósito de la venta. Los puntos de venta sin
+  sucursal asociada se mantienen para compatibilidad con cajas anteriores.
+- Cada caja nueva requiere un cajero asignado; para sumar más cajeros a una
+  sucursal se pueden crear cajas adicionales vinculadas a ese punto de venta.

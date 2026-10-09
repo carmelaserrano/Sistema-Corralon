@@ -85,6 +85,28 @@ async function prepararVenta() {
 describe('NuevaVentaPage · errores de la base al confirmar', () => {
   beforeEach(() => {
     vi.resetAllMocks()
+    window.location.hash = ''
+  })
+
+  it('ofrece crear un cliente y navega a la sección Clientes', async () => {
+    listarDepositos.mockResolvedValue([{ id: 'dep-1', nombre: 'Central', localidad: 'Salta' }])
+    render(<NuevaVentaPage />)
+
+    const botonCrearCliente = await screen.findByRole('button', { name: 'Crear cliente' })
+    fireEvent.click(botonCrearCliente)
+
+    expect(window.location.hash).toBe('#clientes')
+  })
+
+  it('muestra un resumen actualizado con el total junto al formulario', async () => {
+    await prepararVenta()
+
+    const resumen = screen.getByRole('complementary', { name: 'Resumen de la venta' })
+    expect(resumen).toHaveTextContent('Central')
+    expect(resumen).toHaveTextContent('Constructora Andes SRL')
+    expect(resumen).toHaveTextContent('1 ítem · 2 unidades')
+    expect(resumen).toHaveTextContent('200')
+    expect(screen.getByRole('button', { name: 'Confirmar venta' })).toBeEnabled()
   })
 
   it('ante PRECIO_DESACTUALIZADO muestra un mensaje sin ids y actualiza los precios de las líneas', async () => {
