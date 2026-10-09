@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { supabase } from './supabaseClient'
 
 const AuthContext = createContext(undefined)
@@ -11,6 +11,10 @@ export function AuthProvider({ children }) {
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(true)
   const [permisosUsuario, setPermisosUsuario] = useState(PERMISOS_POR_DEFECTO)
+  // true si la consulta de permisos falló (red, migración 0064 sin aplicar):
+  // no es lo mismo que "no es interno", y no debe cerrar la sesión.
+  const [errorPermisos, setErrorPermisos] = useState(false)
+  const reintentar = useRef(() => {})
 
   useEffect(() => {
     let activo = true
@@ -21,6 +25,9 @@ export function AuthProvider({ children }) {
     async function sincronizarPermisos() {
       const { data, error } = await supabase.rpc('obtener_permisos_usuario_actual')
       if (!activo) return
+      // Ante un error se queda sin permisos (seguro), pero se marca el error
+      // para que App muestre "Reintentar" en vez de tratarlo como no interno.
+      setErrorPermisos(Boolean(error || !data))
       setPermisosUsuario(
         error || !data
           ? PERMISOS_POR_DEFECTO
@@ -31,6 +38,11 @@ export function AuthProvider({ children }) {
             },
       )
       setLoading(false)
+    }
+
+    reintentar.current = () => {
+      setLoading(true)
+      sincronizarPermisos()
     }
 
     function manejarSesion(sesionNueva) {
@@ -44,6 +56,7 @@ export function AuthProvider({ children }) {
       usuarioIdActual = nuevoUsuarioId
 
       if (!nuevoUsuarioId) {
+        setErrorPermisos(false)
         setPermisosUsuario(PERMISOS_POR_DEFECTO)
         setLoading(false)
         return
@@ -80,6 +93,8 @@ export function AuthProvider({ children }) {
         esInterno: permisosUsuario.interno,
         rol: permisosUsuario.rol,
         permisos: permisosUsuario.permisos,
+        errorPermisos,
+        reintentarPermisos: () => reintentar.current(),
       }}
     >
       {children}

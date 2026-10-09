@@ -159,6 +159,28 @@ describe('AuthContext', () => {
     expect(result.current.esInterno).toBe(false)
     expect(result.current.rol).toBe(null)
     expect(result.current.permisos).toEqual([])
+    expect(result.current.errorPermisos).toBe(true)
+  })
+
+  it('reintentarPermisos vuelve a consultar y limpia el error cuando responde', async () => {
+    const sessionMock = { user: { id: 'u1', email: 'user@test.com' } }
+    mockearAuthPorDefecto(sessionMock)
+    supabase.rpc.mockResolvedValueOnce({ data: null, error: new Error('rpc caída') })
+
+    const { result } = renderHook(() => useAuth(), { wrapper: AuthProvider })
+    await waitFor(() => expect(result.current.errorPermisos).toBe(true))
+
+    supabase.rpc.mockResolvedValueOnce({
+      data: { interno: true, rol: 'Administrador', permisos: [] },
+      error: null,
+    })
+    await act(async () => {
+      result.current.reintentarPermisos()
+    })
+
+    await waitFor(() => expect(result.current.esInterno).toBe(true))
+    expect(result.current.errorPermisos).toBe(false)
+    expect(supabase.rpc).toHaveBeenCalledTimes(2)
   })
 
   it('no vuelve a pedir permisos cuando el evento de auth repite el mismo usuario (TOKEN_REFRESHED)', async () => {

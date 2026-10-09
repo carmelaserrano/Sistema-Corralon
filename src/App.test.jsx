@@ -12,6 +12,33 @@ vi.mock('./lib/AuthContext', () => ({
   useAuth: vi.fn(),
 }))
 
+// Importar App carga todas las páginas y, con ellas, supabaseClient.js, que
+// exige VITE_SUPABASE_URL/ANON_KEY apenas se importa. En CI no hay .env.local,
+// así que sin este mock la suite falla antes de correr un solo test.
+vi.mock('./lib/supabaseClient', () => {
+  const consulta = {
+    select: () => consulta,
+    eq: () => consulta,
+    order: () => consulta,
+    limit: () => consulta,
+    maybeSingle: () => Promise.resolve({ data: null, error: null }),
+    single: () => Promise.resolve({ data: null, error: null }),
+    then: (resolver) => Promise.resolve({ data: [], error: null }).then(resolver),
+  }
+  return {
+    supabase: {
+      from: () => consulta,
+      rpc: () => Promise.resolve({ data: null, error: null }),
+      auth: {
+        getSession: () => Promise.resolve({ data: { session: null }, error: null }),
+        onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+      },
+      channel: () => ({ on() { return this }, subscribe() { return this } }),
+      removeChannel: () => {},
+    },
+  }
+})
+
 // Única página que un test monta "de verdad" (ver el último caso): se
 // mockea para no pegarle a Supabase real desde el test.
 vi.mock('./modules/proveedores/pages/ProveedoresPage', () => ({
@@ -76,6 +103,27 @@ describe('App', () => {
 
     expect(screen.getByRole('alert')).toHaveTextContent('Acceso denegado')
     expect(screen.queryByText('Pantalla de Proveedores')).not.toBeInTheDocument()
+  })
+
+  it('si falla la consulta de permisos no desloguea: muestra Reintentar', () => {
+    const signOut = vi.fn(() => Promise.resolve())
+    const reintentarPermisos = vi.fn()
+    useAuth.mockReturnValue({
+      session: { user: { id: 'u1', email: 'admin@test.com' } },
+      loading: false,
+      esInterno: false,
+      rol: null,
+      errorPermisos: true,
+      reintentarPermisos,
+      signOut,
+    })
+
+    render(<App />)
+
+    expect(screen.getByRole('alert')).toHaveTextContent('No pudimos verificar tus permisos')
+    expect(signOut).not.toHaveBeenCalled()
+    screen.getByRole('button', { name: 'Reintentar' }).click()
+    expect(reintentarPermisos).toHaveBeenCalled()
   })
 
   it('CA-03: el botón "Volver al inicio" navega a la primera página habilitada para el rol', () => {

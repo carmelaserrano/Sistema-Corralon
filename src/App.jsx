@@ -37,7 +37,7 @@ import PedidosWebPage from './modules/ecommerce/pages/PedidosWebPage'
 import AppShell from './components/layout/AppShell'
 
 function App() {
-  const { session, loading, signOut, esInterno, rol } = useAuth()
+  const { session, loading, signOut, esInterno, rol, errorPermisos, reintentarPermisos } = useAuth()
   // null = todavía no se eligió página (sin hash en la URL); se resuelve más
   // abajo con la primera pantalla habilitada para el rol, una vez conocido.
   const [pagina, setPagina] = useState(() => {
@@ -61,13 +61,16 @@ function App() {
   // (o tiene activo=false) no es parte del equipo interno — p. ej. un
   // cliente de /tienda que probó entrar al backoffice. Se lo desloguea y se
   // lo manda a la tienda; nunca llega a ver AppShell.
+  // Si la consulta de permisos falló no se sabe si es interno: no se lo
+  // desloguea (sacaría a todo el equipo ante un corte o si la 0064 todavía
+  // no está aplicada); se muestra el aviso con "Reintentar" más abajo.
   useEffect(() => {
-    if (!loading && session && !esInterno) {
+    if (!loading && session && !esInterno && !errorPermisos) {
       signOut().then(() => {
         window.location.href = '/tienda'
       })
     }
-  }, [loading, session, esInterno, signOut])
+  }, [loading, session, esInterno, errorPermisos, signOut])
 
   function navegar(nuevaPagina) {
     setPagina(nuevaPagina)
@@ -85,6 +88,18 @@ function App() {
     )
   }
   if (!session) return <LoginPage />
+  if (errorPermisos) {
+    return (
+      <div className="app-loading" role="alert">
+        <strong>No pudimos verificar tus permisos.</strong>
+        <p>Revisá tu conexión e intentá de nuevo. Si el problema sigue, avisá a un administrador.</p>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button type="button" onClick={reintentarPermisos}>Reintentar</button>
+          <button type="button" onClick={() => signOut()}>Salir</button>
+        </div>
+      </div>
+    )
+  }
   if (!esInterno) return null // la redirección a /tienda ya está en curso
 
   const paginaActual = pagina ?? primeraPaginaVisibleParaRol(rol)
