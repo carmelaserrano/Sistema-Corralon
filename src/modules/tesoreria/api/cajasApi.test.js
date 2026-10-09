@@ -163,7 +163,7 @@ describe('contrato SQL de gestión de cajas', () => {
     'utf8',
   )
   const migracionSucursales = readFileSync(
-    'supabase/migrations/0064_puntos_venta_por_sucursal.sql',
+    'supabase/migrations/0065_puntos_venta_por_sucursal.sql',
     'utf8',
   )
 
