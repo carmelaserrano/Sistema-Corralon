@@ -257,4 +257,73 @@ describe('Sidebar', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Cerrar menú' })[0])
     expect(props.onClose).toHaveBeenCalled()
   })
+
+  describe('filtrado por rol (CA-02)', () => {
+    it('sin rol (por defecto) muestra todo, igual que antes', () => {
+      renderSidebar({ activePage: 'ventas' })
+
+      expect(screen.getByRole('button', { name: 'Stock' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Compras' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Clientes' })).toBeInTheDocument()
+    })
+
+    it('Vendedor solo ve Clientes y Ventas; Stock/Artículos/Control/Compras quedan ocultos', () => {
+      renderSidebar({ activePage: 'nueva-venta', rol: 'Vendedor' })
+
+      const titulos = navigationGroups
+        .map((g) => g.label)
+        .filter((label) =>
+          screen.queryAllByRole('button', { name: label }).some((b) => b.hasAttribute('aria-expanded')),
+        )
+      // "E-commerce" sigue listado porque "Ver tienda" es un link público sin
+      // restricción de rol; Publicación web/Pedidos web adentro sí se filtran.
+      expect(titulos).toEqual(['Clientes', 'Ventas', 'E-commerce'])
+
+      expect(screen.getByRole('button', { name: 'Nueva venta' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Clientes' })).toBeInTheDocument()
+      // "Ventas" ya está expandida (activePage='nueva-venta'): Supervisión y
+      // Descuentos quedan reservados a Administrador dentro de esa sección.
+      expect(screen.queryByRole('button', { name: 'Supervisión de ventas' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Descuentos' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Cajas' })).toBeInTheDocument()
+    })
+
+    it('Encargado de Depósito ve Recepciones (compartido con Compras) pero no Proveedores', () => {
+      renderSidebar({ activePage: 'stock', rol: 'Encargado de Depósito' })
+
+      expect(seccion('Stock')).toBeInTheDocument()
+      expect(seccion('Artículos')).toBeInTheDocument()
+      expect(seccion('Control y ajustes')).toBeInTheDocument()
+      expect(screen.queryAllByRole('button', { name: 'Clientes' })).toHaveLength(0)
+      expect(screen.queryAllByRole('button', { name: 'Ventas' })).toHaveLength(0)
+
+      fireEvent.click(seccion('Compras'))
+      expect(screen.getByRole('button', { name: 'Recepciones' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Proveedores' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Órdenes de Compra' })).not.toBeInTheDocument()
+    })
+
+    it('Administrador ve todos los grupos, incluidos los reservados (sin "roles" vacío)', () => {
+      renderSidebar({ activePage: 'ventas', rol: 'Administrador' })
+
+      for (const { label } of navigationGroups) {
+        expect(
+          screen.getAllByRole('button', { name: label }).some((b) => b.hasAttribute('aria-expanded')),
+        ).toBe(true)
+      }
+    })
+
+    it('E-commerce para un rol no-admin solo deja el link público a la tienda', () => {
+      renderSidebar({ activePage: 'stock', rol: 'Encargado de Depósito' })
+
+      const toggleEcommerce = screen
+        .getAllByRole('button', { name: 'E-commerce' })
+        .find((b) => b.hasAttribute('aria-expanded'))
+      fireEvent.click(toggleEcommerce)
+
+      expect(screen.getByRole('link', { name: 'Ver tienda' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Publicación web' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Pedidos web' })).not.toBeInTheDocument()
+    })
+  })
 })

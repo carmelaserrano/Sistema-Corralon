@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 
 import { useAuth } from './lib/AuthContext'
+import { paginaVisibleParaRol, primeraPaginaVisibleParaRol } from './components/layout/navigation'
+import AccesoDenegado from './components/layout/AccesoDenegado'
 import LoginPage from './modules/auth/pages/LoginPage'
 import StockPage from './modules/stock/pages/StockPage'
 import DepositosPage from './modules/stock/pages/DepositosPage'
@@ -35,10 +37,12 @@ import PedidosWebPage from './modules/ecommerce/pages/PedidosWebPage'
 import AppShell from './components/layout/AppShell'
 
 function App() {
-  const { session, loading, signOut } = useAuth()
+  const { session, loading, signOut, esInterno, rol } = useAuth()
+  // null = todavía no se eligió página (sin hash en la URL); se resuelve más
+  // abajo con la primera pantalla habilitada para el rol, una vez conocido.
   const [pagina, setPagina] = useState(() => {
     const hash = window.location.hash.replace(/^#\/?/, '')
-    return hash || 'stock'
+    return hash || null
   })
 
   useEffect(() => {
@@ -52,6 +56,18 @@ function App() {
     window.addEventListener('hashchange', onHashChange)
     return () => window.removeEventListener('hashchange', onHashChange)
   }, [pagina])
+
+  // CA-04: un autenticado por Supabase Auth que no está en usuarios_internos
+  // (o tiene activo=false) no es parte del equipo interno — p. ej. un
+  // cliente de /tienda que probó entrar al backoffice. Se lo desloguea y se
+  // lo manda a la tienda; nunca llega a ver AppShell.
+  useEffect(() => {
+    if (!loading && session && !esInterno) {
+      signOut().then(() => {
+        window.location.href = '/tienda'
+      })
+    }
+  }, [loading, session, esInterno, signOut])
 
   function navegar(nuevaPagina) {
     setPagina(nuevaPagina)
@@ -69,53 +85,62 @@ function App() {
     )
   }
   if (!session) return <LoginPage />
+  if (!esInterno) return null // la redirección a /tienda ya está en curso
+
+  const paginaActual = pagina ?? primeraPaginaVisibleParaRol(rol)
 
   return (
     <AppShell
-      activePage={pagina}
+      activePage={paginaActual}
       email={session.user.email}
       onNavigate={navegar}
       onSignOut={signOut}
+      rol={rol}
     >
-
-      {pagina === 'stock' && <StockPage />}
-      {pagina === 'depositos' && <DepositosPage />}
-      {pagina === 'categorias' && <CategoriasPage />}
-      {pagina === 'marcas' && <MarcasPage />}
-      {pagina === 'unidades' && <UnidadesMedidaPage />}
-      {pagina === 'articulos' && <ArticulosPage />}
-      {pagina === 'movimientos' && (
+      {!paginaVisibleParaRol(paginaActual, rol) ? (
+        <AccesoDenegado onVolver={() => navegar(primeraPaginaVisibleParaRol(rol))} />
+      ) : (
+        <>
+      {paginaActual === 'stock' && <StockPage />}
+      {paginaActual === 'depositos' && <DepositosPage />}
+      {paginaActual === 'categorias' && <CategoriasPage />}
+      {paginaActual === 'marcas' && <MarcasPage />}
+      {paginaActual === 'unidades' && <UnidadesMedidaPage />}
+      {paginaActual === 'articulos' && <ArticulosPage />}
+      {paginaActual === 'movimientos' && (
         <MovimientosPage
           onVerHistorial={() => navegar('historial-movimientos')}
         />
       )}
-      {pagina === 'historial-movimientos' && (
+      {paginaActual === 'historial-movimientos' && (
         <HistorialMovimientosPage
           onVolver={() => navegar('movimientos')}
         />
       )}
-      {pagina === 'configuracion-stock' && <ConfiguracionStockPage />}
-      {pagina === 'inventario-fisico' && <InventarioFisicoPage />}
-      {pagina === 'alertas-stock' && <AlertasStockPage />}
-      {pagina === 'recepciones' && <RecepcionesPage />}
-      {pagina === 'reportes' && <ReportesPage />}
-      {pagina === 'proveedores' && <ProveedoresPage />}
-      {pagina === 'rubros' && <RubrosPage />}
-      {pagina === 'ordenes-compra' && <OrdenesCompraPage />}
-      {pagina === 'notas-proveedor' && <NotasProveedorPage />}
-      {pagina === 'facturas-proveedor' && <FacturasProveedorPage />}
-      {pagina === 'ordenes-pago' && <OrdenesPagoPage />}
-      {pagina === 'cajas' && <CajasPage />}
-      {pagina === 'clientes' && <ClientesPage />}
-      {pagina === 'historial-cliente' && <ClienteHistorialPage />}
-      {pagina === 'importar-clientes' && <ImportarClientesPage />}
-      {pagina === 'nueva-venta' && <NuevaVentaPage />}
-      {pagina === 'ventas' && <VentasPage />}
-      {pagina === 'supervision-ventas' && <SupervisionVentasPage />}
-      {pagina === 'listas-precio' && <ListasPrecioPage />}
-      {pagina === 'descuentos' && <DescuentosPage />}
-      {pagina === 'publicacion-web' && <PublicacionWebPage />}
-      {pagina === 'pedidos-web' && <PedidosWebPage />}
+      {paginaActual === 'configuracion-stock' && <ConfiguracionStockPage />}
+      {paginaActual === 'inventario-fisico' && <InventarioFisicoPage />}
+      {paginaActual === 'alertas-stock' && <AlertasStockPage />}
+      {paginaActual === 'recepciones' && <RecepcionesPage />}
+      {paginaActual === 'reportes' && <ReportesPage />}
+      {paginaActual === 'proveedores' && <ProveedoresPage />}
+      {paginaActual === 'rubros' && <RubrosPage />}
+      {paginaActual === 'ordenes-compra' && <OrdenesCompraPage />}
+      {paginaActual === 'notas-proveedor' && <NotasProveedorPage />}
+      {paginaActual === 'facturas-proveedor' && <FacturasProveedorPage />}
+      {paginaActual === 'ordenes-pago' && <OrdenesPagoPage />}
+      {paginaActual === 'cajas' && <CajasPage />}
+      {paginaActual === 'clientes' && <ClientesPage />}
+      {paginaActual === 'historial-cliente' && <ClienteHistorialPage />}
+      {paginaActual === 'importar-clientes' && <ImportarClientesPage />}
+      {paginaActual === 'nueva-venta' && <NuevaVentaPage />}
+      {paginaActual === 'ventas' && <VentasPage />}
+      {paginaActual === 'supervision-ventas' && <SupervisionVentasPage />}
+      {paginaActual === 'listas-precio' && <ListasPrecioPage />}
+      {paginaActual === 'descuentos' && <DescuentosPage />}
+      {paginaActual === 'publicacion-web' && <PublicacionWebPage />}
+      {paginaActual === 'pedidos-web' && <PedidosWebPage />}
+        </>
+      )}
     </AppShell>
   )
 }

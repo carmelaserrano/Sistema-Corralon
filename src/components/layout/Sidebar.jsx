@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ChevronRight, Search, X } from 'lucide-react'
 import LogoCasco from '../ui/LogoCasco'
-import { navigationGroups } from './navigation'
+import { ROL_ADMINISTRADOR, itemsVisiblesDeGrupo, navigationGroups } from './navigation'
 
 // Etiquetas cortas junto a algunas pantallas.
 const BADGES = {
@@ -35,10 +35,22 @@ function guardarSeccion(id) {
   }
 }
 
-export default function Sidebar({ activePage, isOpen, onClose, onNavigate, onOpenPalette }) {
+export default function Sidebar({
+  activePage,
+  isOpen,
+  onClose,
+  onNavigate,
+  onOpenPalette,
+  rol = ROL_ADMINISTRADOR,
+}) {
   const activeNavigationPage =
     activePage === 'historial-movimientos' ? 'movimientos' : activePage
   const seccionActiva = seccionDePagina(activeNavigationPage)
+  // CA-02: cada grupo se reduce a los ítems que el rol puede ver; un grupo
+  // sin ítems visibles no se renderiza (ver más abajo).
+  const gruposConItemsVisibles = navigationGroups
+    .map((group) => ({ ...group, items: itemsVisiblesDeGrupo(group, rol) }))
+    .filter((group) => group.items.length > 0)
 
   // La página actual tiene prioridad sobre el estado guardado.
   const [seccionAbierta, setSeccionAbierta] = useState(() => seccionActiva ?? leerSeccion())
@@ -103,7 +115,7 @@ export default function Sidebar({ activePage, isOpen, onClose, onNavigate, onOpe
         )}
 
         <nav className="sidebar-nav">
-          {navigationGroups.map(({ id: grupoId, label: grupoLabel, icon: GrupoIcon, items }) => {
+          {gruposConItemsVisibles.map(({ id: grupoId, label: grupoLabel, icon: GrupoIcon, items }) => {
             const expandida = seccionAbierta === grupoId
             const contieneActiva = seccionActiva === grupoId
             const panelId = `nav-seccion-${grupoId}`
