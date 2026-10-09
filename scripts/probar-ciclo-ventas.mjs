@@ -67,7 +67,7 @@ async function usuario(email, claims) {
   const id = (
     await one('insert into auth.users values (gen_random_uuid(), $1) returning id', [email])
   ).id
-  await q('insert into usuarios_internos(usuario_id, nombre) values ($1, $2)', [id, email])
+  await q(`insert into usuarios_internos(usuario_id, nombre, rol_id) values ($1, $2, (select id from roles where nombre = 'Encargado de Depósito'))`, [id, email])
   await actuarComo(id, claims)
   return id
 }

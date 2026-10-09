@@ -142,10 +142,22 @@ un cliente web).
 usuario ya creado vía Auth):
 
 ```sql
-insert into public.usuarios_internos (usuario_id, nombre)
-select id, 'Nombre y Apellido'
-from auth.users
-where email = 'tu-email@ejemplo.com';
+insert into public.usuarios_internos (usuario_id, nombre, rol_id)
+select u.id, 'Nombre y Apellido', r.id
+from auth.users u
+cross join public.roles r
+where u.email = 'tu-email@ejemplo.com'
+  and r.nombre = 'Administrador';
+```
+
+Desde `0064_roles_y_permisos_sistema.sql` el rol es obligatorio. Los roles
+disponibles son Administrador, Vendedor, Encargado de Depósito,
+Compras / Proveedores y Tesorero; para cambiar el rol de un usuario existente:
+
+```sql
+update public.usuarios_internos
+set rol_id = (select id from public.roles where nombre = 'Vendedor')
+where usuario_id = (select id from auth.users where email = 'tu-email@ejemplo.com');
 ```
 
 La migración ya inserta a los usuarios de staging conocidos al momento de
