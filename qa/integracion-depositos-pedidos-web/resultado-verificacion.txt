@@ -1,0 +1,40 @@
+OK:    migraciones aplicadas hasta 0062 (62)
+OK:    ANTES · el diagnóstico detecta reservas borradas (S1) y pedidos vencidos
+OK:    ANTES · un pedido sin reserva frena el cron para TODOS los vencidos (H2)
+OK:    ANTES · cancelar un pedido cuya reserva se borró falla (H1)
+
+--- Diagnóstico antes de la corrección ---
+  [error] P5 historial que no coincide con el estado del pedido: 1
+  [error] P8 pedidos vencidos que el cron no canceló: 2
+  [error] S1 comprometido distinto de las reservas activas: 2
+  [aviso] D2 depósitos con stock físico por encima de su capacidad: 1
+  [aviso] P11 clientes con más de un pedido pendiente de pago a la vez: 1
+  [aviso] P2 pedidos sin checkout (no reservaron stock) en estado no final: 1
+  [aviso] P6 pedidos pagados o avanzados sin datos del pago: 1
+  [aviso] S5 productos de QA que siguen cargados (SKU QA14-xx): 3
+
+OK:    migraciones nuevas aplicadas: 0063_integridad_depositos_pedidos_web.sql
+
+--- Diagnóstico después de aplicar la corrección ---
+  [error] P8 pedidos vencidos que el cron no canceló: 2
+  [aviso] D2 depósitos con stock físico por encima de su capacidad: 1
+  [aviso] P11 clientes con más de un pedido pendiente de pago a la vez: 1
+  [aviso] P2 pedidos sin checkout (no reservaron stock) en estado no final: 1
+  [aviso] P6 pedidos pagados o avanzados sin datos del pago: 1
+  [aviso] S5 productos de QA que siguen cargados (SKU QA14-xx): 3
+
+OK:    DESPUÉS · la 0063 recalculó comprometido y dejó bitácora (H1)
+OK:    DESPUÉS · pedidos sin historial reciben su fila de alta y se validan las cantidades enteras
+OK:    DESPUÉS · el cron cancela los vencidos y libera la reserva
+OK:    DESPUÉS · un pedido roto ya no frena al resto del lote (H2)
+OK:    DESPUÉS · cancelar a mano libera la reserva del pedido
+OK:    DESPUÉS · la entrega egresa stock con referencia al pedido (H3)
+OK:    DESPUÉS · liberar/egresar sin fila de stock falla en vez de pasar en silencio (H4)
+OK:    DESPUÉS · pago aprobado sobre un pedido cancelado queda registrado para reembolso (H5)
+OK:    DESPUÉS · un pago aprobado en tiempo sigue funcionando igual
+OK:    DESPUÉS · el depósito de e-commerce no se puede borrar ni apuntar a la nada (H6)
+OK:    DESPUÉS · constraints de pedidos web (H7)
+OK:    DESPUÉS · los clientes web siguen sin acceso a stock ni a las primitivas
+OK:    DESPUÉS · el diagnóstico final no tiene errores de reservas, pedidos ni relaciones
+
+Todos los escenarios OK
