@@ -47,7 +47,7 @@ async function actuarComo(id, claims) {
 async function crearUsuario(email, { interno = true } = {}) {
   await db.exec('reset role')
   const id = (await one('insert into auth.users values (gen_random_uuid(), $1) returning id', [email])).id
-  if (interno) await q('insert into usuarios_internos(usuario_id, nombre) values ($1, $2)', [id, email])
+  if (interno) await q(`insert into usuarios_internos(usuario_id, nombre, rol_id) values ($1, $2, (select id from roles where nombre = 'Encargado de Depósito'))`, [id, email])
   return id
 }
 

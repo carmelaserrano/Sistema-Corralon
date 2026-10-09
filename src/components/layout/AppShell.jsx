@@ -12,6 +12,7 @@ export default function AppShell({
   email,
   onNavigate,
   onSignOut,
+  rol,
 }) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
@@ -62,6 +63,7 @@ export default function AppShell({
           onClose={() => setMobileOpen(false)}
           onNavigate={onNavigate}
           onOpenPalette={() => setPaletteOpen(true)}
+          rol={rol}
         />
 
         <div className="app-workspace">
