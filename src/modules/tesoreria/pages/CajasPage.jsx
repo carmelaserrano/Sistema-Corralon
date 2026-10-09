@@ -83,6 +83,9 @@ export default function CajasPage() {
   const puedeAdministrar = permisos[PERMISOS_CAJAS.administrar]
   const puedeAbrir = permisos[PERMISOS_CAJAS.abrir]
   const puedeCerrar = permisos[PERMISOS_CAJAS.cerrar]
+  const puntosVentaDisponibles = puntosVenta.filter(
+    (punto) => punto.deposito_id || punto.id === cajaForm.punto_venta_id,
+  )
 
   async function cargarDatos() {
     setLoading(true)
@@ -272,7 +275,7 @@ export default function CajasPage() {
                 }
               >
                 <option value="">Seleccionar punto de venta</option>
-                {puntosVenta.map((punto) => (
+                {puntosVentaDisponibles.map((punto) => (
                   <option key={punto.id} value={punto.id}>{puntoVentaLabel(punto)}</option>
                 ))}
               </select>
@@ -280,12 +283,13 @@ export default function CajasPage() {
             <label>
               Cajero asignado
               <select
+                required
                 value={cajaForm.usuario_asignado_id}
                 onChange={(event) =>
                   setCajaForm((form) => ({ ...form, usuario_asignado_id: event.target.value }))
                 }
               >
-                <option value="">Sin asignar</option>
+                <option value="">Seleccionar cajero</option>
                 {cajeros.map((cajero) => (
                   <option key={cajero.usuario_id} value={cajero.usuario_id}>{cajero.nombre}</option>
                 ))}

@@ -566,6 +566,111 @@ button:disabled {
   box-shadow: none;
 }
 
+.nueva-venta-page .nueva-venta-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(270px, 320px);
+  align-items: start;
+  gap: var(--space-5);
+}
+
+.nueva-venta-flow {
+  min-width: 0;
+}
+
+.nueva-venta-cliente-busqueda {
+  display: flex;
+  align-items: end;
+  gap: var(--space-3);
+  max-width: 620px;
+}
+
+.nueva-venta-cliente-busqueda .buscador-cliente-wrapper {
+  flex: 1;
+  min-width: 0;
+}
+
+.nueva-venta-cliente-busqueda>button {
+  flex: 0 0 auto;
+  min-height: 42px;
+}
+
+.nueva-venta-resumen {
+  position: sticky;
+  top: var(--space-5);
+  padding: var(--space-5);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--surface-panel);
+  box-shadow: var(--shadow-1);
+}
+
+.nueva-venta-resumen-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-brand);
+}
+
+.nueva-venta-resumen-heading h2 {
+  color: var(--text-primary);
+  font-size: 16px;
+}
+
+.nueva-venta-resumen-datos {
+  display: grid;
+  gap: var(--space-4);
+  margin: var(--space-5) 0;
+}
+
+.nueva-venta-resumen-datos>div {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.nueva-venta-resumen-datos dt,
+.nueva-venta-resumen-total span {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.nueva-venta-resumen-datos dd {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.nueva-venta-resumen-total {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4) 0;
+  border-top: 1px solid var(--border-default);
+}
+
+.nueva-venta-resumen-total strong {
+  color: var(--color-brand);
+  font-size: 26px;
+  line-height: 1.2;
+  letter-spacing: -0.03em;
+}
+
+.nueva-venta-resumen-aviso {
+  margin: 0 0 var(--space-3);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.nueva-venta-resumen-error {
+  color: var(--color-danger, #b42318);
+}
+
+.nueva-venta-resumen>button[type="submit"] {
+  width: 100%;
+  margin-top: var(--space-2);
+}
+
 .page-canvas .stacked-form>fieldset {
   min-width: 0;
   margin: 0;
@@ -1694,10 +1799,29 @@ td button:hover:not(:disabled),
     --sidebar-width: 240px;
   }
 
+  .nueva-venta-page .nueva-venta-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .nueva-venta-resumen {
+    position: static;
+  }
+
   .app-main,
   .topbar {
     padding-right: var(--space-6);
     padding-left: var(--space-6);
+  }
+
+  @media (max-width: 560px) {
+    .nueva-venta-cliente-busqueda {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .nueva-venta-cliente-busqueda>button {
+      align-self: flex-start;
+    }
   }
 
   .user-copy {

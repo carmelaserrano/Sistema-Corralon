@@ -6,6 +6,7 @@ import {
   cerrarCaja,
   guardarCaja,
   listarMovimientosCaja,
+  listarPuntosVenta,
   obtenerSesionCajaActiva,
   puedeGestionarCajas,
   registrarMovimientoCaja,
@@ -122,8 +123,36 @@ describe('cajasApi', () => {
     expect(query.eq).toHaveBeenCalledWith('sesion_caja_id', 's-1')
   })
 
+  it('lista puntos de venta activos con su sucursal asociada', async () => {
+    const query = {
+      select: vi.fn(),
+      eq: vi.fn(),
+      order: vi.fn(),
+    }
+    query.select.mockReturnValue(query)
+    query.eq.mockReturnValue(query)
+    query.order.mockResolvedValue({
+      data: [{ id: 'pv-2', deposito_id: 'dep-1', deposito: { nombre: 'Sucursal Norte' } }],
+      error: null,
+    })
+    supabase.from.mockReturnValue(query)
+
+    await expect(listarPuntosVenta()).resolves.toEqual([
+      { id: 'pv-2', deposito_id: 'dep-1', deposito: { nombre: 'Sucursal Norte' } },
+    ])
+    expect(supabase.from).toHaveBeenCalledWith('puntos_venta')
+    expect(query.select).toHaveBeenCalledWith(
+      'id, numero, nombre, deposito_id, deposito:depositos(id, nombre)',
+    )
+    expect(query.eq).toHaveBeenCalledWith('activo', true)
+  })
+
   it('valida campos obligatorios al crear o actualizar una caja', async () => {
     await expect(guardarCaja({ nombre: ' Caja 1 ' })).rejects.toMatchObject({ status: 400 })
+    await expect(guardarCaja({
+      nombre: 'Caja 1',
+      punto_venta_id: 'pv-1',
+    })).rejects.toMatchObject({ status: 400 })
     expect(supabase.from).not.toHaveBeenCalled()
   })
 })
@@ -131,6 +160,10 @@ describe('cajasApi', () => {
 describe('contrato SQL de gestión de cajas', () => {
   const migracion = readFileSync(
     'supabase/migrations/0062_gestion_cajas_y_sesiones.sql',
+    'utf8',
+  )
+  const migracionSucursales = readFileSync(
+    'supabase/migrations/0064_puntos_venta_por_sucursal.sql',
     'utf8',
   )
 
@@ -155,5 +188,14 @@ describe('contrato SQL de gestión de cajas', () => {
     expect(migracion).toMatch(/v_sesion\.saldo_inicial[\s\S]*sum\(case when mc\.tipo = 'ingreso' then mc\.monto else -mc\.monto end\)/)
     expect(migracion).toMatch(/lower\(mp\.nombre\) = 'efectivo'/)
     expect(migracion).toContain('monto_declarado - v_saldo_teorico')
+  })
+
+  it('asocia cada sucursal con su punto de venta y factura según el depósito', () => {
+    expect(migracionSucursales).toMatch(/add column if not exists deposito_id uuid/i)
+    expect(migracionSucursales).toMatch(/where d\.nombre ilike 'Sucursal %'/i)
+    expect(migracionSucursales).toMatch(/uq_punto_venta_deposito[\s\S]*on public\.puntos_venta \(deposito_id\)/i)
+    expect(migracionSucursales).toMatch(/chk_caja_cajero_asignado[\s\S]*usuario_asignado_id is not null/i)
+    expect(migracionSucursales).toMatch(/pv\.deposito_id = v_venta\.deposito_id/i)
+    expect(migracionSucursales).toMatch(/v_punto_venta_id is null and not exists[\s\S]*pv\.deposito_id = v_venta\.deposito_id/i)
   })
 })
