@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Check, CircleDollarSign, LockKeyhole, Plus, Wallet } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Check, CircleDollarSign, LockKeyhole, Plus, Wallet, X } from 'lucide-react'
 import Button from '../../../components/ui/Button'
 import Feedback from '../../../components/ui/Feedback'
 import PageHeader from '../../../components/ui/PageHeader'
@@ -49,6 +49,14 @@ function diferenciaArqueo(valor) {
   return `${moneda(Math.abs(diferencia))} ${diferencia > 0 ? 'sobrante' : 'faltante'}`
 }
 
+function claseDiferenciaArqueo(valor) {
+  if (valor === null || valor === undefined) return ''
+  const diferencia = Number(valor)
+  if (diferencia > 0) return 'caja-diferencia-sobrante'
+  if (diferencia < 0) return 'caja-diferencia-faltante'
+  return 'caja-diferencia-sin-diferencia'
+}
+
 function fechaHora(valor) {
   return valor ? new Date(valor).toLocaleString('es-AR') : '—'
 }
@@ -58,6 +66,8 @@ function puntoVentaLabel(punto) {
 }
 
 export default function CajasPage() {
+  const cerrarMovimientosRef = useRef(null)
+  const cerrarFormularioCajaRef = useRef(null)
   const [permisos, setPermisos] = useState({})
   const [usuarioId, setUsuarioId] = useState(null)
   const [cajas, setCajas] = useState([])
@@ -68,8 +78,10 @@ export default function CajasPage() {
   const [movimientos, setMovimientos] = useState([])
   const [sesionHistorialId, setSesionHistorialId] = useState('')
   const [movimientosHistorial, setMovimientosHistorial] = useState([])
+  const [cargandoMovimientosHistorial, setCargandoMovimientosHistorial] = useState(false)
   const [sesionActiva, setSesionActiva] = useState(null)
   const [cajaForm, setCajaForm] = useState(FORM_CAJA_VACIO)
+  const [mostrarFormularioCaja, setMostrarFormularioCaja] = useState(false)
   const [movimientoForm, setMovimientoForm] = useState(FORM_MOVIMIENTO_VACIO)
   const [saldoInicial, setSaldoInicial] = useState('')
   const [montoDeclarado, setMontoDeclarado] = useState('')
@@ -86,6 +98,12 @@ export default function CajasPage() {
   const puntosVentaDisponibles = puntosVenta.filter(
     (punto) => punto.deposito_id || punto.id === cajaForm.punto_venta_id,
   )
+
+  const cerrarFormularioCaja = useCallback(() => {
+    if (guardando) return
+    setMostrarFormularioCaja(false)
+    setCajaForm(FORM_CAJA_VACIO)
+  }, [guardando])
 
   async function cargarDatos() {
     setLoading(true)
@@ -139,6 +157,36 @@ export default function CajasPage() {
     cargarDatos()
   }, [])
 
+  useEffect(() => {
+    if (!sesionHistorialId) return undefined
+
+    cerrarMovimientosRef.current?.focus()
+
+    function cerrarConEscape(event) {
+      if (event.key === 'Escape') {
+        setSesionHistorialId('')
+        setMovimientosHistorial([])
+        setCargandoMovimientosHistorial(false)
+      }
+    }
+
+    document.addEventListener('keydown', cerrarConEscape)
+    return () => document.removeEventListener('keydown', cerrarConEscape)
+  }, [sesionHistorialId])
+
+  useEffect(() => {
+    if (!mostrarFormularioCaja) return undefined
+
+    cerrarFormularioCajaRef.current?.focus()
+
+    function cerrarConEscape(event) {
+      if (event.key === 'Escape') cerrarFormularioCaja()
+    }
+
+    document.addEventListener('keydown', cerrarConEscape)
+    return () => document.removeEventListener('keydown', cerrarConEscape)
+  }, [mostrarFormularioCaja, cerrarFormularioCaja])
+
   const resumenMedios = useMemo(() => {
     const resumen = new Map()
     for (const movimiento of movimientos) {
@@ -158,11 +206,20 @@ export default function CajasPage() {
       await operacion()
       setAviso(mensaje)
       await cargarDatos()
+      return true
     } catch (err) {
       setError(err.message || 'No se pudo completar la operación de caja')
+      return false
     } finally {
       setGuardando(false)
     }
+  }
+
+  function abrirFormularioNuevaCaja() {
+    setCajaForm(FORM_CAJA_VACIO)
+    setError('')
+    setAviso('')
+    setMostrarFormularioCaja(true)
   }
 
   function editarCaja(caja) {
@@ -175,14 +232,18 @@ export default function CajasPage() {
     })
     setError('')
     setAviso('')
+    setMostrarFormularioCaja(true)
   }
 
   async function guardarCajaForm(event) {
     event.preventDefault()
-    await ejecutar(async () => {
+    const guardado = await ejecutar(async () => {
       await guardarCaja(cajaForm)
-      setCajaForm(FORM_CAJA_VACIO)
     }, cajaForm.id ? 'La caja se actualizó.' : 'La caja se creó.')
+    if (guardado) {
+      setCajaForm(FORM_CAJA_VACIO)
+      setMostrarFormularioCaja(false)
+    }
   }
 
   async function abrirCajaForm(event, caja) {
@@ -218,13 +279,22 @@ export default function CajasPage() {
     }
     setSesionHistorialId(sesionId)
     setMovimientosHistorial([])
+    setCargandoMovimientosHistorial(true)
     setError('')
     try {
       setMovimientosHistorial(await listarMovimientosCaja(sesionId))
     } catch (err) {
       setSesionHistorialId('')
       setError(err.message || 'No se pudieron cargar los movimientos de la sesión')
+    } finally {
+      setCargandoMovimientosHistorial(false)
     }
+  }
+
+  function cerrarDetalleSesion() {
+    setSesionHistorialId('')
+    setMovimientosHistorial([])
+    setCargandoMovimientosHistorial(false)
   }
 
   if (loading) {
@@ -239,9 +309,9 @@ export default function CajasPage() {
         description="Apertura, movimientos, arqueo y seguimiento de las sesiones de cajeros."
         actions={puedeAdministrar ? [
           {
-            label: cajaForm.id ? 'Cancelar edición' : 'Nueva caja',
-            icon: cajaForm.id ? LockKeyhole : Plus,
-            onClick: () => setCajaForm(cajaForm.id ? FORM_CAJA_VACIO : { ...FORM_CAJA_VACIO }),
+            label: 'Nueva caja',
+            icon: Plus,
+            onClick: abrirFormularioNuevaCaja,
           },
         ] : undefined}
       />
@@ -250,73 +320,6 @@ export default function CajasPage() {
       {aviso && <Feedback tone="success">{aviso}</Feedback>}
       {!puedeAdministrar && !puedeAbrir && !puedeOperar && !puedeCerrar && (
         <Feedback tone="info">Tu usuario no tiene permisos para operar o consultar cajas.</Feedback>
-      )}
-
-      {puedeAdministrar && (
-        <section className="cajas-panel">
-          <h2>{cajaForm.id ? 'Editar caja' : 'Crear caja'}</h2>
-          <form className="stacked-form cajas-form" onSubmit={guardarCajaForm}>
-            <label>
-              Nombre de caja
-              <input
-                maxLength={100}
-                required
-                value={cajaForm.nombre}
-                onChange={(event) => setCajaForm((form) => ({ ...form, nombre: event.target.value }))}
-              />
-            </label>
-            <label>
-              Punto de venta / sucursal
-              <select
-                required
-                value={cajaForm.punto_venta_id}
-                onChange={(event) =>
-                  setCajaForm((form) => ({ ...form, punto_venta_id: event.target.value }))
-                }
-              >
-                <option value="">Seleccionar punto de venta</option>
-                {puntosVentaDisponibles.map((punto) => (
-                  <option key={punto.id} value={punto.id}>{puntoVentaLabel(punto)}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Cajero asignado
-              <select
-                required
-                value={cajaForm.usuario_asignado_id}
-                onChange={(event) =>
-                  setCajaForm((form) => ({ ...form, usuario_asignado_id: event.target.value }))
-                }
-              >
-                <option value="">Seleccionar cajero</option>
-                {cajeros.map((cajero) => (
-                  <option key={cajero.usuario_id} value={cajero.usuario_id}>{cajero.nombre}</option>
-                ))}
-              </select>
-            </label>
-            <label className="cajas-checkbox">
-              <input
-                type="checkbox"
-                checked={cajaForm.activa}
-                onChange={(event) =>
-                  setCajaForm((form) => ({ ...form, activa: event.target.checked }))
-                }
-              />
-              Caja activa
-            </label>
-            <div className="cajas-actions">
-              <Button type="submit" loading={guardando} icon={Check}>
-                {cajaForm.id ? 'Guardar cambios' : 'Crear caja'}
-              </Button>
-              {cajaForm.id && (
-                <Button type="button" variant="ghost" onClick={() => setCajaForm(FORM_CAJA_VACIO)}>
-                  Cancelar
-                </Button>
-              )}
-            </div>
-          </form>
-        </section>
       )}
 
       {(puedeAdministrar || puedeAbrir) && (
@@ -543,7 +546,11 @@ export default function CajasPage() {
                       <td>{moneda(sesion.saldo_inicial)}</td>
                       <td>{sesion.monto_declarado === null ? '—' : moneda(sesion.monto_declarado)}</td>
                       <td>{sesion.saldo_teorico === null ? '—' : moneda(sesion.saldo_teorico)}</td>
-                      <td>{diferenciaArqueo(sesion.diferencia)}</td>
+                      <td>
+                        <span className={`caja-diferencia ${claseDiferenciaArqueo(sesion.diferencia)}`}>
+                          {diferenciaArqueo(sesion.diferencia)}
+                        </span>
+                      </td>
                       <td>{sesion.estado === 'abierta' ? 'Abierta' : 'Cerrada'}</td>
                       <td>
                         <Button
@@ -551,7 +558,7 @@ export default function CajasPage() {
                           variant="ghost"
                           onClick={() => alternarDetalleSesion(sesion.id)}
                         >
-                          {sesionHistorialId === sesion.id ? 'Ocultar' : 'Movimientos'}
+                          Movimientos
                         </Button>
                       </td>
                     </tr>
@@ -559,37 +566,159 @@ export default function CajasPage() {
                 </tbody>
               </table>
             </div>
-            {sesionHistorialId && (
-              <div className="cajas-panel">
-                <h3>Movimientos de la sesión seleccionada</h3>
-                {movimientosHistorial.length === 0 ? (
-                  <p className="empty-state">No hay movimientos registrados en esta sesión.</p>
-                ) : (
-                  <div className="data-table-scroll-container">
-                    <table>
-                      <thead>
-                        <tr><th>Fecha</th><th>Tipo</th><th>Medio</th><th>Motivo</th><th>Comprobante</th><th>Importe</th></tr>
-                      </thead>
-                      <tbody>
-                        {movimientosHistorial.map((movimiento) => (
-                          <tr key={movimiento.id}>
-                            <td>{fechaHora(movimiento.created_at)}</td>
-                            <td>{movimiento.tipo === 'ingreso' ? 'Ingreso' : 'Egreso'}</td>
-                            <td>{movimiento.medio_pago?.nombre || '—'}</td>
-                            <td>{movimiento.motivo}</td>
-                            <td>{movimiento.comprobante || '—'}</td>
-                            <td>{moneda(movimiento.monto)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         )}
       </section>
+
+      {sesionHistorialId && (
+        <div className="modal-backdrop" onMouseDown={cerrarDetalleSesion}>
+          <section
+            aria-labelledby="movimientos-sesion-title"
+            aria-modal="true"
+            className="modal-panel"
+            aria-busy={cargandoMovimientosHistorial}
+            onMouseDown={(event) => event.stopPropagation()}
+            role="dialog"
+          >
+            <header className="modal-header">
+              <div>
+                <p className="eyebrow">Historial de sesiones</p>
+                <h2 id="movimientos-sesion-title">
+                  Movimientos de {sesiones.find((sesion) => sesion.id === sesionHistorialId)?.caja?.nombre || 'la sesión'}
+                </h2>
+              </div>
+              <button
+                aria-label="Cerrar movimientos"
+                className="icon-button"
+                onClick={cerrarDetalleSesion}
+                ref={cerrarMovimientosRef}
+                title="Cerrar movimientos"
+                type="button"
+                style={{ padding: 0 }}
+              >
+                <X aria-hidden="true" size={18} />
+              </button>
+            </header>
+            {cargandoMovimientosHistorial ? (
+              <p className="loading-state" role="status">Cargando movimientos…</p>
+            ) : movimientosHistorial.length === 0 ? (
+              <p className="empty-state">No hay movimientos registrados en esta sesión.</p>
+            ) : (
+              <div className="data-table-scroll-container">
+                <table>
+                  <thead>
+                    <tr><th>Fecha</th><th>Tipo</th><th>Medio</th><th>Motivo</th><th>Comprobante</th><th>Importe</th></tr>
+                  </thead>
+                  <tbody>
+                    {movimientosHistorial.map((movimiento) => (
+                      <tr key={movimiento.id}>
+                        <td>{fechaHora(movimiento.created_at)}</td>
+                        <td>{movimiento.tipo === 'ingreso' ? 'Ingreso' : 'Egreso'}</td>
+                        <td>{movimiento.medio_pago?.nombre || '—'}</td>
+                        <td>{movimiento.motivo}</td>
+                        <td>{movimiento.comprobante || '—'}</td>
+                        <td>{moneda(movimiento.monto)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        </div>
+      )}
+
+      {mostrarFormularioCaja && (
+        <div className="modal-backdrop" onMouseDown={cerrarFormularioCaja}>
+          <section
+            aria-labelledby="formulario-caja-title"
+            aria-modal="true"
+            aria-busy={guardando}
+            className="modal-panel"
+            onMouseDown={(event) => event.stopPropagation()}
+            role="dialog"
+          >
+            <header className="modal-header">
+              <div>
+                <p className="eyebrow">Gestión de cajas</p>
+                <h2 id="formulario-caja-title">{cajaForm.id ? 'Editar caja' : 'Crear caja'}</h2>
+              </div>
+              <button
+                aria-label="Cerrar formulario"
+                className="icon-button"
+                disabled={guardando}
+                onClick={cerrarFormularioCaja}
+                ref={cerrarFormularioCajaRef}
+                title="Cerrar formulario"
+                type="button"
+                style={{ padding: 0 }}
+              >
+                <X aria-hidden="true" size={18} />
+              </button>
+            </header>
+            {error && <Feedback tone="error">{error}</Feedback>}
+            <form className="stacked-form cajas-form" onSubmit={guardarCajaForm}>
+              <label>
+                Nombre de caja
+                <input
+                  maxLength={100}
+                  required
+                  value={cajaForm.nombre}
+                  onChange={(event) => setCajaForm((form) => ({ ...form, nombre: event.target.value }))}
+                />
+              </label>
+              <label>
+                Punto de venta / sucursal
+                <select
+                  required
+                  value={cajaForm.punto_venta_id}
+                  onChange={(event) =>
+                    setCajaForm((form) => ({ ...form, punto_venta_id: event.target.value }))
+                  }
+                >
+                  <option value="">Seleccionar punto de venta</option>
+                  {puntosVentaDisponibles.map((punto) => (
+                    <option key={punto.id} value={punto.id}>{puntoVentaLabel(punto)}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Cajero asignado
+                <select
+                  required
+                  value={cajaForm.usuario_asignado_id}
+                  onChange={(event) =>
+                    setCajaForm((form) => ({ ...form, usuario_asignado_id: event.target.value }))
+                  }
+                >
+                  <option value="">Seleccionar cajero</option>
+                  {cajeros.map((cajero) => (
+                    <option key={cajero.usuario_id} value={cajero.usuario_id}>{cajero.nombre}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="cajas-checkbox">
+                <input
+                  type="checkbox"
+                  checked={cajaForm.activa}
+                  onChange={(event) =>
+                    setCajaForm((form) => ({ ...form, activa: event.target.checked }))
+                  }
+                />
+                Caja activa
+              </label>
+              <div className="cajas-actions">
+                <Button type="submit" loading={guardando} icon={Check}>
+                  {cajaForm.id ? 'Guardar cambios' : 'Crear caja'}
+                </Button>
+                <Button type="button" variant="ghost" disabled={guardando} onClick={cerrarFormularioCaja}>
+                  Cancelar
+                </Button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
     </main>
   )
 }
