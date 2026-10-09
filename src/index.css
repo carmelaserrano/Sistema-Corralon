@@ -2354,6 +2354,22 @@ td button:hover:not(:disabled),
   font-weight: 800;
 }
 
+.caja-diferencia {
+  color: var(--text-primary);
+}
+
+.caja-diferencia-faltante {
+  color: var(--color-danger-strong);
+}
+
+.caja-diferencia-sobrante {
+  color: var(--color-success);
+}
+
+.caja-diferencia-sin-diferencia {
+  color: var(--text-primary);
+}
+
 @media (max-width: 600px) {
   .cajas-panel {
     padding: var(--space-4);
@@ -2886,4 +2902,18 @@ td button:hover:not(:disabled),
 .nav-badge-info {
   background: var(--color-info);
   color: var(--color-neutral-0);
+}
+
+.login-brand-panel {
+  background:
+    linear-gradient(rgba(4, 18, 35, 0.65), rgba(4, 18, 35, 0.65)),
+    url('/bg-login.jpeg') center / cover no-repeat;
+}
+
+.tienda-hero {
+  background:
+    linear-gradient(rgba(4, 18, 35, 0.65), rgba(4, 18, 35, 0.65)),
+    url('/bg-ecommerce.jpeg') center / cover no-repeat;
+  
+  margin: 0 -16px 28px;
 }
