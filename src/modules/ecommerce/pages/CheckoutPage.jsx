@@ -19,7 +19,7 @@ import {
   crearDomicilio,
   listarDomicilios,
 } from '../../clientes/api/domiciliosApi'
-import { crearPedidoWeb, iniciarPago } from '../api/checkoutApi'
+import { crearPedidoWeb } from '../api/checkoutApi'
 import { useCarrito } from '../context/CarritoContext'
 import { useClienteWeb } from '../context/ClienteWebContext'
 import { ImagenProducto } from './CatalogoPage'
@@ -109,12 +109,7 @@ export default function CheckoutPage({ onPasarelaSimulada, onVolverCarrito }) {
         tipoEntrega: tipo,
         domicilioId,
       })
-      if (import.meta.env.VITE_PAGO_SIMULADO === 'true') {
-        onPasarelaSimulada?.(pedido.id)
-      } else {
-        const preferencia = await iniciarPago(pedido.id)
-        window.location.assign(preferencia.init_point)
-      }
+      onPasarelaSimulada?.(pedido.id)
     } catch (err) {
       setError(err.message || 'No pudimos crear el pedido')
     } finally {
@@ -393,14 +388,14 @@ export default function CheckoutPage({ onPasarelaSimulada, onVolverCarrito }) {
               <div className="tienda-pago-aviso-header">
                 <ShieldCheck size={24} className="tienda-icon-secure" />
                 <div>
-                  <strong>Procesado a través de Mercado Pago</strong>
-                  <p>Podés abonar con dinero en cuenta, tarjetas de débito o crédito y cuotas.</p>
+                  <strong>Pago simulado de demostración</strong>
+                  <p>Sin cobros reales ni datos sensibles. Confirmá el pago dentro de la tienda.</p>
                 </div>
               </div>
               <div className="tienda-pago-pills">
                 <span className="tienda-pago-pill">Tarjetas de Débito</span>
                 <span className="tienda-pago-pill">Tarjetas de Crédito</span>
-                <span className="tienda-pago-pill">Dinero en Mercado Pago</span>
+                <span className="tienda-pago-pill">Sin cargo real</span>
               </div>
             </div>
           </div>
@@ -469,7 +464,7 @@ export default function CheckoutPage({ onPasarelaSimulada, onVolverCarrito }) {
             <div className="tienda-resumen-garantias">
               <div className="tienda-garantia-item">
                 <Lock size={15} />
-                <span>Transacción segura y encriptada (SSL 256 bits)</span>
+                <span>No ingreses datos reales de tarjeta</span>
               </div>
               <div className="tienda-garantia-item">
                 <Clock size={15} />

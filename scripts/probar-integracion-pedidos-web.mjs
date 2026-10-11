@@ -474,6 +474,49 @@ await escenario('DESPUÉS · los clientes web siguen sin acceso a stock ni a las
   await rechaza('select liberar_stock($1, $2::jsonb)', [depEcommerce, '[]'], /permission denied/)
 })
 
+await escenario('MOCK: pago idempotente, propietario y stock comprometido', async () => {
+  const productoMock = await producto(10)
+  const pedido = await pedidoWeb(cliA, [[productoMock, 2]])
+  const reserva = await stock(productoMock)
+  await actuarComo(cliB.usuario, { role: 'authenticated' })
+  await rechaza('select confirmar_pago_mock($1, $2)', [pedido.id, 'approved'], /Pedido no disponible/)
+  await actuarComo(cliA.usuario, { role: 'authenticated' })
+  await rechaza('select confirmar_pago_pedido($1, $2, $3)', [pedido.id, 'x', 'approved'], /permission denied/)
+  await rechaza('select pago_interno.confirmar_pago_pedido($1, $2, $3)', [pedido.id, 'x', 'approved'], /permission denied/)
+  const rechazo = (await one('select confirmar_pago_mock($1, $2) as p', [pedido.id, 'rejected'])).p
+  assert.equal(rechazo.estado, 'Pendiente de pago')
+  const aprobado = (await one('select confirmar_pago_mock($1, $2) as p', [pedido.id, 'approved'])).p
+  assert.equal(aprobado.estado, 'Pagado')
+  assert.equal(aprobado.referencia_pago, `mock:${pedido.id}`)
+  assert.ok(aprobado.pagado_at)
+  const repetido = (await one('select confirmar_pago_mock($1, $2) as p', [pedido.id, 'approved'])).p
+  assert.equal(repetido.pagado_at, aprobado.pagado_at)
+  await db.exec('reset role')
+  assert.deepEqual(await stock(productoMock), reserva)
+  assert.equal((await one("select count(*)::int as n from historial_estado_pedido where pedido_id=$1 and estado_nuevo='Pagado'", [pedido.id])).n, 1)
+  assert.equal((await one('select count(*)::int as n from items_carrito i join carritos c on c.id=i.carrito_id where c.cliente_id=$1', [cliA.cliente])).n, 0)
+  await avanzar(pedido.id, 'En preparaci\u00f3n')
+  await avanzar(pedido.id, 'Listo para retirar')
+  await avanzar(pedido.id, 'Entregado')
+  await db.exec('reset role')
+  assert.deepEqual(await stock(productoMock), { cantidad: 8, comprometido: 0 })
+})
+
+await escenario('MOCK: vencimiento y deshabilitacion', async () => {
+  const productoMock = await producto(10)
+  const pedido = await pedidoWeb(cliA, [[productoMock, 1]])
+  await q("update pedidos_web set vence_at=now()-interval '1 minute' where id=$1", [pedido.id])
+  await actuarComo(cliA.usuario, { role: 'authenticated' })
+  await rechaza('select confirmar_pago_mock($1, $2)', [pedido.id, 'approved'], /venci/)
+  await db.exec('reset role')
+  await db.exec('update pago_interno.configuracion set habilitado=false')
+  await actuarComo(cliA.usuario, { role: 'authenticated' })
+  await rechaza('select confirmar_pago_mock($1, $2)', [pedido.id, 'approved'], /deshabilitado/)
+  await db.exec('reset role')
+  await db.exec('update pago_interno.configuracion set habilitado=true')
+  await avanzar(pedido.id, 'Cancelado', 'QA mock')
+})
+
 await escenario('DESPUÉS · el diagnóstico final no tiene errores de reservas, pedidos ni relaciones', async () => {
   const d = await diagnostico()
   for (const control of ['D1', 'S1', 'S2', 'S3', 'M1', 'M2', 'P3', 'P5', 'P8', 'P10', 'R2']) {

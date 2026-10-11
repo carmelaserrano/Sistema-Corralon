@@ -41,7 +41,7 @@ describe('pago', () => {
   })
 
   it('solo acepta aprobar o rechazar en la pasarela simulada', async () => {
-    supabase.functions.invoke.mockResolvedValue({ data: { pedido: { id: 'pedido-1', estado: 'Pagado' } }, error: null })
+    supabase.rpc.mockResolvedValue({ data: { id: 'pedido-1', estado: 'Pagado' }, error: null })
     await expect(resolverPagoSimulado('pedido-1', 'approved')).resolves.toMatchObject({ estado: 'Pagado' })
     await expect(resolverPagoSimulado('pedido-1', 'otro')).rejects.toThrow('no válido')
   })

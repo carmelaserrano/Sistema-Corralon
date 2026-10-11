@@ -25,7 +25,6 @@ import MisPedidosPage from './pages/MisPedidosPage'
 import TiendaFooter from './components/TiendaFooter'
 import TiendaToast from './components/TiendaToast'
 import TiendaCartDrawer from './components/TiendaCartDrawer'
-import { iniciarPago } from './api/checkoutApi'
 import './tienda.css'
 
 const monedaHeader = new Intl.NumberFormat('es-AR', {
@@ -247,6 +246,7 @@ function TiendaRoutes({
       <PasarelaSimuladaPage
         pedidoId={pago.pedidoId}
         onResultado={onResultadoPago}
+        onNavigate={onNavigate}
       />
     )
   }
@@ -331,12 +331,7 @@ export function TiendaShell() {
   }
 
   async function reintentarPago(pedidoId) {
-    if (import.meta.env.VITE_PAGO_SIMULADO === 'true') {
-      abrirPasarelaSimulada(pedidoId)
-      return
-    }
-    const preferencia = await iniciarPago(pedidoId)
-    window.location.assign(preferencia.init_point)
+    abrirPasarelaSimulada(pedidoId)
   }
 
   function notificar({ mensaje, productoNombre }) {
