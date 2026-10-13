@@ -187,6 +187,7 @@ button:disabled {
   overflow-y: auto;
   background: var(--surface-inverse);
   color: var(--text-on-inverse);
+  transition: transform 180ms ease, visibility 180ms;
 }
 
 .sidebar-brand,
@@ -411,13 +412,25 @@ button:disabled {
 
 .sidebar-close,
 .sidebar-backdrop,
-.menu-trigger {
+.menu-trigger,
+.sidebar-toggle {
   display: none;
 }
 
 .app-workspace {
   min-height: 100vh;
   margin-left: var(--sidebar-width);
+  transition: margin-left 180ms ease;
+}
+
+.app-shell.is-sidebar-collapsed .sidebar {
+  visibility: hidden;
+  transform: translateX(-100%);
+  transition-delay: 0s, 180ms;
+}
+
+.app-shell.is-sidebar-collapsed .app-workspace {
+  margin-left: 0;
 }
 
 .topbar {
@@ -439,6 +452,24 @@ button:disabled {
 .topbar-user {
   display: flex;
   align-items: center;
+}
+
+.sidebar-toggle {
+  display: grid;
+  width: 40px;
+  min-height: 40px;
+  margin-right: var(--space-3);
+  padding: 0;
+  place-items: center;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--surface-panel);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.sidebar-toggle:hover {
+  background: var(--surface-subtle);
 }
 
 .topbar-heading>div,
@@ -1835,9 +1866,21 @@ td button:hover:not(:disabled),
     box-shadow: var(--shadow-2);
     transform: translateX(-105%);
     transition: transform 180ms ease;
+    visibility: visible;
+    transition-delay: 0s;
   }
 
   .sidebar.is-open {
+    transform: translateX(0);
+  }
+
+  .app-shell.is-sidebar-collapsed .sidebar {
+    visibility: visible;
+    transform: translateX(-105%);
+    transition: transform 180ms ease;
+  }
+
+  .app-shell.is-sidebar-collapsed .sidebar.is-open {
     transform: translateX(0);
   }
 
@@ -1892,6 +1935,10 @@ td button:hover:not(:disabled),
     place-items: center;
     border-color: var(--border-default);
     background: var(--surface-panel);
+  }
+
+  .sidebar-toggle {
+    display: none;
   }
 
   .menu-trigger:hover:not(:disabled) {
