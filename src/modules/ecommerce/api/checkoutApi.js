@@ -40,8 +40,7 @@ export async function iniciarPago(pedidoId) {
 }
 
 /**
- * Envía una decisión de la pasarela simulada. Solo se acepta cuando
- * PAGO_SIMULADO=true en la Edge Function.
+ * Envía una decisión de la pasarela simulada. La RPC valida propietario, vencimiento y modo demo.
  * @param {string} pedidoId ID del pedido.
  * @param {'approved'|'rejected'} estado Resultado elegido por QA.
  * @returns {Promise<Object>} Pedido actualizado.
@@ -49,27 +48,25 @@ export async function iniciarPago(pedidoId) {
 export async function resolverPagoSimulado(pedidoId, estado) {
   if (!pedidoId) throw new Error('Falta el pedido a pagar')
   if (!['approved', 'rejected'].includes(estado)) throw new Error('Resultado de pago no válido')
-  const { data, error } = await supabase.functions.invoke('webhook-pago', {
-    body: { simulated: true, pedido_id: pedidoId, status: estado },
+  const { data, error } = await supabase.rpc('confirmar_pago_mock', {
+    p_pedido: pedidoId, p_estado: estado,
   })
-  if (error) throw await errorFuncion(error, 'No pudimos procesar el pago simulado')
-  if (!data?.pedido?.id) throw new Error('El servidor no confirmó el resultado del pago')
-  return data.pedido
+  if (error) throw error
+  if (!data?.id || (estado === 'approved' && data.estado !== 'Pagado')) {
+    throw new Error('El servidor no confirmó el resultado del pago')
+  }
+  return data
 }
 
 /**
- * Solicita a la Edge Function que busque y reconcilie el pago del pedido
- * consultando directamente a Mercado Pago. Requiere sesión del usuario.
+ * Consulta el estado local del pago mock sin contactar una pasarela externa.
  * @param {string} pedidoId ID del pedido a reconciliar.
  * @returns {Promise<Object>} Pedido actualizado o mensaje informativo.
  */
 export async function reconciliarPago(pedidoId) {
   if (!pedidoId) throw new Error('Falta el pedido a reconciliar')
-  const { data, error } = await supabase.functions.invoke('webhook-pago', {
-    body: { action: 'reconcile', pedido_id: pedidoId },
-  })
-  if (error) throw await errorFuncion(error, 'No pudimos reconciliar el pago')
-  return data
+  const pedido = await obtenerPedido(pedidoId)
+  return { pedido, mensaje: 'Estado consultado en el sistema de pago mock.' }
 }
 
 /**

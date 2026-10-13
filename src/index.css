@@ -2917,3 +2917,15 @@ td button:hover:not(:disabled),
   
   margin: 0 -16px 28px;
 }
+.tienda-pago-mock { max-width: 620px; margin: 40px auto; padding: clamp(20px, 5vw, 36px); text-align: center; background: var(--surface-panel); border: 1px solid var(--border-default); border-radius: 16px; }
+.tienda-pago-mock-fase { padding-top: 20px; animation: pago-mock-entrada 200ms ease-out; }
+.tienda-pago-mock-total { display: block; font-size: clamp(28px, 6vw, 40px); margin: 16px 0; }
+.tienda-pago-mock-tarjeta { display: grid; gap: 14px; text-align: left; padding: 24px; margin: 24px 0; border-radius: 14px; background: var(--surface-muted, #f1f5f9); color: var(--text-primary, #172033); border: 1px solid var(--border-default); }
+.tienda-pago-mock-acciones { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 24px; }
+.tienda-pago-mock-acciones button { transition: transform 150ms ease; }
+.tienda-pago-mock-acciones button:active { transform: scale(.98); }
+.tienda-pago-mock-spinner { animation: pago-mock-giro 900ms linear infinite; }
+.tienda-pago-mock-check { color: var(--color-success); animation: pago-mock-entrada 220ms ease-out; }
+@keyframes pago-mock-entrada { from { opacity: 0; transform: translateY(5px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes pago-mock-giro { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .tienda-pago-mock *, .tienda-pago-mock *::before, .tienda-pago-mock *::after { animation: none !important; transition: none !important; } }

@@ -46,7 +46,7 @@ const domicilio = {
 describe('CheckoutPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.stubEnv('VITE_PAGO_SIMULADO', 'true')
+    vi.stubEnv('VITE_PAGO_SIMULADO', 'false')
     useClienteWeb.mockReturnValue({ cliente: { id: 'cliente-1' } })
     useCarrito.mockReturnValue({ items: [item], total: 2500 })
     listarDomicilios.mockResolvedValue([domicilio])
