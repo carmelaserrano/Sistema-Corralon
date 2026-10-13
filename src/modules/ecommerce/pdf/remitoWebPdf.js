@@ -1,16 +1,17 @@
 import { jsPDF } from 'jspdf'
+import logoCorralon from './logo-corralon-norte.jpg?inline'
+import { DATOS_COMERCIALES } from '../datosComerciales'
 
 /**
  * Datos del corralón emisor para el remito web.
  */
 export const EMISOR_CORRALON = {
-  razonSocial: 'Corralón Carmela Serrano',
+  razonSocial: 'Corralón Norte',
   subtitulo: 'Materiales para la Construcción · Ferretería · Logística de Obra',
   cuit: '30-71234567-8',
-  domicilio: 'Av. Entre Ríos 1450, Salta Capital, Salta',
-  telefono: '(0387) 431-9000 · WhatsApp: +54 9 387 512-3456',
-  email: 'ventas@carmelaserrano.com.ar',
-  web: 'ecommerce.carmelaserrano.com.ar',
+  domicilio: DATOS_COMERCIALES.domicilio,
+  telefono: `${DATOS_COMERCIALES.telefono} / WhatsApp: ${DATOS_COMERCIALES.whatsapp}`,
+  email: DATOS_COMERCIALES.email,
 }
 
 function formatearMoneda(val) {
@@ -76,6 +77,7 @@ export function generarRemitoWebPdf({
   // --------------------------------------------------------------------------
   doc.setFillColor(242, 100, 25) // Tono naranja corralón
   doc.rect(10, 10, 190, 4, 'F')
+  doc.addImage(logoCorralon, 'JPEG', 14, 14, 16, 12)
 
   // Letra central distintiva "W" (Venta Web / Remito no fiscal)
   doc.setFillColor(245, 245, 245)
@@ -95,7 +97,7 @@ export function generarRemitoWebPdf({
   doc.setFontSize(13)
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(20, 20, 20)
-  doc.text(emisor.razonSocial, 15, 22)
+  doc.text(emisor.razonSocial, 34, 22)
 
   doc.setFontSize(7.5)
   doc.setFont('helvetica', 'normal')
@@ -297,7 +299,7 @@ export function generarRemitoWebPdf({
   doc.setFontSize(6.5)
   doc.setTextColor(100, 100, 100)
   doc.text(
-    'Documento no válido como factura. Para solicitar Factura A o B correspondiente a esta compra web, comuníquese a administracion@carmelaserrano.com.ar informando el número de pedido.',
+    `Documento no válido como factura. Para solicitar Factura A o B correspondiente a esta compra web, comuníquese a ${DATOS_COMERCIALES.email} informando el número de pedido.`,
     105,
     280,
     { align: 'center' },

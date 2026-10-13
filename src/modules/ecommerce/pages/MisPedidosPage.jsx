@@ -20,6 +20,7 @@ import Feedback from '../../../components/ui/Feedback'
 import { useCarrito } from '../context/CarritoContext'
 import { useClienteWeb } from '../context/ClienteWebContext'
 import { armarLineaDeTiempo, listarMisPedidos, obtenerSeguimientoPedido } from '../api/pedidosWebApi'
+import { DATOS_COMERCIALES } from '../datosComerciales'
 import { descargarRemitoWebPdf } from '../pdf/remitoWebPdf'
 
 // Un color por estado, con los tonos de .estado-badge (mismo criterio que
@@ -220,7 +221,7 @@ function DetallePedido({ pedidoId, cliente, onVolver, onVerProducto, onNotificar
     },
     Entregado: {
       titulo: 'Materiales entregados en obra / sucursal',
-      texto: 'La entrega fue completada con conformidad. ¡Gracias por confiar en Corralón Carmela Serrano!',
+      texto: 'La entrega fue completada con conformidad. ¡Gracias por confiar en Corralón Norte!',
       icono: ShieldCheck,
       clase: 'is-entregado',
     },
@@ -331,7 +332,7 @@ function DetallePedido({ pedidoId, cliente, onVolver, onVerProducto, onNotificar
                     <Store size={18} className="tienda-entrega-item-icon" />
                     <div className="tienda-entrega-item-text">
                       <strong>Sucursal Casa Central:</strong>
-                      <p>Av. Entre Ríos 1450, Salta Capital, Salta.</p>
+                      <p>{DATOS_COMERCIALES.domicilio}.</p>
                     </div>
                   </div>
 
