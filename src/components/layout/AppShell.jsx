@@ -1,10 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
-import { LogOut, Menu, Search, UserRound } from 'lucide-react'
+import { LogOut, Menu, PanelLeftClose, PanelLeftOpen, Search, UserRound } from 'lucide-react'
 import Sidebar from './Sidebar'
 import { pageModules, pageTitles } from './navigation'
 import Button from '../ui/Button'
 import CommandPalette from '../ui/CommandPalette'
 import ToastProvider from '../ui/Toast'
+
+const CLAVE_SIDEBAR_OCULTA = 'corralon.sidebar.oculta'
+
+function leerSidebarOculta() {
+  try {
+    return localStorage.getItem(CLAVE_SIDEBAR_OCULTA) === 'true'
+  } catch {
+    return false
+  }
+}
 
 export default function AppShell({
   activePage,
@@ -15,8 +25,17 @@ export default function AppShell({
   rol,
 }) {
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [sidebarOculta, setSidebarOculta] = useState(leerSidebarOculta)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const contentRef = useRef(null)
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(CLAVE_SIDEBAR_OCULTA, String(sidebarOculta))
+    } catch {
+      // La preferencia es opcional; el control sigue funcionando sin almacenamiento.
+    }
+  }, [sidebarOculta])
 
   useEffect(() => {
     const content = contentRef.current
@@ -56,7 +75,7 @@ export default function AppShell({
 
   return (
     <ToastProvider>
-      <div className="app-shell">
+      <div className={`app-shell ${sidebarOculta ? 'is-sidebar-collapsed' : ''}`}>
         <Sidebar
           activePage={activePage}
           isOpen={mobileOpen}
@@ -70,10 +89,23 @@ export default function AppShell({
           <header className="topbar">
             <div className="topbar-heading">
               <button
+                className="sidebar-toggle"
+                type="button"
+                aria-label={sidebarOculta ? 'Mostrar barra lateral' : 'Ocultar barra lateral'}
+                aria-expanded={!sidebarOculta}
+                aria-controls="app-sidebar"
+                onClick={() => setSidebarOculta((oculta) => !oculta)}
+              >
+                {sidebarOculta
+                  ? <PanelLeftOpen size={20} aria-hidden="true" />
+                  : <PanelLeftClose size={20} aria-hidden="true" />}
+              </button>
+              <button
                 className="menu-trigger"
                 type="button"
                 aria-label="Abrir menú"
                 aria-expanded={mobileOpen}
+                aria-controls="app-sidebar"
                 onClick={() => setMobileOpen(true)}
               >
                 <Menu size={21} />

@@ -81,7 +81,11 @@ export default function Sidebar({
         aria-label="Cerrar menú"
         onClick={onClose}
       />
-      <aside className={`sidebar ${isOpen ? 'is-open' : ''}`} aria-label="Menú principal">
+      <aside
+        id="app-sidebar"
+        className={`sidebar ${isOpen ? 'is-open' : ''}`}
+        aria-label="Menú principal"
+      >
         <div className="sidebar-brand">
           <span className="sidebar-logo">
             <LogoCasco size={40} />
