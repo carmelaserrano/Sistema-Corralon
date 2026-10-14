@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import LogoCasco from '../../components/ui/LogoCasco'
 import {
+  ChevronDown,
   Clock,
+  MapPin,
   LogOut,
   Package,
   Phone,
@@ -12,6 +14,7 @@ import {
 } from 'lucide-react'
 import { CarritoProvider, useCarrito } from './context/CarritoContext'
 import { ClienteWebProvider, useClienteWeb } from './context/ClienteWebContext'
+import { DATOS_COMERCIALES } from './datosComerciales'
 import CatalogoPage from './pages/CatalogoPage'
 import ProductoDetallePage from './pages/ProductoDetallePage'
 import CarritoPage from './pages/CarritoPage'
@@ -22,6 +25,7 @@ import RegistroPage from './pages/RegistroPage'
 import IngresarPage from './pages/IngresarPage'
 import MisDatosPage from './pages/MisDatosPage'
 import MisPedidosPage from './pages/MisPedidosPage'
+import SobreNosotrosPage from './pages/SobreNosotrosPage'
 import TiendaFooter from './components/TiendaFooter'
 import TiendaToast from './components/TiendaToast'
 import TiendaCartDrawer from './components/TiendaCartDrawer'
@@ -36,6 +40,37 @@ const monedaHeader = new Intl.NumberFormat('es-AR', {
 function TiendaHeader({ pagina, onNavigate, onAbrirCarrito }) {
   const { cantidadTotal, total } = useCarrito()
   const { cliente, salir } = useClienteWeb()
+  const [menuCuentaAbierto, setMenuCuentaAbierto] = useState(false)
+  const menuCuentaRef = useRef(null)
+  const botonCuentaRef = useRef(null)
+
+  useEffect(() => {
+    if (!menuCuentaAbierto) return undefined
+
+    function cerrarAlHacerClickAfuera(event) {
+      if (!menuCuentaRef.current?.contains(event.target)) {
+        setMenuCuentaAbierto(false)
+      }
+    }
+
+    function cerrarConEscape(event) {
+      if (event.key === 'Escape') {
+        setMenuCuentaAbierto(false)
+        botonCuentaRef.current?.focus()
+      }
+    }
+
+    document.addEventListener('mousedown', cerrarAlHacerClickAfuera)
+    document.addEventListener('keydown', cerrarConEscape)
+    return () => {
+      document.removeEventListener('mousedown', cerrarAlHacerClickAfuera)
+      document.removeEventListener('keydown', cerrarConEscape)
+    }
+  }, [menuCuentaAbierto])
+
+  useEffect(() => {
+    setMenuCuentaAbierto(false)
+  }, [pagina])
 
   return (
     <header className="tienda-header-container">
@@ -51,7 +86,7 @@ function TiendaHeader({ pagina, onNavigate, onAbrirCarrito }) {
           <div className="tienda-topbar-right">
             <span className="tienda-topbar-item">
               <Phone size={14} aria-hidden="true" />
-              <span>(387) 456-7890</span>
+              <span>{DATOS_COMERCIALES.telefono}</span>
             </span>
             <span className="tienda-topbar-sep">•</span>
             <span className="tienda-topbar-item">
@@ -95,6 +130,15 @@ function TiendaHeader({ pagina, onNavigate, onAbrirCarrito }) {
               <Store size={16} aria-hidden="true" />
               <span>Catálogo</span>
             </button>
+            <button
+              type="button"
+              className={`tienda-nav-link ${pagina === 'sobre-nosotros' ? 'is-active' : ''}`}
+              aria-current={pagina === 'sobre-nosotros' ? 'page' : undefined}
+              onClick={() => onNavigate('sobre-nosotros')}
+            >
+              <MapPin size={16} aria-hidden="true" />
+              <span>Sobre nosotros</span>
+            </button>
             {cliente && (
               <button
                 type="button"
@@ -110,12 +154,17 @@ function TiendaHeader({ pagina, onNavigate, onAbrirCarrito }) {
 
           <div className="tienda-header-acciones">
             {cliente ? (
-              <div className="tienda-cuenta">
+              <div className="tienda-cuenta" ref={menuCuentaRef}>
                 <button
+                  ref={botonCuentaRef}
                   type="button"
                   className={`tienda-cuenta-btn ${pagina === 'mis-datos' ? 'is-active' : ''}`}
-                  onClick={() => onNavigate('mis-datos')}
-                  title="Mis Datos"
+                  onClick={() => setMenuCuentaAbierto((abierto) => !abierto)}
+                  aria-label="Menú de cuenta"
+                  aria-haspopup="true"
+                  aria-expanded={menuCuentaAbierto}
+                  aria-controls="tienda-menu-cuenta"
+                  title="Opciones de cuenta"
                 >
                   <span className="tienda-user-avatar" aria-hidden="true">
                     {(cliente.nombre?.[0] || cliente.razon_social?.[0] || 'C').toUpperCase()}
@@ -128,19 +177,35 @@ function TiendaHeader({ pagina, onNavigate, onAbrirCarrito }) {
                         : cliente.razon_social}
                     </strong>
                   </span>
+                  <ChevronDown size={15} aria-hidden="true" />
                 </button>
-                <button
-                  type="button"
-                  className="tienda-nav-btn-logout"
-                  aria-label="Cerrar sesión"
-                  title="Cerrar sesión"
-                  onClick={async () => {
-                    await salir()
-                    onNavigate('catalogo')
-                  }}
-                >
-                  <LogOut size={17} aria-hidden="true" />
-                </button>
+                {menuCuentaAbierto && (
+                  <div className="tienda-menu-cuenta" id="tienda-menu-cuenta">
+                    <button
+                      type="button"
+                      className="tienda-menu-cuenta-item"
+                      onClick={() => {
+                        setMenuCuentaAbierto(false)
+                        onNavigate('mis-datos')
+                      }}
+                    >
+                      <User size={16} aria-hidden="true" />
+                      <span>Mi cuenta</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="tienda-menu-cuenta-item"
+                      onClick={async () => {
+                        setMenuCuentaAbierto(false)
+                        await salir()
+                        onNavigate('catalogo')
+                      }}
+                    >
+                      <LogOut size={16} aria-hidden="true" />
+                      <span>Cerrar sesión</span>
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
               <button
@@ -253,6 +318,7 @@ function TiendaRoutes({
   if (pagina === 'registrarme') return <RegistroPage onNavigate={onNavigate} />
   if (pagina === 'ingresar') return <IngresarPage onNavigate={onNavigate} />
   if (pagina === 'mis-datos') return <MisDatosPage onNavigate={onNavigate} />
+  if (pagina === 'sobre-nosotros') return <SobreNosotrosPage />
   if (pagina === 'mis-pedidos') {
     return (
       <MisPedidosPage

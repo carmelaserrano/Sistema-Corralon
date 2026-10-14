@@ -10,6 +10,20 @@
   color: var(--text-primary);
 }
 
+@media (max-width: 760px) {
+  .tienda-sobre-nosotros {
+    margin-top: 28px;
+  }
+
+  .tienda-sobre-nosotros-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .tienda-sobre-nosotros-mapa iframe {
+    min-height: 340px;
+  }
+}
+
 /* --------------------------------------------------------------------------
    1. TOPBAR (SERVICIOS & ATENCIÓN)
    -------------------------------------------------------------------------- */
@@ -186,9 +200,9 @@
 }
 
 .tienda-cuenta {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 4px;
 }
 
 .tienda-cuenta-btn {
@@ -255,22 +269,44 @@
   white-space: nowrap;
 }
 
-.tienda-nav-btn-logout {
-  display: inline-grid;
-  width: 36px;
-  height: 36px;
-  place-items: center;
-  border: 0;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--color-neutral-300);
-  cursor: pointer;
-  transition: background 150ms ease, color 150ms ease;
+.tienda-menu-cuenta {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 8px);
+  right: 0;
+  display: grid;
+  width: 190px;
+  padding: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-md);
+  background: var(--surface-inverse-strong);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.3);
 }
 
-.tienda-nav-btn-logout:hover {
-  background: rgba(255, 255, 255, 0.1);
+.tienda-menu-cuenta-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: calc(var(--radius-md) - 4px);
+  background: transparent;
   color: #fff;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition: background 150ms ease;
+}
+
+.tienda-menu-cuenta-item:hover,
+.tienda-menu-cuenta-item:focus-visible {
+  background: rgba(255, 255, 255, 0.1);
+  outline: none;
+}
+
+.tienda-menu-cuenta-item svg {
+  color: var(--color-brand);
 }
 
 .tienda-cart-btn {
@@ -522,6 +558,115 @@
 .tienda-main {
   flex: 1 0 auto;
   padding: 0 16px 64px;
+}
+
+.tienda-sobre-nosotros {
+  max-width: 1180px;
+  margin: 40px auto 0;
+}
+
+.tienda-sobre-nosotros-header {
+  max-width: 720px;
+  margin-bottom: 28px;
+}
+
+.tienda-sobre-nosotros-kicker {
+  color: var(--color-brand);
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.tienda-sobre-nosotros-header h1 {
+  margin: 8px 0 10px;
+  color: var(--text-primary);
+  font-size: clamp(28px, 4vw, 40px);
+  letter-spacing: -0.035em;
+}
+
+.tienda-sobre-nosotros-header p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 16px;
+  line-height: 1.65;
+}
+
+.tienda-sobre-nosotros-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 22px;
+  align-items: stretch;
+}
+
+.tienda-sobre-nosotros-info {
+  display: grid;
+  gap: 12px;
+}
+
+.tienda-sobre-nosotros-card {
+  display: flex;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--surface-panel);
+  box-shadow: var(--shadow-1);
+}
+
+.tienda-sobre-nosotros-card > svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: var(--color-brand);
+}
+
+.tienda-sobre-nosotros-card h2 {
+  margin: 0 0 6px;
+  color: var(--text-primary);
+  font-size: 15px;
+}
+
+.tienda-sobre-nosotros-card p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.tienda-sobre-nosotros-card p + p {
+  margin-top: 5px;
+}
+
+.tienda-sobre-nosotros-card a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  color: var(--color-brand);
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.tienda-sobre-nosotros-card a:hover {
+  text-decoration: underline;
+}
+
+.tienda-sobre-nosotros-mapa {
+  min-height: 100%;
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--surface-panel);
+  box-shadow: var(--shadow-1);
+}
+
+.tienda-sobre-nosotros-mapa iframe {
+  display: block;
+  width: 100%;
+  min-height: 460px;
+  height: 100%;
+  border: 0;
 }
 
 .tienda-catalogo-wrap {
@@ -3021,5 +3166,3 @@
     margin-top: 8px;
   }
 }
-
-

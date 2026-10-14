@@ -30,6 +30,7 @@ vi.mock('./pages/RegistroPage', () => ({ default: () => <p>REGISTRO</p> }))
 vi.mock('./pages/IngresarPage', () => ({ default: () => <p>LOGIN</p> }))
 vi.mock('./pages/MisDatosPage', () => ({ default: () => <p>MIS DATOS</p> }))
 vi.mock('./pages/MisPedidosPage', () => ({ default: () => <p>MIS PEDIDOS</p> }))
+vi.mock('./pages/SobreNosotrosPage', () => ({ default: () => <p>SOBRE NOSOTROS</p> }))
 vi.mock('./components/TiendaFooter', () => ({ default: () => null }))
 vi.mock('./components/TiendaToast', () => ({ default: () => null }))
 vi.mock('./components/TiendaCartDrawer', () => ({
@@ -43,6 +44,7 @@ vi.mock('./components/TiendaCartDrawer', () => ({
 vi.mock('./api/checkoutApi', () => ({ iniciarPago: vi.fn() }))
 
 let clienteActual
+let salirActual
 
 function autenticar() {
   clienteActual = { id: 'cliente-1', nombre: 'Ana', apellido: 'Pérez' }
@@ -52,8 +54,9 @@ describe('TiendaApp retorno post-login', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     clienteActual = null
+    salirActual = vi.fn().mockResolvedValue(undefined)
     vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
-    useClienteWeb.mockImplementation(() => ({ cliente: clienteActual, salir: vi.fn() }))
+    useClienteWeb.mockImplementation(() => ({ cliente: clienteActual, salir: salirActual }))
     useCarrito.mockReturnValue({ cantidadTotal: 1, total: 1250 })
   })
 
@@ -97,5 +100,42 @@ describe('TiendaApp retorno post-login', () => {
 
     await waitFor(() => expect(screen.getByText('LOGIN')).toBeInTheDocument())
     expect(screen.queryByText('CHECKOUT')).not.toBeInTheDocument()
+  })
+
+  it('abre las opciones de cuenta desde el nombre y permite ir a Mi cuenta', () => {
+    autenticar()
+    render(<TiendaShell />)
+
+    expect(screen.queryByRole('button', { name: 'Cerrar sesión' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Menú de cuenta' }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mi cuenta' }))
+
+    expect(screen.getByText('MIS DATOS')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Mi cuenta' })).not.toBeInTheDocument()
+  })
+
+  it('permite cerrar sesión desde el menú de cuenta', async () => {
+    autenticar()
+    render(<TiendaShell />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Menú de cuenta' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cerrar sesión' }))
+
+    await waitFor(() => expect(salirActual).toHaveBeenCalledOnce())
+    expect(screen.getByText('CATÁLOGO')).toBeInTheDocument()
+  })
+
+  it('permite abrir Sobre nosotros desde la navegación para visitantes y clientes', () => {
+    const vista = render(<TiendaShell />)
+    fireEvent.click(screen.getByRole('button', { name: 'Sobre nosotros' }))
+    expect(screen.getByText('SOBRE NOSOTROS')).toBeInTheDocument()
+
+    autenticar()
+    vista.rerender(<TiendaShell />)
+    fireEvent.click(screen.getByRole('button', { name: 'Sobre nosotros' }))
+
+    expect(screen.getByText('SOBRE NOSOTROS')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Sobre nosotros' })).toHaveAttribute('aria-current', 'page')
   })
 })

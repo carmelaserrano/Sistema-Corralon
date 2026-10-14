@@ -3,6 +3,7 @@ import {
   EMISOR_CORRALON,
   generarRemitoWebPdf,
 } from './remitoWebPdf'
+import { DATOS_COMERCIALES } from '../datosComerciales'
 
 const pedidoEjemplo = {
   id: 'ped-1',
@@ -48,6 +49,23 @@ const clienteEjemplo = {
 }
 
 describe('remitoWebPdf', () => {
+  it('usa la marca Corralón Norte e incluye el logo en el PDF', () => {
+    const doc = generarRemitoWebPdf({
+      pedido: pedidoEjemplo,
+      items: itemsEjemplo,
+      cliente: clienteEjemplo,
+    })
+
+    expect(EMISOR_CORRALON.razonSocial).toBe('Corralón Norte')
+    expect(doc.output()).toContain('/Subtype /Image')
+  })
+
+  it('usa los datos comerciales unificados de la tienda', () => {
+    expect(EMISOR_CORRALON.domicilio).toBe('Caseros 850, Salta Capital, Salta')
+    expect(EMISOR_CORRALON.telefono).toContain(DATOS_COMERCIALES.telefono)
+    expect(EMISOR_CORRALON.email).toBe(DATOS_COMERCIALES.email)
+  })
+
   it('genera un documento jsPDF con datos completos de envío', () => {
     const doc = generarRemitoWebPdf({
       pedido: pedidoEjemplo,

@@ -1,5 +1,6 @@
 import { Clock, Mail, MapPin, Phone, ShieldCheck, Truck } from 'lucide-react'
 import LogoCasco from '../../../components/ui/LogoCasco'
+import { DATOS_COMERCIALES } from '../datosComerciales'
 
 export default function TiendaFooter({ onNavigate }) {
   return (
@@ -55,9 +56,9 @@ export default function TiendaFooter({ onNavigate }) {
         <div className="tienda-footer-col">
           <h4>Casa Central & Salón</h4>
           <ul className="tienda-footer-contact">
-            <li><MapPin size={16} /> Av. San Martín 1420, Salta Capital</li>
-            <li><Phone size={16} /> (387) 456-7890 / WhatsApp: +54 9 387 512-3456</li>
-            <li><Mail size={16} /> ventas@corralondelsur.com.ar</li>
+            <li><MapPin size={16} /> {DATOS_COMERCIALES.domicilio}</li>
+            <li><Phone size={16} /> {DATOS_COMERCIALES.telefono} / WhatsApp: {DATOS_COMERCIALES.whatsapp}</li>
+            <li><Mail size={16} /> {DATOS_COMERCIALES.email}</li>
             <li><Clock size={16} /> Lun a Vie: 08:00 - 18:00 · Sáb: 08:00 - 13:00</li>
           </ul>
         </div>
