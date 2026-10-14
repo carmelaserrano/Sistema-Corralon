@@ -332,7 +332,7 @@ function TiendaRoutes({
   return <CatalogoPage onVerProducto={onVerProducto} onNotificar={onNotificar} />
 }
 
-export function TiendaShell() {
+function TiendaContenido() {
   const parametros = new URLSearchParams(window.location.search)
   const retornoPago = parametros.get('pago')
   const pedidoRetornado = parametros.get('pedido') || parametros.get('external_reference')
@@ -350,11 +350,11 @@ export function TiendaShell() {
   const { cliente } = useClienteWeb()
 
   useEffect(() => {
-    if (cliente && destinoPostIngreso) {
+    if (cliente && destinoPostIngreso && pagina !== 'registrarme') {
       setPagina(destinoPostIngreso)
       setDestinoPostIngreso(null)
     }
-  }, [cliente, destinoPostIngreso])
+  }, [cliente, destinoPostIngreso, pagina])
 
   function navegar(destino) {
     const requiereIngreso = destino === 'checkout' && !cliente
@@ -454,10 +454,14 @@ export function TiendaShell() {
   )
 }
 
-export default function TiendaApp() {
+export function TiendaShell() {
   return (
     <ClienteWebProvider>
-      <TiendaShell />
+      <TiendaContenido />
     </ClienteWebProvider>
   )
+}
+
+export default function TiendaApp() {
+  return <TiendaShell />
 }

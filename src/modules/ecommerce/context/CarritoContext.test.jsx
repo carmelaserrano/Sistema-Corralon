@@ -1,9 +1,10 @@
+import { useState } from 'react'
 import '@testing-library/jest-dom/vitest'
-import { act, cleanup, render, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CarritoProvider, useCarrito } from './CarritoContext'
 import { useClienteWeb } from './ClienteWebContext'
-import { validarItems } from '../api/carritoApi'
+import { obtenerCarrito, validarItems } from '../api/carritoApi'
 
 vi.mock('./ClienteWebContext', () => ({ useClienteWeb: vi.fn() }))
 vi.mock('../api/carritoApi', () => ({
@@ -92,4 +93,24 @@ describe('CarritoContext agregarVarios', () => {
 
     expect(validarItems).toHaveBeenCalledWith([{ productoId: 'p1', cantidad }])
   })
+})
+
+it('cambiar de visitante a cliente reinicia carrito sin desmontar consumidores', async () => {
+  sessionStorage.clear()
+  useClienteWeb.mockReturnValue({ cliente: null, cargando: false })
+  validarItems.mockResolvedValue([])
+  obtenerCarrito.mockResolvedValue([])
+  function Formulario() {
+    const [nombre, setNombre] = useState('')
+    useCarrito()
+    return <input aria-label="nombre persistente" value={nombre} onChange={event => setNombre(event.target.value)} />
+  }
+  const vista = render(<CarritoProvider><Formulario /></CarritoProvider>)
+  const input = screen.getByLabelText('nombre persistente')
+  fireEvent.change(input, { target: { value: 'Ana' } })
+  useClienteWeb.mockReturnValue({ cliente: { id: 'c1' }, cargando: false })
+  vista.rerender(<CarritoProvider><Formulario /></CarritoProvider>)
+  await waitFor(() => expect(obtenerCarrito).toHaveBeenCalledWith('c1'))
+  expect(screen.getByLabelText('nombre persistente')).toBe(input)
+  expect(input).toHaveValue('Ana')
 })

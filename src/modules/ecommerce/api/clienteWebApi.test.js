@@ -4,7 +4,9 @@ import {
   completarRegistro,
   ingresar,
   MENSAJE_CREDENCIALES,
-  MENSAJE_DUPLICADO,
+  MENSAJE_EMAIL_DUPLICADO,
+  MENSAJE_DOCUMENTO_DUPLICADO,
+  recuperarRegistro,
   METADATO_REGISTRO,
   obtenerClienteActual,
   registrar,
@@ -17,7 +19,7 @@ vi.mock('../../../lib/supabaseClient', () => ({
   supabase: {
     from: vi.fn(),
     rpc: vi.fn(),
-    auth: { signUp: vi.fn(), signInWithPassword: vi.fn(), signOut: vi.fn(), getUser: vi.fn() },
+    auth: { signUp: vi.fn(), signInWithPassword: vi.fn(), signOut: vi.fn(), getUser: vi.fn(), updateUser: vi.fn() },
   },
 }))
 
@@ -70,7 +72,8 @@ describe('validarRegistro', () => {
 describe('registrar', () => {
   it('con confirmación de email guarda el registro pendiente en los metadatos y no llama a la RPC', async () => {
     supabase.auth.signUp.mockResolvedValue({ data: { user: { id: 'nuevo' }, session: null }, error: null })
-    expect(await registrar(formulario)).toEqual({ estado: 'confirmar_email' })
+    supabase.auth.signInWithPassword.mockResolvedValue({ error: { code: 'email_not_confirmed' } })
+    await expect(registrar(formulario)).rejects.toMatchObject({ status: 403 })
     expect(supabase.auth.signUp).toHaveBeenCalledWith({
       email: 'ana@example.com',
       password: 'secreta123',
@@ -78,19 +81,29 @@ describe('registrar', () => {
     })
     expect(supabase.rpc).not.toHaveBeenCalled()
   })
-  it('CA-02: un email ya registrado responde igual que uno nuevo (Supabase lo oculta)', async () => {
+  it('rechaza también la respuesta ofuscada de email duplicado', async () => {
     supabase.auth.signUp.mockResolvedValue({ data: { user: { id: 'falso', identities: [] }, session: null }, error: null })
-    expect(await registrar(formulario)).toEqual({ estado: 'confirmar_email' })
+    await expect(registrar(formulario)).rejects.toMatchObject({ message: MENSAJE_EMAIL_DUPLICADO, status: 409 })
   })
   it('CA-02: si Supabase informa el email duplicado, el mensaje es genérico', async () => {
     supabase.auth.signUp.mockResolvedValue({ data: {}, error: { code: 'user_already_exists', message: 'User already registered' } })
-    await expect(registrar(formulario)).rejects.toMatchObject({ message: MENSAJE_DUPLICADO, status: 409 })
+    await expect(registrar(formulario)).rejects.toMatchObject({ message: MENSAJE_EMAIL_DUPLICADO, status: 409 })
   })
   it('CA-01: con sesión inmediata crea el cliente con la RPC', async () => {
     supabase.auth.signUp.mockResolvedValue({ data: { user: { id: 'nuevo' }, session: {} }, error: null })
     supabase.rpc.mockResolvedValue({ data: 'cliente-nuevo', error: null })
-    expect(await registrar(formulario)).toEqual({ estado: 'registrado', clienteId: 'cliente-nuevo' })
+    expect(await registrar(formulario)).toEqual({ estado: 'registrado', clienteId: 'cliente-nuevo', usuario: { id: 'nuevo' } })
     expect(supabase.rpc).toHaveBeenCalledWith('registrar_cliente_web', { p_datos: perfil })
+  })
+  it('sin sesión en signUp usa login normal y vincula sin guardar credenciales ni crear usuarios internos', async () => {
+    supabase.auth.signUp.mockResolvedValue({ data: { user: usuario, session: null }, error: null })
+    supabase.auth.signInWithPassword.mockResolvedValue({ data: { user: usuario }, error: null })
+    supabase.rpc.mockResolvedValue({ data: 'c1', error: null })
+    expect(await registrar(formulario)).toMatchObject({ estado: 'registrado', clienteId: 'c1', usuario })
+    expect(supabase.auth.signInWithPassword).toHaveBeenCalledWith({ email: 'ana@example.com', password: 'secreta123' })
+    expect(supabase.from).not.toHaveBeenCalled()
+    expect(supabase.rpc).toHaveBeenCalledExactlyOnceWith('registrar_cliente_web', { p_datos: perfil })
+    expect(supabase.auth.signUp.mock.calls[0][0].options.data).toEqual({ [METADATO_REGISTRO]: perfil })
   })
   it('no llama a Supabase si el formulario es inválido', async () => {
     await expect(registrar({ ...formulario, email: 'x' })).rejects.toMatchObject({ campo: 'email' })
@@ -107,9 +120,9 @@ describe('registrar', () => {
 })
 
 describe('completarRegistro', () => {
-  it('CA-02: documento con usuario web → mensaje genérico, sin el detalle de la base', async () => {
+  it('CA-02: documento con usuario web -> mensaje genérico, sin el detalle de la base', async () => {
     supabase.rpc.mockResolvedValue({ error: { code: '23505', message: 'Juan Pérez ya existe' } })
-    await expect(completarRegistro(perfil)).rejects.toMatchObject({ message: MENSAJE_DUPLICADO, status: 409 })
+    await expect(completarRegistro(perfil)).rejects.toMatchObject({ message: MENSAJE_DOCUMENTO_DUPLICADO, status: 409 })
   })
   it.each([
     [{ code: '22023', message: 'El DNI debe tener 7 u 8 dígitos' }, { status: 400, message: 'El DNI debe tener 7 u 8 dígitos' }],
@@ -178,7 +191,7 @@ describe('obtenerClienteActual', () => {
     supabase.from.mockReturnValue(builder({ data: null, error: null }))
     supabase.rpc.mockResolvedValue({ error: { code: '23505', message: 'duplicado' } })
     await expect(obtenerClienteActual({ ...usuario, user_metadata: { [METADATO_REGISTRO]: perfil } }))
-      .rejects.toMatchObject({ message: MENSAJE_DUPLICADO })
+      .rejects.toMatchObject({ message: MENSAJE_DOCUMENTO_DUPLICADO })
   })
   it('un usuario sin cliente ni registro pendiente (p. ej. interno) no tiene cliente', async () => {
     supabase.from.mockReturnValue(builder({ data: null, error: null }))
@@ -214,5 +227,17 @@ describe('actualizarTelefono (CA-05)', () => {
       .mockReturnValueOnce(builder({ data: null, error: new Error('red') }))
     await expect(actualizarTelefono('3875551234')).rejects.toMatchObject({ status: 403 })
     await expect(actualizarTelefono('3875551234')).rejects.toThrow('red')
+  })
+})
+
+describe('recuperarRegistro', () => {
+  it('corrige solo metadatos de perfil y usa la RPC autenticada sin signUp ni credenciales', async () => {
+    const actual = { ...usuario, email: 'ana@example.com' }
+    supabase.auth.updateUser.mockResolvedValue({ data: { user: actual }, error: null })
+    supabase.rpc.mockResolvedValue({ data: 'c1', error: null })
+    expect(await recuperarRegistro({ ...formulario, password: '' }, actual)).toMatchObject({ clienteId: 'c1', usuario: actual })
+    expect(supabase.auth.updateUser).toHaveBeenCalledExactlyOnceWith({ data: { [METADATO_REGISTRO]: perfil } })
+    expect(supabase.auth.signUp).not.toHaveBeenCalled()
+    expect(supabase.rpc).toHaveBeenCalledWith('registrar_cliente_web', { p_datos: perfil })
   })
 })

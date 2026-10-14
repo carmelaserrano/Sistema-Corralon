@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { LogIn } from 'lucide-react'
+import { LogIn, Package, ShoppingBag, UserRound } from 'lucide-react'
 import Button from '../../../components/ui/Button'
 import Feedback from '../../../components/ui/Feedback'
+import CuentaExitoCard from '../components/CuentaExitoCard'
 import { useClienteWeb } from '../context/ClienteWebContext'
 
 export default function IngresarPage({ onNavigate }) {
-  const { cliente, ingresar } = useClienteWeb()
+  const { cliente, ingresar, pendiente } = useClienteWeb()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -33,16 +34,27 @@ export default function IngresarPage({ onNavigate }) {
 
   // Sin redirección automática: si el ingreso vino del carrito, TiendaApp
   // vuelve al carrito sola al aparecer el cliente.
+  if (pendiente) return <section className="tienda-auth-card"><Feedback>Tu cuenta tiene un registro pendiente.</Feedback><Button onClick={() => onNavigate?.('registrarme')}>Completar registro</Button></section>
+
   if (cliente) {
+    const nombre = cliente.nombre?.trim() || cliente.razon_social?.trim()
     return (
-      <section className="tienda-auth-card" aria-labelledby="titulo-ingresar" style={contenedor}>
-        <h1 id="titulo-ingresar">Hola, {cliente.nombre || cliente.razon_social}</h1>
-        <Feedback tone="success">Ya ingresaste a tu cuenta.</Feedback>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-          <Button type="button" onClick={() => onNavigate?.('catalogo')}>Ir al catálogo</Button>
-          <Button type="button" variant="ghost" onClick={() => onNavigate?.('mis-datos')}>Mis datos</Button>
-        </div>
-      </section>
+      <CuentaExitoCard
+        tituloId="titulo-ingresar"
+        titulo="¡Bienvenido de nuevo!"
+        saludo={nombre ? `Hola, ${nombre}` : 'Hola'}
+        descripcion="Ingresaste correctamente a tu cuenta. Ya podés continuar comprando y consultar tus pedidos."
+        acciones={[
+          { texto: 'Ir al catálogo', principal: true, onClick: () => onNavigate?.('catalogo') },
+          { texto: 'Mis datos', onClick: () => onNavigate?.('mis-datos') },
+          { texto: 'Mis pedidos', onClick: () => onNavigate?.('mis-pedidos') },
+        ]}
+        beneficios={[
+          { texto: 'Consultar tus pedidos', icono: Package },
+          { texto: 'Revisar tus datos', icono: UserRound },
+          { texto: 'Continuar comprando', icono: ShoppingBag },
+        ]}
+      />
     )
   }
 

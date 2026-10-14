@@ -1,9 +1,10 @@
-import { useState } from 'react'
-import { UserPlus } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { MapPin, Package, ShoppingBag, UserPlus } from 'lucide-react'
 import Button from '../../../components/ui/Button'
 import Feedback from '../../../components/ui/Feedback'
+import CuentaExitoCard from '../components/CuentaExitoCard'
 import { useClienteWeb } from '../context/ClienteWebContext'
-import { LARGO_MINIMO_PASSWORD, registrar, validarRegistro } from '../api/clienteWebApi'
+import { LARGO_MINIMO_PASSWORD, METADATO_REGISTRO, validarRegistro } from '../api/clienteWebApi'
 import { formatearCuit } from '../../proveedores/cuit'
 
 const FORM_INICIAL = {
@@ -22,12 +23,16 @@ const CAMPOS_TEXTO = [
 ]
 
 export default function RegistroPage({ onNavigate }) {
-  const { cliente } = useClienteWeb()
+  const { cliente, registrar, pendiente, errorRegistro } = useClienteWeb()
   const [form, setForm] = useState(FORM_INICIAL)
   const [erroresCampo, setErroresCampo] = useState({})
   const [error, setError] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [resultado, setResultado] = useState(null)
+
+  useEffect(() => {
+    if (pendiente) setForm((actual) => ({ ...actual, ...pendiente.user_metadata?.[METADATO_REGISTRO], email: pendiente.email, password: '' }))
+  }, [pendiente])
 
   function cambiar(event) {
     const { name, value } = event.target
@@ -45,7 +50,7 @@ export default function RegistroPage({ onNavigate }) {
     event.preventDefault()
     setError('')
     try {
-      validarRegistro(form)
+      validarRegistro(form, { requierePassword: !pendiente })
     } catch (err) {
       setErroresCampo({ [err.campo]: err.message })
       return
@@ -57,6 +62,7 @@ export default function RegistroPage({ onNavigate }) {
     } catch (err) {
       if (err.campo) setErroresCampo({ [err.campo]: err.message })
       else setError(err.message)
+      setForm((actual) => ({ ...actual, password: '' }))
     } finally {
       setEnviando(false)
     }
@@ -64,26 +70,24 @@ export default function RegistroPage({ onNavigate }) {
 
   const contenedor = { maxWidth: 560, margin: '24px auto', padding: '0 16px' }
 
-  if (resultado?.estado === 'confirmar_email') {
+  if (resultado?.estado === 'registrado' || (cliente && !enviando)) {
+    const nombre = cliente?.nombre?.trim()
     return (
-      <section className="tienda-auth-card" aria-labelledby="titulo-registro" style={contenedor}>
-        <h1 id="titulo-registro">Revisá tu correo</h1>
-        <Feedback tone="success">
-          Si el email no estaba registrado, te enviamos un enlace para confirmar tu cuenta.
-          Después de confirmarla, ingresá con tu email y contraseña.
-        </Feedback>
-        <Button type="button" onClick={() => onNavigate?.('ingresar')}>Ir a Ingresar</Button>
-      </section>
-    )
-  }
-
-  if (resultado?.estado === 'registrado' || cliente) {
-    return (
-      <section className="tienda-auth-card" aria-labelledby="titulo-registro" style={contenedor}>
-        <h1 id="titulo-registro">¡Listo!</h1>
-        <Feedback tone="success">Tu cuenta ya está activa.</Feedback>
-        <Button type="button" onClick={() => onNavigate?.('catalogo')}>Ir al catálogo</Button>
-      </section>
+      <CuentaExitoCard
+        tituloId="titulo-registro"
+        titulo="¡Tu cuenta ya está lista!"
+        saludo={nombre ? `Bienvenido, ${nombre}` : 'Bienvenido'}
+        descripcion="Tu cuenta fue creada correctamente y ya podés empezar a comprar."
+        acciones={[
+          { texto: 'Ir al catálogo', principal: true, onClick: () => onNavigate?.('catalogo') },
+          { texto: 'Ver mi cuenta', onClick: () => onNavigate?.('mis-datos') },
+        ]}
+        beneficios={[
+          { texto: 'Guardar tus datos de entrega', icono: MapPin },
+          { texto: 'Consultar tus pedidos', icono: Package },
+          { texto: 'Comprar más rápido', icono: ShoppingBag },
+        ]}
+      />
     )
   }
 
@@ -92,7 +96,8 @@ export default function RegistroPage({ onNavigate }) {
     <section className="tienda-auth-card" aria-labelledby="titulo-registro" style={contenedor}>
       <h1 id="titulo-registro"><UserPlus size={26} aria-hidden="true" /> Registrarme</h1>
       <p>Creá tu cuenta para guardar tus datos de entrega y ver tus compras.</p>
-      {error && <Feedback tone="error">{error}</Feedback>}
+      {pendiente && <Feedback>Tu cuenta ya existe. Completá o corregí tus datos para vincularla, sin registrarte otra vez.</Feedback>}
+      {(error || errorRegistro) && <Feedback tone="error">{error || errorRegistro}</Feedback>}
 
       <form onSubmit={enviar} noValidate aria-busy={enviando}>
         {CAMPOS_TEXTO.map((campo) => (
@@ -123,7 +128,7 @@ export default function RegistroPage({ onNavigate }) {
         <div>
           <label htmlFor="registro-email">Email</label>
           <input id="registro-email" name="email" type="email" value={form.email}
-            onChange={cambiar} autoComplete="email" aria-invalid={!!erroresCampo.email} />
+            onChange={cambiar} disabled={!!pendiente} autoComplete="email" aria-invalid={!!erroresCampo.email} />
           {erroresCampo.email && <Feedback tone="error">{erroresCampo.email}</Feedback>}
         </div>
 
@@ -134,17 +139,17 @@ export default function RegistroPage({ onNavigate }) {
           {erroresCampo.telefono && <Feedback tone="error">{erroresCampo.telefono}</Feedback>}
         </div>
 
-        <div>
+        {!pendiente && <div>
           <label htmlFor="registro-password">Contraseña</label>
           <input id="registro-password" name="password" type="password" value={form.password}
             onChange={cambiar} autoComplete="new-password" minLength={LARGO_MINIMO_PASSWORD}
             aria-describedby="registro-password-ayuda" aria-invalid={!!erroresCampo.password} />
           <small id="registro-password-ayuda">Mínimo {LARGO_MINIMO_PASSWORD} caracteres.</small>
           {erroresCampo.password && <Feedback tone="error">{erroresCampo.password}</Feedback>}
-        </div>
+        </div>}
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 16 }}>
-          <Button type="submit" loading={enviando} loadingLabel="Registrando…">Crear cuenta</Button>
+          <Button type="submit" loading={enviando} loadingLabel="Registrando…">{pendiente ? 'Completar registro' : 'Crear cuenta'}</Button>
           <Button type="button" variant="ghost" disabled={enviando} onClick={() => onNavigate?.('ingresar')}>
             Ya tengo cuenta
           </Button>
