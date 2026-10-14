@@ -33,7 +33,7 @@ export default function SobreNosotrosPage() {
           <article className="tienda-sobre-nosotros-card">
             <MapPin size={22} aria-hidden="true" />
             <div>
-              <h2>Casa Central</h2>
+              <h2>Sucursal Centro</h2>
               <p>{DATOS_COMERCIALES.domicilio}</p>
               <a href={MAPA_DIRECCIONES_URL} target="_blank" rel="noreferrer">
                 Cómo llegar

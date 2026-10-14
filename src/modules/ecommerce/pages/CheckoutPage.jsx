@@ -4,11 +4,9 @@ import {
   Clock,
   CreditCard,
   Edit2,
-  Lock,
   MapPin,
   PackageCheck,
   Plus,
-  ShieldCheck,
   Store,
   Truck,
 } from 'lucide-react'
@@ -385,17 +383,9 @@ export default function CheckoutPage({ onPasarelaSimulada, onVolverCarrito }) {
           <div className="tienda-checkout-seccion">
             <h2>3. Pago seguro online</h2>
             <div className="tienda-pago-aviso-card">
-              <div className="tienda-pago-aviso-header">
-                <ShieldCheck size={24} className="tienda-icon-secure" />
-                <div>
-                  <strong>Pago simulado de demostración</strong>
-                  <p>Sin cobros reales ni datos sensibles. Confirmá el pago dentro de la tienda.</p>
-                </div>
-              </div>
               <div className="tienda-pago-pills">
                 <span className="tienda-pago-pill">Tarjetas de Débito</span>
                 <span className="tienda-pago-pill">Tarjetas de Crédito</span>
-                <span className="tienda-pago-pill">Sin cargo real</span>
               </div>
             </div>
           </div>
@@ -462,10 +452,6 @@ export default function CheckoutPage({ onPasarelaSimulada, onVolverCarrito }) {
             </Button>
 
             <div className="tienda-resumen-garantias">
-              <div className="tienda-garantia-item">
-                <Lock size={15} />
-                <span>No ingreses datos reales de tarjeta</span>
-              </div>
               <div className="tienda-garantia-item">
                 <Clock size={15} />
                 <span>Reserva de stock en tiempo real por 60 min</span>

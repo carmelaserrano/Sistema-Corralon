@@ -60,7 +60,7 @@ export function TiendaHero({ categorias = [], categoriaSeleccionada, onSeleccion
           </div>
           <div className="tienda-hero-pill-item">
             <CreditCard size={16} />
-            <span>Mercado Pago & transferencias</span>
+            <span>Tarjetas & transferencias</span>
           </div>
         </div>
 
