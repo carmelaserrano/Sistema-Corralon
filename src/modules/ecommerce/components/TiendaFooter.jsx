@@ -54,7 +54,7 @@ export default function TiendaFooter({ onNavigate }) {
         </div>
 
         <div className="tienda-footer-col">
-          <h4>Casa Central & Salón</h4>
+          <h4>Sucursal Centro & Salón</h4>
           <ul className="tienda-footer-contact">
             <li><MapPin size={16} /> {DATOS_COMERCIALES.domicilio}</li>
             <li><Phone size={16} /> {DATOS_COMERCIALES.telefono} / WhatsApp: {DATOS_COMERCIALES.whatsapp}</li>
@@ -66,10 +66,9 @@ export default function TiendaFooter({ onNavigate }) {
         <div className="tienda-footer-col">
           <h4>Medios de Pago & Seguridad</h4>
           <p className="tienda-footer-pago-desc">
-            Operamos con <strong>Mercado Pago</strong> (tarjetas de crédito, débito y dinero en cuenta), transferencias bancarias y pago seguro en sucursal.
+            Operamos con tarjetas de crédito, débito y dinero en cuenta, transferencias bancarias y pago seguro en sucursal.
           </p>
           <div className="tienda-footer-badges">
-            <span className="tienda-badge-pill">Mercado Pago</span>
             <span className="tienda-badge-pill">Transferencia</span>
             <span className="tienda-badge-pill">Tarjetas Débito/Crédito</span>
           </div>
