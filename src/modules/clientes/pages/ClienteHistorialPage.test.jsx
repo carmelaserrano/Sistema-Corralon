@@ -31,6 +31,12 @@ vi.mock('../api/cuentaCorrienteClienteApi', () => ({
   listarMediosCobranza: vi.fn(),
 }))
 
+// ModalReciboCobranza consulta la caja abierta (0067); sin este mock la suite
+// importa supabaseClient, que en CI falla por no tener .env.local.
+vi.mock('../../tesoreria/api/cajasApi', () => ({
+  obtenerSesionCajaActiva: vi.fn(() => Promise.resolve(null)),
+}))
+
 const cliente = {
   id: 'c1',
   numero: 12,

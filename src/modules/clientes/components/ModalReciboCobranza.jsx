@@ -6,6 +6,7 @@ import {
   listarMediosCobranza,
   registrarReciboCobranza,
 } from '../api/cuentaCorrienteClienteApi'
+import { obtenerSesionCajaActiva } from '../../tesoreria/api/cajasApi'
 
 const moneda = new Intl.NumberFormat('es-AR', {
   style: 'currency',
@@ -39,6 +40,10 @@ export default function ModalReciboCobranza({
   const [cargandoMedios, setCargandoMedios] = useState(false)
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState('')
+  // La cobranza entra a la caja abierta de quien la registra (0067).
+  // undefined = consultando · null = sin caja abierta · objeto = la sesión.
+  // Si la consulta falla no se bloquea: registrar_recibo_cobranza valida igual.
+  const [sesionCaja, setSesionCaja] = useState(undefined)
   const siguienteId = useRef(2)
   const cerrarRef = useRef(null)
 
@@ -64,8 +69,15 @@ export default function ModalReciboCobranza({
         .finally(() => {
           setCargandoMedios(false)
         })
+
+      setSesionCaja(undefined)
+      obtenerSesionCajaActiva()
+        .then((sesion) => setSesionCaja(sesion ?? null))
+        .catch(() => setSesionCaja({ desconocida: true }))
     }
   }, [abierto])
+
+  const sinCajaAbierta = sesionCaja === null
 
   useEffect(() => {
     if (!abierto) return undefined
@@ -261,6 +273,16 @@ export default function ModalReciboCobranza({
         </header>
 
         {error && <Feedback tone="error">{error}</Feedback>}
+        {sinCajaAbierta && (
+          <Feedback tone="error">
+            No tenés una caja abierta. Abrí tu caja en Ventas → Cajas antes de registrar la cobranza.
+          </Feedback>
+        )}
+        {sesionCaja?.caja?.nombre && (
+          <p style={{ margin: '0 0 1rem', color: 'var(--text-secondary)', fontSize: 13 }}>
+            La cobranza se registra en tu caja abierta: <strong>{sesionCaja.caja.nombre}</strong>.
+          </p>
+        )}
 
         <form onSubmit={handleSubmit}>
           {/* 1. Datos generales del recibo */}
@@ -492,7 +514,7 @@ export default function ModalReciboCobranza({
               type="submit"
               loading={guardando}
               loadingLabel="Registrando recibo…"
-              disabled={totalCobrado <= 0 || totalImputado > totalCobrado}
+              disabled={totalCobrado <= 0 || totalImputado > totalCobrado || sinCajaAbierta}
             >
               Confirmar y Emitir Recibo
             </Button>
