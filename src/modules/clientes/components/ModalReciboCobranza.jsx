@@ -13,6 +13,13 @@ const moneda = new Intl.NumberFormat('es-AR', {
   currency: 'ARS',
 })
 
+/** '2026-10-06T18:28:28.08+00:00' o '2026-10-06' → '06/10/2026'. */
+function formatearFecha(valor) {
+  if (!valor) return '—'
+  const [anio, mes, dia] = String(valor).slice(0, 10).split('-')
+  return dia && mes && anio ? `${dia}/${mes}/${anio}` : String(valor)
+}
+
 function formatearMoneda(valor) {
   return moneda.format(Number(valor ?? 0))
 }
@@ -234,6 +241,24 @@ export default function ModalReciboCobranza({
     }
   }
 
+  const restanteSinImputar = totalCobrado - totalImputado
+  let estadoResumen
+  if (totalCobrado <= 0) {
+    estadoResumen = { tono: 'pendiente', texto: 'Cargá cuánto pagó el cliente en el paso 1.' }
+  } else if (restanteSinImputar < 0) {
+    estadoResumen = {
+      tono: 'error',
+      texto: `Imputaste ${formatearMoneda(-restanteSinImputar)} más de lo que pagó el cliente. Bajá algún monto del paso 2.`,
+    }
+  } else if (restanteSinImputar > 0 && ventasPendientes.length > 0) {
+    estadoResumen = {
+      tono: 'pendiente',
+      texto: `${formatearMoneda(restanteSinImputar)} quedan como pago a cuenta (anticipo). Si querés que cancelen deuda, imputalos en el paso 2.`,
+    }
+  } else {
+    estadoResumen = { tono: 'ok', texto: 'Todo listo para emitir el recibo.' }
+  }
+
   return (
     <div
       className="modal-backdrop"
@@ -243,11 +268,10 @@ export default function ModalReciboCobranza({
       }}
     >
       <section
-        className="modal-panel page-canvas"
+        className="modal-panel page-canvas recibo-panel"
         role="dialog"
         aria-modal="true"
         aria-labelledby="titulo-recibo-cobranza"
-        style={{ maxWidth: '800px', width: '95%' }}
       >
         <header className="modal-header">
           <div>
@@ -255,7 +279,7 @@ export default function ModalReciboCobranza({
             <h2 id="titulo-recibo-cobranza">Nuevo Recibo de Cobranza</h2>
             <p>
               #{cliente.numero} · {nombreCliente} · Saldo deudor:{' '}
-              <strong style={{ color: Number(resumenCtaCte?.saldo_deudor ?? 0) > 0 ? 'var(--color-error, #dc2626)' : 'inherit' }}>
+              <strong className={Number(resumenCtaCte?.saldo_deudor ?? 0) > 0 ? 'recibo-deuda' : undefined}>
                 {formatearMoneda(resumenCtaCte?.saldo_deudor ?? 0)}
               </strong>
             </p>
@@ -278,17 +302,11 @@ export default function ModalReciboCobranza({
             No tenés una caja abierta. Abrí tu caja en Ventas → Cajas antes de registrar la cobranza.
           </Feedback>
         )}
-        {sesionCaja?.caja?.nombre && (
-          <p style={{ margin: '0 0 1rem', color: 'var(--text-secondary)', fontSize: 13 }}>
-            La cobranza se registra en tu caja abierta: <strong>{sesionCaja.caja.nombre}</strong>.
-          </p>
-        )}
 
-        <form onSubmit={handleSubmit}>
-          {/* 1. Datos generales del recibo */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: '1.25rem' }}>
-            <div>
-              <label htmlFor="recibo-fecha">Fecha del recibo</label>
+        <form className="recibo-form" onSubmit={handleSubmit}>
+          <div className="recibo-datos">
+            <label>
+              Fecha del recibo
               <input
                 id="recibo-fecha"
                 type="date"
@@ -297,39 +315,42 @@ export default function ModalReciboCobranza({
                 disabled={guardando}
                 required
               />
-            </div>
-            <div>
-              <label htmlFor="recibo-obs">Observaciones / Detalle (opcional)</label>
+            </label>
+            <label>
+              Observaciones (opcional)
               <input
                 id="recibo-obs"
                 type="text"
-                placeholder="Ej. Transferencia Bco Francés Factura 12"
+                placeholder="Ej.: paga facturas de septiembre"
                 value={observaciones}
                 onChange={(e) => setObservaciones(e.target.value)}
                 disabled={guardando}
               />
-            </div>
+            </label>
+            {sesionCaja?.caja?.nombre && (
+              <p className="recibo-caja">
+                Se registra en tu caja abierta: <strong>{sesionCaja.caja.nombre}</strong>
+              </p>
+            )}
           </div>
 
-          {/* 2. Medios de pago recibidos */}
-          <fieldset style={{ border: '1px solid var(--color-border, #e5e7eb)', borderRadius: '8px', padding: '1rem', marginBottom: '1.5rem' }}>
-            <legend style={{ padding: '0 0.5rem', fontWeight: 600 }}>Medios de Cobro Recibidos</legend>
-            
+          {/* Paso 1: cómo pagó */}
+          <div className="recibo-paso">
+            <h3><span className="recibo-paso-numero">1</span> ¿Cómo pagó el cliente?</h3>
+            <p className="recibo-ayuda">
+              Cargá cada medio con el que pagó y cuánto. Si pagó con dos (por ejemplo, efectivo y
+              transferencia), agregá otra línea. En transferencias o cheques, anotá el número de
+              operación como referencia.
+            </p>
+
             {cargandoMedios && <p className="loading-state">Cargando medios de cobro…</p>}
 
             {!cargandoMedios && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div className="recibo-medios">
                 {lineasMedios.map((linea, index) => (
-                  <div
-                    key={linea.id}
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: '2fr 1.5fr 2fr auto',
-                      gap: '0.75rem',
-                      alignItems: 'center',
-                    }}
-                  >
-                    <div>
+                  <div key={linea.id} className="recibo-medio-linea">
+                    <label>
+                      Medio de pago
                       <select
                         aria-label={`Medio de cobro ${index + 1}`}
                         value={linea.medio_pago_id}
@@ -337,171 +358,154 @@ export default function ModalReciboCobranza({
                         disabled={guardando}
                         required
                       >
-                        <option value="">Seleccionar medio</option>
+                        <option value="">Seleccionar</option>
                         {mediosDisponibles.map((m) => (
                           <option key={m.id} value={m.id}>
                             {m.nombre}
                           </option>
                         ))}
                       </select>
-                    </div>
-                    <div>
+                    </label>
+                    <label>
+                      Importe
                       <input
                         aria-label={`Importe ${index + 1}`}
                         type="number"
                         min="0.01"
                         step="0.01"
-                        placeholder="Monto ($)"
+                        placeholder="0,00"
                         value={linea.monto}
                         onChange={(e) => actualizarLineaMedio(linea.id, 'monto', e.target.value)}
                         disabled={guardando}
                         required
                       />
-                    </div>
-                    <div>
+                    </label>
+                    <label>
+                      Referencia (opcional)
                       <input
                         aria-label={`Referencia ${index + 1}`}
                         type="text"
-                        placeholder="Referencia / N.º Operación"
+                        placeholder="N.º de operación o cheque"
                         value={linea.referencia}
                         onChange={(e) => actualizarLineaMedio(linea.id, 'referencia', e.target.value)}
                         disabled={guardando}
                       />
-                    </div>
-                    <div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => quitarLineaMedio(linea.id)}
-                        disabled={guardando || lineasMedios.length <= 1}
-                        aria-label={`Quitar medio ${index + 1}`}
-                      >
-                        <Trash2 size={16} />
-                      </Button>
-                    </div>
+                    </label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => quitarLineaMedio(linea.id)}
+                      disabled={guardando || lineasMedios.length <= 1}
+                      aria-label={`Quitar medio ${index + 1}`}
+                    >
+                      <Trash2 size={16} />
+                    </Button>
                   </div>
                 ))}
 
-                <div>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={agregarLineaMedio}
-                    disabled={guardando}
-                  >
-                    <Plus size={16} />
-                    Agregar otro medio de cobro
-                  </Button>
-                </div>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={agregarLineaMedio}
+                  disabled={guardando}
+                >
+                  <Plus size={16} />
+                  Agregar otro medio de pago
+                </Button>
               </div>
             )}
-          </fieldset>
+          </div>
 
-          {/* 3. Imputación de Facturas Pendientes */}
-          <fieldset style={{ border: '1px solid var(--color-border, #e5e7eb)', borderRadius: '8px', padding: '1rem', marginBottom: '1.5rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-              <legend style={{ padding: '0 0.5rem', fontWeight: 600 }}>Imputación a Facturas Pendientes</legend>
+          {/* Paso 2: qué deuda cancela */}
+          <div className="recibo-paso">
+            <div className="recibo-paso-encabezado">
+              <h3><span className="recibo-paso-numero">2</span> ¿Qué deuda cancela?</h3>
               {ventasPendientes.length > 0 && totalCobrado > 0 && (
                 <Button
                   type="button"
                   variant="secondary"
                   onClick={autoImputarFifo}
                   disabled={guardando}
-                  title="Imputar automáticamente por antigüedad (FIFO)"
+                  title="Reparte lo cobrado empezando por la deuda más antigua"
                 >
                   <Wand2 size={14} />
-                  Auto-imputar más antiguas
+                  Repartir automáticamente
                 </Button>
               )}
             </div>
 
             {ventasPendientes.length === 0 ? (
-              <p style={{ color: 'var(--color-text-secondary, #6b7280)', margin: '0.5rem 0' }}>
-                El cliente no tiene facturas pendientes con saldo adeudado. El total recibido se acreditará como <strong>pago a cuenta</strong> disminuyendo su saldo deudor o generando crédito a favor.
+              <p className="recibo-ayuda">
+                El cliente no tiene facturas pendientes. Todo lo que pague queda como{' '}
+                <strong>pago a cuenta</strong> y baja su saldo deudor.
               </p>
             ) : (
-              <div className="data-table-card">
-                <div className="data-table-scroll-container">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Fecha</th>
-                        <th>Comprobante</th>
-                        <th>Total Venta</th>
-                        <th>Saldo Pendiente</th>
-                        <th style={{ width: '160px' }}>Monto a Imputar</th>
+              <>
+                <p className="recibo-ayuda">
+                  Indicá cuánto del pago va a cada factura, o usá «Repartir automáticamente»
+                  (empieza por la más antigua). Lo que no imputes queda como pago a cuenta.
+                </p>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Fecha</th>
+                      <th>Comprobante</th>
+                      <th>Total</th>
+                      <th>Saldo pendiente</th>
+                      <th>Monto a imputar</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ventasPendientes.map((v) => (
+                      <tr key={v.venta_id}>
+                        <td>{formatearFecha(v.fecha)}</td>
+                        <td><strong>{v.comprobante}</strong></td>
+                        <td>{formatearMoneda(v.total_credito)}</td>
+                        <td><strong className="recibo-deuda">{formatearMoneda(v.saldo_pendiente)}</strong></td>
+                        <td>
+                          <input
+                            aria-label={`Monto a imputar ${v.comprobante}`}
+                            className="recibo-imputacion"
+                            type="number"
+                            min="0"
+                            max={v.saldo_pendiente}
+                            step="0.01"
+                            placeholder="$ 0,00"
+                            value={imputaciones[v.venta_id] ?? ''}
+                            onChange={(e) => cambiarImputacion(v.venta_id, e.target.value)}
+                            disabled={guardando}
+                          />
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {ventasPendientes.map((v) => {
-                        const imputadoActual = imputaciones[v.venta_id] ?? ''
-                        return (
-                          <tr key={v.venta_id}>
-                            <td>{v.fecha}</td>
-                            <td>
-                              <strong>{v.comprobante}</strong>
-                            </td>
-                            <td>{formatearMoneda(v.total_credito)}</td>
-                            <td>
-                              <strong style={{ color: 'var(--color-error, #dc2626)' }}>
-                                {formatearMoneda(v.saldo_pendiente)}
-                              </strong>
-                            </td>
-                            <td>
-                              <input
-                                type="number"
-                                min="0"
-                                max={v.saldo_pendiente}
-                                step="0.01"
-                                placeholder="$ 0,00"
-                                value={imputadoActual}
-                                onChange={(e) => cambiarImputacion(v.venta_id, e.target.value)}
-                                disabled={guardando}
-                                style={{ width: '100%' }}
-                              />
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+                    ))}
+                  </tbody>
+                </table>
+              </>
             )}
-          </fieldset>
-
-          {/* 4. Resumen y Balance del Recibo */}
-          <div
-            style={{
-              backgroundColor: 'var(--color-bg-secondary, #f9fafb)',
-              padding: '1rem',
-              borderRadius: '8px',
-              marginBottom: '1.5rem',
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-              gap: '1rem',
-              textAlign: 'center',
-            }}
-          >
-            <div>
-              <span style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary, #6b7280)' }}>Total Cobrado</span>
-              <p style={{ fontSize: '1.25rem', fontWeight: 700, margin: '0.25rem 0 0' }}>{formatearMoneda(totalCobrado)}</p>
-            </div>
-            <div>
-              <span style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary, #6b7280)' }}>Total Imputado</span>
-              <p style={{ fontSize: '1.25rem', fontWeight: 700, margin: '0.25rem 0 0', color: 'var(--color-brand, #2563eb)' }}>
-                {formatearMoneda(totalImputado)}
-              </p>
-            </div>
-            <div>
-              <span style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary, #6b7280)' }}>Saldo a Cuenta</span>
-              <p style={{ fontSize: '1.25rem', fontWeight: 700, margin: '0.25rem 0 0', color: saldoACuenta > 0 ? 'var(--color-success, #16a34a)' : 'inherit' }}>
-                {formatearMoneda(saldoACuenta)}
-              </p>
-            </div>
           </div>
 
-          <div className="modal-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+          {/* Resumen */}
+          <div className="recibo-resumen">
+            <dl>
+              <div>
+                <dt>Total Cobrado</dt>
+                <dd>{formatearMoneda(totalCobrado)}</dd>
+              </div>
+              <div>
+                <dt>Total Imputado</dt>
+                <dd>{formatearMoneda(totalImputado)}</dd>
+              </div>
+              <div>
+                <dt>Saldo a Cuenta</dt>
+                <dd>{formatearMoneda(saldoACuenta)}</dd>
+              </div>
+            </dl>
+            <p className={`recibo-estado recibo-estado--${estadoResumen.tono}`} aria-live="polite">
+              {estadoResumen.texto}
+            </p>
+          </div>
+
+          <div className="modal-actions">
             <Button
               type="button"
               variant="ghost"

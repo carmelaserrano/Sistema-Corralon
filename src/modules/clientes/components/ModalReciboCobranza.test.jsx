@@ -113,7 +113,7 @@ describe('ModalReciboCobranza', () => {
     fireEvent.change(inputRef, { target: { value: 'TRX-BANCARIA-999' } })
 
     // Presionar botón auto-imputar
-    const botonFifo = screen.getByRole('button', { name: /Auto-imputar más antiguas/i })
+    const botonFifo = screen.getByRole('button', { name: /Repartir automáticamente/i })
     fireEvent.click(botonFifo)
 
     // Debe haber imputado 400.000 a v1 y 600.000 a v2
