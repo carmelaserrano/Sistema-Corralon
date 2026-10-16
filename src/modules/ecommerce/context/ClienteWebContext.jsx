@@ -1,23 +1,29 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
+import { useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { supabase } from '../../../lib/supabaseClient'
 import {
   ingresar as ingresarApi,
+  registrar as registrarApi,
+  recuperarRegistro,
+  METADATO_REGISTRO,
   obtenerClienteActual,
   salir as salirApi,
 } from '../api/clienteWebApi'
 
-const ClienteWebContext = createContext(undefined)
+import { ClienteWebContext } from './clienteWebContextStore'
 
 /**
- * Firma congelada desde S3-00: `{ cliente, cargando, ingresar, salir }`.
+ * Expone cliente, cargando, registrar, ingresar y salir.
  *
  * Escucha la sesión de Supabase Auth y carga el cliente vinculado por
- * `usuario_web_id`. Con confirmación de email, el primer ingreso completa el
- * registro pendiente (ver obtenerClienteActual). `cargando` vale true mientras
+ * `usuario_web_id`. Recupera registros pendientes de cuentas existentes.
+ * `cargando` vale true mientras
  * se resuelve el cliente de una sesión nueva, para que el carrito no fusione
  * antes de tiempo.
  */
 export function ClienteWebProvider({ children }) {
+  const [pendiente, setPendiente] = useState(null)
+  const [errorRegistro, setErrorRegistro] = useState('')
+  const operacion = useRef(false)
   const [cliente, setCliente] = useState(null)
   const [cargando, setCargando] = useState(true)
   // Carga en curso por usuario: el evento SIGNED_IN y ingresar() comparten la
@@ -34,7 +40,10 @@ export function ClienteWebProvider({ children }) {
     setCargando(true)
     const promesa = (usuarioId ? obtenerClienteActual(usuario) : Promise.resolve(null))
       .then((encontrado) => {
-        if (turno.current === miTurno) setCliente(encontrado)
+        if (turno.current === miTurno) {
+          setCliente(encontrado)
+          if (encontrado) { setPendiente(null); setErrorRegistro('') }
+        }
         return encontrado
       })
       .catch((error) => {
@@ -55,14 +64,24 @@ export function ClienteWebProvider({ children }) {
     // INITIAL_SESSION cubre la carga inicial (incluido el enlace de
     // confirmación). setTimeout: Supabase desaconseja llamar a su API dentro
     // del callback, que corre con el lock de sesión tomado.
+    let activo = true
+    let evento = 0
     const { data: listener } = supabase.auth.onAuthStateChange((_evento, sesion) => {
+      const actual = ++evento
       setTimeout(() => {
-        cargar(sesion?.user ?? null).catch(() => {
-          // Sin cliente: la tienda sigue como visitante. ingresar() informa el motivo.
+        if (!activo || actual !== evento || operacion.current) return
+        const usuario = sesion?.user
+        if (!usuario) { setPendiente(null); setErrorRegistro('') }
+        cargar(usuario ?? null).catch((error) => {
+          if (!activo || actual !== evento) return
+          if (usuario?.user_metadata?.[METADATO_REGISTRO]) setPendiente(usuario)
+          setErrorRegistro(error.message)
         })
       }, 0)
     })
     return () => {
+      activo = false
+      enCurso.current = { usuarioId: undefined, promesa: null }
       turno.current += 1
       listener.subscription.unsubscribe()
     }
@@ -81,6 +100,11 @@ export function ClienteWebProvider({ children }) {
     try {
       encontrado = await cargar(usuario)
     } catch (error) {
+      if (usuario?.user_metadata?.[METADATO_REGISTRO]) {
+        setPendiente(usuario)
+        setErrorRegistro(error.message)
+        return
+      }
       await salirApi().catch(() => {})
       throw error
     }
@@ -90,11 +114,35 @@ export function ClienteWebProvider({ children }) {
     }
   }, [cargar])
 
+  const registrar = useCallback(async (datos) => {
+    operacion.current = true
+    let usuarioCreado
+    try {
+      const resultado = pendiente
+        ? await recuperarRegistro(datos, pendiente)
+        : await registrarApi(datos)
+      usuarioCreado = resultado.usuario
+      enCurso.current = { usuarioId: undefined, promesa: null }
+      const encontrado = await cargar(resultado.usuario)
+      if (!encontrado) throw new Error('No se pudo cargar tu cuenta de cliente. Volvé a ingresar.')
+      setPendiente(null)
+      setErrorRegistro('')
+      return resultado
+    } catch (error) {
+      if (error.usuarioPendiente || usuarioCreado) setPendiente(error.usuarioPendiente ?? usuarioCreado)
+      setErrorRegistro(error.message)
+      throw error
+    } finally {
+      operacion.current = false
+      setCargando(false)
+    }
+  }, [cargar, pendiente])
+
   /** @returns {Promise<void>} */
   const salir = useCallback(() => salirApi(), [])
 
   return (
-    <ClienteWebContext.Provider value={{ cliente, cargando, ingresar, salir }}>
+    <ClienteWebContext.Provider value={{ cliente, cargando, registrar, ingresar, salir, pendiente, errorRegistro }}>
       {children}
     </ClienteWebContext.Provider>
   )

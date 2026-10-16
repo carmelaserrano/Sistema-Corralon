@@ -10,19 +10,15 @@ import { cuitEsValido, limpiarCuit } from '../../proveedores/cuit'
 // DomiciliosCliente y domiciliosApi (S3-03), y la policy
 // domicilios_cliente_write limita al cliente web a los de su propio cliente.
 //
-// El proyecto tiene activada la confirmación de email: signUp no devuelve
-// sesión y la función SQL necesita auth.uid(). Los datos del formulario viajan
-// en los metadatos del usuario (METADATO_REGISTRO) y obtenerClienteActual
-// completa el registro en el primer ingreso con sesión.
+// El demo requiere Confirm email desactivado en Supabase Auth. Los metadatos
+// permiten recuperar registros incompletos al volver a ingresar, sin credenciales.
 
 export const METADATO_REGISTRO = 'registro_cliente_web'
 export const LARGO_MINIMO_PASSWORD = 8
 
 export const MENSAJE_CREDENCIALES = 'Email o contraseña incorrectos'
-// CA-02: mismo mensaje para email o documento repetidos; no confirma si
-// existe otro cliente ni muestra sus datos.
-export const MENSAJE_DUPLICADO =
-  'No pudimos completar el registro con esos datos. Si ya tenés una cuenta, ingresá con tu email y contraseña; si no, consultá en una sucursal.'
+export const MENSAJE_EMAIL_DUPLICADO = 'Ese email ya tiene una cuenta. Ingresá con tu email y contraseña para continuar.'
+export const MENSAJE_DOCUMENTO_DUPLICADO = 'No pudimos vincular ese documento: puede estar asociado a otro cliente o existir un conflicto de datos. Revisá tu DNI/CUIT o consultá en una sucursal.'
 const MENSAJE_REGISTRO_GENERICO = 'No pudimos completar el registro. Intentá de nuevo en unos minutos.'
 
 const COLUMNAS_CLIENTE =
@@ -65,7 +61,7 @@ export function normalizarDocumento(tipoDocumento, valor) {
  * @returns {Object} Datos normalizados (documento sin separadores, email en minúsculas).
  * @throws {Error} 400 con `campo` si un dato es inválido.
  */
-export function validarRegistro(datos) {
+export function validarRegistro(datos, { requierePassword = true } = {}) {
   const nombre = datos?.nombre?.trim() ?? ''
   const apellido = datos?.apellido?.trim() ?? ''
   const tipo_documento = datos?.tipo_documento
@@ -89,7 +85,7 @@ export function validarRegistro(datos) {
   }
   if (!EMAIL_REGEX.test(email)) throw errorConCampo('Ingresá un email válido', 400, 'email')
   if (!TELEFONO_REGEX.test(telefono)) throw errorConCampo('Ingresá un teléfono válido', 400, 'telefono')
-  if (password.length < LARGO_MINIMO_PASSWORD) {
+  if (requierePassword && password.length < LARGO_MINIMO_PASSWORD) {
     throw errorConCampo(`La contraseña debe tener al menos ${LARGO_MINIMO_PASSWORD} caracteres`, 400, 'password')
   }
 
@@ -97,7 +93,7 @@ export function validarRegistro(datos) {
 }
 
 function traducirErrorRegistro(error) {
-  if (error?.code === CODIGO_DUPLICADO) return errorDeApi(MENSAJE_DUPLICADO, 409)
+  if (error?.code === CODIGO_DUPLICADO) return errorConCampo(MENSAJE_DOCUMENTO_DUPLICADO, 409, 'numero_documento')
   if (error?.code === '22023') return errorDeApi(error.message, 400)
   if (error?.code === CODIGO_PERMISO_INSUFICIENTE) {
     return errorDeApi('Necesitás iniciar sesión para completar el registro', 401)
@@ -129,17 +125,9 @@ export async function completarRegistro(datos) {
 }
 
 /**
- * Registra un cliente web (CA-01): crea el usuario de Supabase Auth y, si ya
- * hay sesión, su cliente. Con confirmación de email activada no hay sesión: el
- * cliente se crea o vincula en el primer ingreso (ver obtenerClienteActual).
- *
- * Un email ya registrado no da error con la confirmación activada (Supabase
- * no revela si existe): la respuesta es la misma que un registro nuevo (CA-02).
- *
- * @param {Object} datos Ver validarRegistro.
- * @returns {Promise<{estado: 'confirmar_email'} | {estado: 'registrado', clienteId: string}>}
- * @throws {Error} 400 con `campo` si un dato es inválido; 409 genérico si el
- *   email o el documento ya están registrados; 429 si hay demasiados intentos.
+ * Crea Auth, obtiene sesión y vincula el cliente antes de informar éxito.
+ * Requiere Confirm email desactivado; nunca confirma usuarios desde el navegador.
+ * @returns {Promise<{estado: 'registrado', clienteId: string, usuario: Object}>}
  */
 export async function registrar(datos) {
   const { password, email, ...perfil } = validarRegistro(datos)
@@ -154,7 +142,7 @@ export async function registrar(datos) {
 
   if (error) {
     if (error.code === 'user_already_exists' || /already registered/i.test(error.message ?? '')) {
-      throw errorDeApi(MENSAJE_DUPLICADO, 409)
+      throw errorConCampo(MENSAJE_EMAIL_DUPLICADO, 409, 'email')
     }
     if (error.code === 'weak_password') {
       throw errorConCampo('La contraseña es muy débil: usá letras y números', 400, 'password')
@@ -165,8 +153,34 @@ export async function registrar(datos) {
     throw errorDeApi(MENSAJE_REGISTRO_GENERICO, 500)
   }
 
-  if (!data?.session) return { estado: 'confirmar_email' }
-  return { estado: 'registrado', clienteId: await completarRegistro(perfil) }
+  if (data?.user?.identities?.length === 0) throw errorConCampo(MENSAJE_EMAIL_DUPLICADO, 409, 'email')
+  let usuario = data?.session?.user ?? data?.user
+  if (!data?.session) {
+    // Fallback normal con la contraseña en memoria, sin persistirla.
+    try {
+      usuario = await ingresar(email, password)
+    } catch (error) {
+      if (error.status === 403) {
+        throw errorDeApi('La cuenta fue creada, pero el registro inmediato no está habilitado. Desactivá Confirm email en Supabase Auth para este entorno demo.', 403)
+      }
+      throw error
+    }
+  }
+  try {
+    return { estado: 'registrado', clienteId: await completarRegistro(perfil), usuario }
+  } catch (error) {
+    error.usuarioPendiente = { ...usuario, email, user_metadata: { ...usuario?.user_metadata, [METADATO_REGISTRO]: perfil } }
+    throw error
+  }
+}
+
+/** Corrige el perfil pendiente con la sesion propia, sin volver a crear Auth. */
+export async function recuperarRegistro(datos, usuario) {
+  const normalizados = validarRegistro({ ...datos, email: usuario.email }, { requierePassword: false })
+  const perfil = Object.fromEntries(Object.entries(normalizados).filter(([campo]) => !['password', 'email'].includes(campo)))
+  const { data, error } = await supabase.auth.updateUser({ data: { [METADATO_REGISTRO]: perfil } })
+  if (error) throw errorDeApi('No se pudieron guardar tus datos. Volvé a intentar.', 500)
+  return { estado: 'registrado', clienteId: await completarRegistro(perfil), usuario: data.user }
 }
 
 /**

@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
+import { createContext, memo, useCallback, useLayoutEffect, useContext, useEffect, useRef, useState } from 'react'
 import { useClienteWeb } from './ClienteWebContext'
 import { esCantidadEnteraPositiva, fusionarCarrito, guardarItems, obtenerCarrito, validarItems } from '../api/carritoApi'
 import Feedback from '../../../components/ui/Feedback'
@@ -38,14 +38,25 @@ export function CarritoProvider({ children }) {
   const { cliente, cargando } = useClienteWeb()
   const visitante = useRef(null)
   if (visitante.current === null) visitante.current = leerVisitante()
+  const [estado, setEstado] = useState(null)
+  const clienteId = cliente?.id ?? null
+  const vigente = estado?.clienteId === clienteId ? estado : null
+  const vacio = { items: [], cantidadTotal: 0, total: 0 }
   return (
-    <CarritoSesion key={cliente?.id ?? 'visitante'} clienteId={cliente?.id ?? null} esperandoSesion={cargando} visitante={visitante}>
-      {children}
-    </CarritoSesion>
+    <CarritoContext.Provider value={vigente?.carrito ?? vacio}>
+      <EstadoCarritoContext.Provider value={vigente?.estado ?? { cargando: true, error: '', aviso: '' }}>
+        <CarritoSesion key={clienteId ?? 'visitante'} clienteId={clienteId} esperandoSesion={cargando} visitante={visitante} publicar={setEstado} />
+        {vigente?.estado.error && <Feedback tone="error">{vigente.estado.error} <button type="button" disabled={vigente.estado.cargando} onClick={() => vigente.estado.recargar()}>Reintentar carga</button></Feedback>}
+        {vigente?.estado.aviso && <Feedback>{vigente.estado.aviso}</Feedback>}
+        {children}
+      </EstadoCarritoContext.Provider>
+    </CarritoContext.Provider>
   )
 }
 
-function CarritoSesion({ children, clienteId, esperandoSesion, visitante }) {
+// Solo el motor del carrito se reinicia al cambiar de cuenta. Las pantallas
+// conservan su identidad, formulario y resultado durante SIGNED_IN.
+const CarritoSesion = memo(function CarritoSesion({ clienteId, esperandoSesion, visitante, publicar }) {
   const [items, setItems] = useState([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
@@ -189,16 +200,15 @@ function CarritoSesion({ children, clienteId, esperandoSesion, visitante }) {
 
   const cantidadTotal = items.reduce((sum, item) => sum + item.cantidad, 0)
   const total = Math.round(items.reduce((sum, item) => sum + item.subtotal, 0) * 100) / 100
-  return (
-    <CarritoContext.Provider value={{ items, cantidadTotal, total, agregar, agregarVarios, actualizar, quitar, vaciar }}>
-      <EstadoCarritoContext.Provider value={{ cargando: cargando || esperandoSesion, error, aviso, recargar }}>
-        {error && <Feedback tone="error">{error} <button type="button" disabled={cargando} onClick={() => recargar()}>Reintentar carga</button></Feedback>}
-        {aviso && <Feedback>{aviso}</Feedback>}
-        {children}
-      </EstadoCarritoContext.Provider>
-    </CarritoContext.Provider>
-  )
-}
+  useLayoutEffect(() => {
+    publicar({
+      clienteId,
+      carrito: { items, cantidadTotal, total, agregar, agregarVarios, actualizar, quitar, vaciar },
+      estado: { cargando: cargando || esperandoSesion, error, aviso, recargar },
+    })
+  })
+  return null
+})
 
 export function useCarrito() {
   const ctx = useContext(CarritoContext)

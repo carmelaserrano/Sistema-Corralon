@@ -1726,6 +1726,128 @@
   margin-top: 20px;
 }
 
+/* Tarjeta compartida de registro e ingreso exitosos. */
+.tienda-auth-card.tienda-cuenta-exito {
+  width: calc(100% - 32px);
+  max-width: 640px;
+  box-sizing: border-box;
+  margin: clamp(24px, 5vw, 56px) auto;
+  padding: clamp(24px, 5vw, 44px) !important;
+  text-align: center;
+  border-top: 4px solid var(--color-brand);
+  animation: tienda-cuenta-entrada 220ms ease-out both;
+}
+
+.tienda-cuenta-exito-badge {
+  display: grid;
+  place-items: center;
+  width: 80px;
+  height: 80px;
+  margin: 0 auto 24px;
+  color: var(--color-success);
+  background: var(--color-success-soft);
+  border: 1px solid var(--color-success);
+  border-radius: 50%;
+  animation: tienda-cuenta-entrada 240ms ease-out both;
+}
+
+.tienda-cuenta-exito-saludo {
+  margin: 0 0 8px;
+  color: var(--text-secondary);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.tienda-cuenta-exito h1 {
+  margin: 0;
+  font-size: clamp(26px, 4vw, 34px);
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+}
+
+.tienda-cuenta-exito-descripcion {
+  max-width: 420px;
+  margin: 16px auto 28px;
+  color: var(--text-secondary);
+  line-height: 1.65;
+}
+
+.tienda-cuenta-exito-acciones {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.tienda-cuenta-exito-acciones .button {
+  min-height: 46px;
+  transition: background 180ms ease, border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.tienda-cuenta-exito-acciones .button-primary span {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tienda-cuenta-exito-acciones .button:focus-visible {
+  outline: 3px solid var(--color-brand-text);
+  outline-offset: 4px;
+}
+
+.tienda-cuenta-exito-beneficios {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border-default);
+}
+
+.tienda-cuenta-exito-beneficios h2 {
+  margin: 0 0 18px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.tienda-cuenta-exito-beneficios ul {
+  display: grid;
+  gap: 14px;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+}
+
+.tienda-cuenta-exito-beneficios li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.tienda-cuenta-exito-beneficios svg {
+  flex-shrink: 0;
+  color: var(--color-brand-text);
+}
+
+@keyframes tienda-cuenta-entrada {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 480px) {
+  .tienda-cuenta-exito-acciones { flex-direction: column; }
+  .tienda-cuenta-exito-acciones .button { width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tienda-cuenta-exito,
+  .tienda-cuenta-exito-badge { animation: none !important; }
+  .tienda-cuenta-exito-acciones .button { transition: none; transform: none; }
+}
+
 .tienda-auth-card form > div {
   display: grid;
   gap: 8px;
