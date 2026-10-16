@@ -40,7 +40,7 @@ describe('Sidebar', () => {
     expect(props.onNavigate).toHaveBeenCalledWith('movimientos')
   })
 
-  it('muestra las siete secciones y abre solo la de la página actual', () => {
+  it('muestra las ocho secciones y abre solo la de la página actual', () => {
     renderSidebar({ activePage: 'ventas' })
 
     const titulos = navigationGroups.map((g) => g.label)
@@ -51,6 +51,7 @@ describe('Sidebar', () => {
       'Compras',
       'Clientes',
       'Ventas',
+      'Informes',
       'E-commerce',
     ])
     for (const titulo of titulos) {

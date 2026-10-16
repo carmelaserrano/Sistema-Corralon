@@ -24,6 +24,8 @@ import {
   Upload,
   Users,
   Wallet,
+  BarChart3,
+  TrendingUp,
 } from 'lucide-react'
 
 // Roles canónicos del sistema (issue CA-01). "Cliente Web" no es un rol
@@ -127,6 +129,16 @@ export const navigationGroups = [
       { id: 'listas-precio', label: 'Listas de precios', icon: Tags, roles: [ROL_VENDEDOR] },
       { id: 'descuentos', label: 'Descuentos', icon: Percent, roles: [] },
       { id: 'cajas', label: 'Cajas', icon: Wallet, module: 'Tesorería', roles: [ROL_VENDEDOR, ROL_TESORERO] },
+    ],
+  },
+  {
+    // Informes de gestión: Administrador y Tesorero (permiso informes.ver, 0068).
+    id: 'informes',
+    label: 'Informes',
+    icon: BarChart3,
+    module: 'Informes',
+    items: [
+      { id: 'informe-ingresos', label: 'Ingresos', icon: TrendingUp, roles: [ROL_TESORERO] },
     ],
   },
   {

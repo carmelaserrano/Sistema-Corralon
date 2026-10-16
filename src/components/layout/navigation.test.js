@@ -103,3 +103,13 @@ describe('primeraPaginaVisibleParaRol', () => {
     expect(primeraPaginaVisibleParaRol(ROL_VENDEDOR)).toBe('clientes')
   })
 })
+
+describe('sección Informes', () => {
+  it('el informe de ingresos lo ven Administrador y Tesorero, nadie más', () => {
+    expect(paginaVisibleParaRol('informe-ingresos', ROL_ADMINISTRADOR)).toBe(true)
+    expect(paginaVisibleParaRol('informe-ingresos', ROL_TESORERO)).toBe(true)
+    expect(paginaVisibleParaRol('informe-ingresos', ROL_VENDEDOR)).toBe(false)
+    expect(paginaVisibleParaRol('informe-ingresos', ROL_ENCARGADO_DEPOSITO)).toBe(false)
+    expect(paginaVisibleParaRol('informe-ingresos', ROL_COMPRAS_PROVEEDORES)).toBe(false)
+  })
+})

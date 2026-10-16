@@ -3154,3 +3154,255 @@ td button:hover:not(:disabled),
 .tienda-pago-mock-form .tienda-pago-mock-acciones button { width: 100%; }
 @media (max-width: 480px) { .tienda-pago-mock-form { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { .tienda-pago-mock *, .tienda-pago-mock *::before, .tienda-pago-mock *::after { animation: none !important; transition: none !important; } }
+
+/* ==========================================================================
+   Informes (InformeIngresosPage.jsx)
+   ========================================================================== */
+.informe-page .tabs {
+  margin-bottom: var(--space-4);
+}
+
+.informe-exportar {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.informe-filtros {
+  display: grid;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+  padding: var(--space-5);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--surface-panel);
+}
+
+.informe-filtros fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.informe-filtros legend {
+  margin-bottom: var(--space-2);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.informe-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.informe-chips legend {
+  width: 100%;
+}
+
+.page-canvas .informe-chips button[type="button"],
+.page-canvas .informe-periodo-tipo button[type="button"] {
+  min-height: 32px;
+  margin: 0;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface-panel);
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-weight: 650;
+}
+
+.page-canvas .informe-chips button.is-active,
+.page-canvas .informe-periodo-tipo button.is-active {
+  border-color: var(--color-brand);
+  background: var(--color-brand-soft);
+  color: var(--color-brand-text);
+}
+
+.informe-fechas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3) var(--space-4);
+}
+
+.informe-fechas label {
+  min-width: 160px;
+}
+
+.informe-check {
+  display: flex !important;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-md);
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.informe-check input {
+  width: auto;
+  min-height: 0;
+}
+
+.informe-periodos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.informe-periodo {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4) !important;
+  border: 1px solid var(--border-default) !important;
+  border-radius: var(--radius-md);
+  background: var(--surface-subtle);
+}
+
+.informe-periodo legend {
+  margin: 0;
+  padding: 0 var(--space-1);
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.informe-periodo-tipo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.informe-periodo-rango {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-weight: 650;
+}
+
+.informe-bloque {
+  margin-bottom: var(--space-5);
+}
+
+.informe-bloque h2 {
+  margin: 0 0 var(--space-3);
+  font-size: 16px;
+}
+
+.informe-nota {
+  margin: 0 0 var(--space-3);
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.informe-grupo th {
+  background: var(--surface-subtle);
+  color: var(--text-primary);
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 12.5px;
+}
+
+.informe-fila-total td {
+  color: var(--text-primary);
+  font-weight: 750;
+}
+
+.informe-positivo {
+  color: var(--color-success) !important;
+}
+
+.informe-negativo {
+  color: var(--color-danger-strong) !important;
+}
+
+/* Gráfico de barras (GraficoBarras.jsx) */
+.grafico-barras {
+  /* El bloque de la página ya es la tarjeta: sin segundo borde. */
+  min-width: 0;
+}
+
+.grafico-leyenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  list-style: none;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-weight: 650;
+}
+
+.grafico-leyenda li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.grafico-leyenda-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.grafico-lienzo {
+  position: relative;
+}
+
+.grafico-lienzo svg {
+  display: block;
+  max-width: 100%;
+}
+
+.grafico-grilla {
+  stroke: var(--border-default);
+  stroke-width: 1;
+}
+
+.grafico-base {
+  stroke: var(--border-strong);
+  stroke-width: 1;
+}
+
+.grafico-eje {
+  fill: var(--text-muted);
+  font-size: 11px;
+}
+
+.grafico-total {
+  fill: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.grafico-lienzo path {
+  transition: opacity 120ms ease;
+}
+
+.grafico-atenuado {
+  opacity: 0.35;
+}
+
+.grafico-tooltip {
+  position: absolute;
+  z-index: 2;
+  transform: translate(-50%, calc(-100% - 8px));
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-inverse);
+  color: var(--text-on-inverse);
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: var(--shadow-2);
+}
+
+@media (max-width: 760px) {
+  .informe-periodos {
+    grid-template-columns: 1fr;
+  }
+}
