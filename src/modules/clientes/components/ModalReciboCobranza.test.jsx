@@ -6,11 +6,18 @@ import {
   listarMediosCobranza,
   registrarReciboCobranza,
 } from '../api/cuentaCorrienteClienteApi'
+import { obtenerSesionCajaActiva } from '../../tesoreria/api/cajasApi'
 
 vi.mock('../api/cuentaCorrienteClienteApi', () => ({
   listarMediosCobranza: vi.fn(),
   registrarReciboCobranza: vi.fn(),
 }))
+
+vi.mock('../../tesoreria/api/cajasApi', () => ({
+  obtenerSesionCajaActiva: vi.fn(),
+}))
+
+const sesionMock = { id: 's1', estado: 'abierta', caja: { nombre: 'Caja Norte 1' } }
 
 const clienteMock = {
   id: 'c1',
@@ -54,6 +61,7 @@ describe('ModalReciboCobranza', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     listarMediosCobranza.mockResolvedValue(mediosMock)
+    obtenerSesionCajaActiva.mockResolvedValue(sesionMock)
     registrarReciboCobranza.mockResolvedValue({
       id: 'r1',
       numero: 50,
@@ -105,7 +113,7 @@ describe('ModalReciboCobranza', () => {
     fireEvent.change(inputRef, { target: { value: 'TRX-BANCARIA-999' } })
 
     // Presionar botón auto-imputar
-    const botonFifo = screen.getByRole('button', { name: /Auto-imputar más antiguas/i })
+    const botonFifo = screen.getByRole('button', { name: /Repartir automáticamente/i })
     fireEvent.click(botonFifo)
 
     // Debe haber imputado 400.000 a v1 y 600.000 a v2
@@ -202,5 +210,41 @@ describe('ModalReciboCobranza', () => {
     // Botón de submit disabled
     expect(screen.getByRole('button', { name: 'Confirmar y Emitir Recibo' })).toBeDisabled()
     expect(registrarReciboCobranza).not.toHaveBeenCalled()
+  })
+
+  it('sin caja abierta avisa y no deja confirmar el recibo', async () => {
+    obtenerSesionCajaActiva.mockResolvedValue(null)
+    render(
+      <ModalReciboCobranza
+        abierto
+        cliente={clienteMock}
+        resumenCtaCte={resumenMock}
+        ventasPendientes={ventasPendientesMock}
+        onReciboRegistrado={vi.fn()}
+        onCerrar={vi.fn()}
+      />,
+    )
+
+    expect(await screen.findByText(/No tenés una caja abierta/)).toBeInTheDocument()
+    fireEvent.change(await screen.findByLabelText('Medio de cobro 1'), { target: { value: 'm-efectivo' } })
+    fireEvent.change(screen.getByLabelText('Importe 1'), { target: { value: '1000' } })
+    expect(screen.getByRole('button', { name: 'Confirmar y Emitir Recibo' })).toBeDisabled()
+    expect(registrarReciboCobranza).not.toHaveBeenCalled()
+  })
+
+  it('con caja abierta indica en qué caja se registra la cobranza', async () => {
+    render(
+      <ModalReciboCobranza
+        abierto
+        cliente={clienteMock}
+        resumenCtaCte={resumenMock}
+        ventasPendientes={ventasPendientesMock}
+        onReciboRegistrado={vi.fn()}
+        onCerrar={vi.fn()}
+      />,
+    )
+
+    expect(await screen.findByText('Caja Norte 1')).toBeInTheDocument()
+    expect(screen.queryByText(/No tenés una caja abierta/)).not.toBeInTheDocument()
   })
 })
