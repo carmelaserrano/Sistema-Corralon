@@ -14,8 +14,6 @@ vi.mock('../api/informesApi', () => ({
   listarMediosInforme: vi.fn(() => Promise.resolve(['Efectivo', 'Pago online'])),
 }))
 
-vi.mock('../../stock/api/reportesApi', () => ({ descargarCsv: vi.fn() }))
-
 const fila = (inicio, fin, fuente, monto, sucursalId = 'n', sucursal = 'Sucursal Norte') => ({
   periodo_inicio: inicio, periodo_fin: fin, sucursal_id: sucursalId, sucursal_nombre: sucursal, fuente, medio_pago: 'Efectivo', monto,
 })

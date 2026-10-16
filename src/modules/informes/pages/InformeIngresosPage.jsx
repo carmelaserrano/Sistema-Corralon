@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeftRight, BarChart3, CalendarRange, Download, FileDown, TrendingUp, Trophy } from 'lucide-react'
+import { ArrowLeftRight, BarChart3, CalendarRange, FileDown, FileSpreadsheet, TrendingUp, Trophy } from 'lucide-react'
 import PageHeader from '../../../components/ui/PageHeader'
 import KpiCard from '../../../components/ui/KpiCard'
 import Button from '../../../components/ui/Button'
@@ -31,7 +31,6 @@ import {
   obtenerFacturado,
   obtenerIngresos,
 } from '../api/informesApi'
-import { descargarCsv } from '../../stock/api/reportesApi'
 
 const moneda = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' })
 const formatoMoneda = (n) => moneda.format(n)
@@ -226,45 +225,81 @@ export default function InformeIngresosPage() {
     ? `${etiquetaRango(desde, hasta)} · por ${agrupacion} · ${nombreSucursales}${medios.length ? ` · ${medios.join(', ')}` : ''}`
     : `${etiquetaA} contra ${etiquetaB} · ${nombreSucursales}`
 
+  // Tablas para exportar con los valores crudos: el Excel guarda los montos
+  // como números y el PDF los muestra formateados.
+  const columna = (titulo, tipo = 'moneda') => ({ titulo, tipo })
+  const sumar = (filas, i) => filas.reduce((s, f) => s + (Number(f[i]) || 0), 0)
+  const filaTotal = (columnas, filas) => columnas.map((c, i) => (i === 0 ? 'Total' : sumar(filas, i)))
+
   function tablasParaExportar() {
     if (modo === 'comparar') {
+      const filas = []
+      let grupoActual = 'total'
+      for (const f of filasComparar) {
+        if (f.grupo !== grupoActual) {
+          grupoActual = f.grupo
+          if (f.grupo !== 'total') filas.push({ grupo: f.grupo })
+        }
+        filas.push([f.concepto, f.a, f.b, f.diferencia, f.variacion])
+      }
       return [{
         titulo: 'Comparación de períodos',
-        columnas: ['Concepto', etiquetaA, etiquetaB, 'Diferencia', 'Variación'],
-        filas: filasComparar.map((f) => [f.concepto, formatoMoneda(f.a), formatoMoneda(f.b), formatoMoneda(f.diferencia), formatoVariacion(f.variacion)]),
+        hoja: 'Comparación',
+        columnas: [columna('Concepto', 'texto'), columna(etiquetaA), columna(etiquetaB), columna('Diferencia'), columna('Variación', 'porcentaje')],
+        filas,
       }]
     }
-    return [
-      {
-        titulo: 'Cobrado por período',
-        columnas: ['Período', ...FUENTES.map((f) => f.label), 'Total'],
-        filas: periodos.map((p) => [
-          etiquetaPeriodo(p.inicio, p.fin, agrupacion),
-          ...FUENTES.map((f) => formatoMoneda(p.porFuente[f.id] ?? 0)),
-          formatoMoneda(p.total),
-        ]),
-      },
-      {
-        titulo: 'Facturado por período',
-        columnas: ['Período', 'Facturas', 'Notas de crédito', 'Notas de débito', 'Neto'],
-        filas: facturadoPorPeriodo.map((p) => [
-          etiquetaPeriodo(p.inicio, p.fin, agrupacion),
-          formatoMoneda(p.factura), formatoMoneda(p.nota_credito), formatoMoneda(p.nota_debito), formatoMoneda(p.neto),
-        ]),
-      },
-    ]
+    const cobrado = {
+      titulo: 'Cobrado por período',
+      hoja: 'Cobrado',
+      columnas: [columna('Período', 'texto'), ...FUENTES.map((f) => columna(f.label)), columna('Total')],
+      filas: periodos.map((p) => [
+        etiquetaPeriodo(p.inicio, p.fin, agrupacion),
+        ...FUENTES.map((f) => p.porFuente[f.id] ?? 0),
+        p.total,
+      ]),
+    }
+    const facturado = {
+      titulo: 'Facturado por período',
+      hoja: 'Facturado',
+      columnas: [columna('Período', 'texto'), columna('Facturas'), columna('Notas de crédito'), columna('Notas de débito'), columna('Neto')],
+      filas: facturadoPorPeriodo.map((p) => [etiquetaPeriodo(p.inicio, p.fin, agrupacion), p.factura, p.nota_credito, p.nota_debito, p.neto]),
+    }
+    return [cobrado, facturado]
+      .filter((t) => t.filas.length > 0)
+      .map((t) => ({ ...t, total: filaTotal(t.columnas, t.filas) }))
   }
 
-  function exportarCsv() {
-    const [tabla] = tablasParaExportar()
-    const columnas = tabla.columnas.map((titulo, i) => ({ titulo, valor: (fila) => fila[i] }))
-    descargarCsv(`informe-ingresos-${modo}-${new Date().toISOString().slice(0, 10)}.csv`, columnas, tabla.filas)
+  const nombreArchivo = (extension) => `informe-ingresos-${modo}-${new Date().toISOString().slice(0, 10)}.${extension}`
+
+  async function exportarExcel() {
+    const { armarInformeExcel } = await import('../excel/informeExcel')
+    const blob = await armarInformeExcel({ titulo: 'Informe de ingresos', subtitulo, tablas: tablasParaExportar() })
+    const url = URL.createObjectURL(blob)
+    const enlace = document.createElement('a')
+    enlace.href = url
+    enlace.download = nombreArchivo('xlsx')
+    document.body.appendChild(enlace)
+    enlace.click()
+    enlace.remove()
+    URL.revokeObjectURL(url)
   }
 
   async function exportarPdf() {
     const { armarInformePdf } = await import('../pdf/informePdf')
-    armarInformePdf({ titulo: 'Informe de ingresos', subtitulo, tablas: tablasParaExportar() })
-      .save(`informe-ingresos-${modo}-${new Date().toISOString().slice(0, 10)}.pdf`)
+    const formatear = (v, tipo) => {
+      if (tipo === 'texto') return v
+      if (tipo === 'porcentaje') return formatoVariacion(v)
+      return v === null || v === undefined ? '—' : formatoMoneda(v)
+    }
+    const tablas = tablasParaExportar().map((t) => ({
+      titulo: t.titulo,
+      columnas: t.columnas.map((c) => c.titulo),
+      filas: [...t.filas, ...(t.total ? [t.total] : [])].map((f) =>
+        Array.isArray(f) ? f.map((v, i) => formatear(v, t.columnas[i].tipo)) : [f.grupo, ...t.columnas.slice(1).map(() => '')],
+      ),
+    }))
+    armarInformePdf({ titulo: 'Informe de ingresos', subtitulo, tablas }).save(nombreArchivo('pdf'))
   }
 
   const sinDatos = !cargando && !error && (modo === 'evolucion' ? periodos.length === 0 : !comparacion || (comparacion.a.total === 0 && comparacion.b.total === 0))
@@ -277,7 +312,7 @@ export default function InformeIngresosPage() {
         description="Lo cobrado: la plata que efectivamente entró, por mostrador, cobranzas de cuenta corriente, tienda online e ingresos de caja."
         actions={
           <div className="informe-exportar">
-            <Button type="button" variant="ghost" icon={Download} onClick={exportarCsv} disabled={cargando || sinDatos}>CSV</Button>
+            <Button type="button" variant="ghost" icon={FileSpreadsheet} onClick={exportarExcel} disabled={cargando || sinDatos}>Excel</Button>
             <Button type="button" variant="ghost" icon={FileDown} onClick={exportarPdf} disabled={cargando || sinDatos}>PDF</Button>
           </div>
         }

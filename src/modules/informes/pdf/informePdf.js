@@ -1,4 +1,5 @@
 import { jsPDF } from 'jspdf'
+import logoCorralon from '../../ecommerce/pdf/logo-corralon-norte.jpg?inline'
 
 /**
  * Arma el PDF de un informe: encabezado, subtítulo y una o más tablas.
@@ -19,17 +20,20 @@ export function armarInformePdf({ titulo, subtitulo, tablas }) {
   // Franja naranja y encabezado (paleta Corralón Norte).
   doc.setFillColor(249, 115, 22)
   doc.rect(0, 0, anchoPagina, 4, 'F')
+  // Logo a la izquierda (4:3, como en el remito web) y textos al lado.
+  doc.addImage(logoCorralon, 'JPEG', margen, 7, 24, 18)
+  const xTexto = margen + 28
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(16)
   doc.setTextColor(30, 58, 95)
-  doc.text('CORRALÓN NORTE', margen, (y += 6))
+  doc.text('CORRALÓN NORTE', xTexto, (y += 2))
   doc.setFontSize(13)
   doc.setTextColor(23, 32, 51)
-  doc.text(titulo, margen, (y += 8))
+  doc.text(titulo, xTexto, (y += 7))
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
   doc.setTextColor(100, 116, 139)
-  doc.text(subtitulo, margen, (y += 6))
+  doc.text(subtitulo, xTexto, (y += 6))
   doc.text(`Generado el ${new Date().toLocaleString('es-AR')}`, anchoPagina - margen, y, { align: 'right' })
   y += 6
 
