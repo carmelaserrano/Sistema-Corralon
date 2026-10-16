@@ -23,7 +23,7 @@ const CAMPOS_TEXTO = [
 ]
 
 export default function RegistroPage({ onNavigate }) {
-  const { cliente, registrar, pendiente, errorRegistro } = useClienteWeb()
+  const { cliente, registrar, pendiente, errorRegistro, salir } = useClienteWeb()
   const [form, setForm] = useState(FORM_INICIAL)
   const [erroresCampo, setErroresCampo] = useState({})
   const [error, setError] = useState('')
@@ -75,9 +75,9 @@ export default function RegistroPage({ onNavigate }) {
     return (
       <CuentaExitoCard
         tituloId="titulo-registro"
-        titulo="¡Tu cuenta ya está lista!"
+        titulo={resultado ? '¡Tu cuenta ya está lista!' : 'Ya tenés una cuenta'}
         saludo={nombre ? `Bienvenido, ${nombre}` : 'Bienvenido'}
-        descripcion="Tu cuenta fue creada correctamente y ya podés empezar a comprar."
+        descripcion={resultado ? 'Tu cuenta fue creada correctamente y ya podés empezar a comprar.' : 'Ya ingresaste con tu cuenta: no hace falta registrarte de nuevo.'}
         acciones={[
           { texto: 'Ir al catálogo', principal: true, onClick: () => onNavigate?.('catalogo') },
           { texto: 'Ver mi cuenta', onClick: () => onNavigate?.('mis-datos') },
@@ -150,9 +150,15 @@ export default function RegistroPage({ onNavigate }) {
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 16 }}>
           <Button type="submit" loading={enviando} loadingLabel="Registrando…">{pendiente ? 'Completar registro' : 'Crear cuenta'}</Button>
-          <Button type="button" variant="ghost" disabled={enviando} onClick={() => onNavigate?.('ingresar')}>
-            Ya tengo cuenta
-          </Button>
+          {pendiente ? (
+            <Button type="button" variant="ghost" disabled={enviando} onClick={() => salir()}>
+              Usar otra cuenta
+            </Button>
+          ) : (
+            <Button type="button" variant="ghost" disabled={enviando} onClick={() => onNavigate?.('ingresar')}>
+              Ya tengo cuenta
+            </Button>
+          )}
         </div>
       </form>
     </section>

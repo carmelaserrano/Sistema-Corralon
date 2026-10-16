@@ -49,3 +49,16 @@ it('muestra la tarjeta al cargar el cliente después del login sin navegar autom
   expect(navegar).not.toHaveBeenCalled()
   expect(screen.queryByLabelText('Contraseña')).not.toBeInTheDocument()
 })
+
+it('una cuenta pendiente puede completar el registro o salir para usar otra cuenta', () => {
+  const salir = vi.fn().mockResolvedValue(undefined)
+  const navegar = vi.fn()
+  useClienteWeb.mockReturnValue({ cliente: null, pendiente: { id: 'u1', email: 'ana@example.com' }, salir })
+  render(<IngresarPage onNavigate={navegar} />)
+
+  expect(screen.getByRole('heading', { level: 1, name: 'Falta completar tu registro' })).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Completar registro' }))
+  expect(navegar).toHaveBeenLastCalledWith('registrarme')
+  fireEvent.click(screen.getByRole('button', { name: 'Usar otra cuenta' }))
+  expect(salir).toHaveBeenCalledOnce()
+})

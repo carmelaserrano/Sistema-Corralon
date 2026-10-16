@@ -6,7 +6,7 @@ import CuentaExitoCard from '../components/CuentaExitoCard'
 import { useClienteWeb } from '../context/ClienteWebContext'
 
 export default function IngresarPage({ onNavigate }) {
-  const { cliente, ingresar, pendiente } = useClienteWeb()
+  const { cliente, ingresar, pendiente, salir } = useClienteWeb()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -34,7 +34,20 @@ export default function IngresarPage({ onNavigate }) {
 
   // Sin redirección automática: si el ingreso vino del carrito, TiendaApp
   // vuelve al carrito sola al aparecer el cliente.
-  if (pendiente) return <section className="tienda-auth-card"><Feedback>Tu cuenta tiene un registro pendiente.</Feedback><Button onClick={() => onNavigate?.('registrarme')}>Completar registro</Button></section>
+  // Sesión abierta pero sin cliente vinculado: el encabezado no muestra
+  // "Cerrar sesión" (solo aparece con cliente), así que se ofrece acá.
+  if (pendiente) {
+    return (
+      <section className="tienda-auth-card" aria-labelledby="titulo-ingresar" style={contenedor}>
+        <h1 id="titulo-ingresar">Falta completar tu registro</h1>
+        <Feedback>Tu cuenta ya existe, pero todavía no está vinculada a tus datos de cliente.</Feedback>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+          <Button type="button" onClick={() => onNavigate?.('registrarme')}>Completar registro</Button>
+          <Button type="button" variant="ghost" onClick={() => salir()}>Usar otra cuenta</Button>
+        </div>
+      </section>
+    )
+  }
 
   if (cliente) {
     const nombre = cliente.nombre?.trim() || cliente.razon_social?.trim()
