@@ -24,6 +24,7 @@ import NotasProveedorPage from './modules/compras/pages/NotasProveedorPage'
 import FacturasProveedorPage from './modules/tesoreria/pages/FacturasProveedorPage'
 import OrdenesPagoPage from './modules/tesoreria/pages/OrdenesPagoPage'
 import CajasPage from './modules/tesoreria/pages/CajasPage'
+import InformeIngresosPage from './modules/informes/pages/InformeIngresosPage'
 import ClientesPage from './modules/clientes/pages/ClientesPage'
 import ClienteHistorialPage from './modules/clientes/pages/ClienteHistorialPage'
 import ImportarClientesPage from './modules/clientes/pages/ImportarClientesPage'
@@ -144,6 +145,7 @@ function App() {
       {paginaActual === 'facturas-proveedor' && <FacturasProveedorPage />}
       {paginaActual === 'ordenes-pago' && <OrdenesPagoPage />}
       {paginaActual === 'cajas' && <CajasPage />}
+      {paginaActual === 'informe-ingresos' && <InformeIngresosPage />}
       {paginaActual === 'clientes' && <ClientesPage />}
       {paginaActual === 'historial-cliente' && <ClienteHistorialPage />}
       {paginaActual === 'importar-clientes' && <ImportarClientesPage />}
