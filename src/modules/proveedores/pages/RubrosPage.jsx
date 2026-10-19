@@ -14,13 +14,15 @@ import PageHeader from '../../../components/ui/PageHeader'
 import KpiCard from '../../../components/ui/KpiCard'
 import { useToast } from '../../../components/ui/ToastContext'
 import Papa from 'papaparse'
-import { Tags, CheckCircle2, XCircle, Building2, Download } from 'lucide-react'
+import { ArrowLeft, Tags, CheckCircle2, XCircle, Building2, Download } from 'lucide-react'
 
 const rubroInicial = {
   nombre: '',
 }
 
-function RubrosPage() {
+// `onVolver`: cuando se abre desde Proveedores ("Ver rubros"), muestra la
+// ruta Proveedores / Rubros y un botón para volver. Desde el menú no se pasa.
+function RubrosPage({ onVolver } = {}) {
   const { showToast } = useToast()
   const [rubros, setRubros] = useState([])
   const [form, setForm] = useState(rubroInicial)
@@ -216,7 +218,14 @@ function RubrosPage() {
         title="Rubros de proveedor"
         kicker="Módulo Proveedores"
         description="Categorías de clasificación comercial para el padrón y catálogo de proveedores."
+        breadcrumbs={onVolver ? [{ label: 'Proveedores', onClick: onVolver }, { label: 'Rubros' }] : undefined}
         actions={[
+          onVolver && {
+            label: 'Volver a proveedores',
+            icon: ArrowLeft,
+            onClick: onVolver,
+            variant: 'secondary',
+          },
           {
             label: 'Exportar CSV',
             icon: Download,

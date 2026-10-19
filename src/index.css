@@ -1657,6 +1657,21 @@ td button:hover:not(:disabled),
   background: var(--surface-subtle);
 }
 
+/* Acción principal de una pantalla (p. ej. "Nueva orden de compra"): la
+   regla de arriba deja blancos todos los botones type="button" de las
+   pantallas; esta clase los vuelve naranjas para que se destaquen. */
+.page-canvas .button.button-destacado {
+  border-color: var(--color-brand);
+  background: var(--color-brand);
+  color: #fff;
+  box-shadow: 0 6px 16px rgb(249 115 22 / 28%);
+}
+
+.page-canvas .button.button-destacado:hover:not(:disabled) {
+  border-color: var(--color-brand-hover);
+  background: var(--color-brand-hover);
+}
+
 .page-canvas button[type="submit"] {
   width: fit-content;
 }

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ChevronRight, Search, X } from 'lucide-react'
 import LogoCasco from '../ui/LogoCasco'
-import { ROL_ADMINISTRADOR, itemsVisiblesDeGrupo, navigationGroups } from './navigation'
+import { ROL_ADMINISTRADOR, itemsVisiblesDeGrupo, navigationGroups, paginaDelMenu } from './navigation'
 
 // Etiquetas cortas junto a algunas pantallas.
 const BADGES = {
@@ -43,8 +43,7 @@ export default function Sidebar({
   onOpenPalette,
   rol = ROL_ADMINISTRADOR,
 }) {
-  const activeNavigationPage =
-    activePage === 'historial-movimientos' ? 'movimientos' : activePage
+  const activeNavigationPage = paginaDelMenu(activePage)
   const seccionActiva = seccionDePagina(activeNavigationPage)
   // CA-02: cada grupo se reduce a los ítems que el rol puede ver; un grupo
   // sin ítems visibles no se renderiza (ver más abajo).

@@ -22,7 +22,7 @@ import {
 import { getDepositos } from '../../stock/api/depositosApi'
 import { getArticulos } from '../../stock/api/articulosApi'
 import ContactosProveedor from '../../proveedores/components/ContactosProveedor'
-import { CheckCircle2, Clock, DollarSign, Download, ShoppingBag } from 'lucide-react'
+import { CheckCircle2, Clock, DollarSign, Download, Plus, ShoppingBag } from 'lucide-react'
 import Papa from 'papaparse'
 import Button from '../../../components/ui/Button'
 import EmptyState from '../../../components/ui/EmptyState'
@@ -872,6 +872,8 @@ export default function OrdenesCompraPage() {
             {puedeCrear && (
               <Button
                 type="button"
+                className="button-destacado"
+                icon={Plus}
                 style={{ padding: '12px 20px', fontSize: '1rem' }}
                 onClick={() => {
                   setVista('nueva')

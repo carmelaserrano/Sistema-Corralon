@@ -8,6 +8,7 @@ import {
   itemVisibleParaRol,
   itemsVisiblesDeGrupo,
   navigationGroups,
+  pageTitles,
   paginaVisibleParaRol,
   primeraPaginaVisibleParaRol,
 } from './navigation'
@@ -68,6 +69,14 @@ describe('paginaVisibleParaRol (CA-03)', () => {
   it('historial-movimientos hereda la visibilidad de movimientos (alias)', () => {
     expect(paginaVisibleParaRol('historial-movimientos', ROL_ENCARGADO_DEPOSITO)).toBe(true)
     expect(paginaVisibleParaRol('historial-movimientos', ROL_VENDEDOR)).toBe(false)
+  })
+
+  it('rubros ya no está en el menú y hereda la visibilidad de proveedores (alias)', () => {
+    const ids = navigationGroups.flatMap((g) => g.items.map((i) => i.id))
+    expect(ids).not.toContain('rubros')
+    expect(paginaVisibleParaRol('rubros', ROL_COMPRAS_PROVEEDORES)).toBe(true)
+    expect(paginaVisibleParaRol('rubros', ROL_VENDEDOR)).toBe(false)
+    expect(pageTitles.rubros).toBe('Rubros')
   })
 
   it('Administrador puede ver cualquier página del menú', () => {

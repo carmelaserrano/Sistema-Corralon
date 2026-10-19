@@ -6,7 +6,6 @@ import {
   ClipboardList,
   FileBarChart,
   FileStack,
-  FolderTree,
   History,
   Layers3,
   PackageCheck,
@@ -100,7 +99,6 @@ export const navigationGroups = [
     module: 'Compras',
     items: [
       { id: 'proveedores', label: 'Proveedores', icon: Truck, module: 'Proveedores', roles: [ROL_COMPRAS_PROVEEDORES] },
-      { id: 'rubros', label: 'Rubros', icon: FolderTree, module: 'Proveedores', roles: [ROL_COMPRAS_PROVEEDORES] },
       { id: 'ordenes-compra', label: 'Órdenes de Compra', icon: ShoppingCart, roles: [ROL_COMPRAS_PROVEEDORES] },
       { id: 'recepciones', label: 'Recepciones', icon: PackageCheck, roles: [ROL_COMPRAS_PROVEEDORES, ROL_ENCARGADO_DEPOSITO] },
       { id: 'notas-proveedor', label: 'Notas de Crédito/Débito', icon: FileStack, roles: [ROL_COMPRAS_PROVEEDORES] },
@@ -160,10 +158,16 @@ export const navigationGroups = [
 
 // Páginas que no tienen entrada propia en el menú pero reutilizan la
 // pantalla/rol de otra (p. ej. el historial de movimientos se abre desde
-// Movimientos). Mantiene paginaVisibleParaRol() consistente con el
-// agrupamiento que ya usa Sidebar.jsx para la sección abierta.
+// Movimientos, y Rubros desde Proveedores con "Ver rubros"). Mantiene
+// paginaVisibleParaRol() y la sección abierta del Sidebar consistentes.
 const ALIAS_PAGINA = {
   'historial-movimientos': 'movimientos',
+  rubros: 'proveedores',
+}
+
+/** Ítem del menú que corresponde a una página (la misma, o la de su alias). */
+export function paginaDelMenu(pageId) {
+  return ALIAS_PAGINA[pageId] ?? pageId
 }
 
 function buscarItem(pageId) {
@@ -188,7 +192,7 @@ export function itemsVisiblesDeGrupo(group, rol) {
 // CA-03: ¿el rol puede ver esta página si fuerza la navegación? Las páginas
 // sin entrada en el menú (ninguna hoy) quedan visibles por defecto.
 export function paginaVisibleParaRol(pageId, rol) {
-  const idReal = ALIAS_PAGINA[pageId] ?? pageId
+  const idReal = paginaDelMenu(pageId)
   const item = buscarItem(idReal)
   return item ? itemVisibleParaRol(item, rol) : true
 }
@@ -211,6 +215,7 @@ export const pageTitles = Object.fromEntries(
 )
 
 pageTitles['historial-movimientos'] = 'Historial de movimientos'
+pageTitles.rubros = 'Rubros'
 
 export const pageModules = Object.fromEntries(
   navigationGroups.flatMap((group) =>
@@ -219,3 +224,4 @@ export const pageModules = Object.fromEntries(
 )
 
 pageModules['historial-movimientos'] = 'Stock'
+pageModules.rubros = 'Proveedores'
