@@ -36,6 +36,25 @@ export async function obtenerIngresos({ desde, hasta, agrupacion, sucursales = [
 }
 
 /**
+ * Lo pagado agrupado (informe_egresos, 0069): órdenes de pago a proveedores y
+ * egresos de caja, sin anulados.
+ *
+ * @param {Object} filtros Mismos que obtenerIngresos.
+ * @returns {Promise<Array<Object>>} Filas por período, sucursal, fuente y medio.
+ */
+export async function obtenerEgresos({ desde, hasta, agrupacion, sucursales = [], medios = [] }) {
+  const { data, error } = await supabase.rpc('informe_egresos', {
+    p_desde: desde,
+    p_hasta: hasta,
+    p_agrupacion: agrupacion,
+    p_deposito_ids: sucursales.length ? sucursales : null,
+    p_medios: medios.length ? medios : null,
+  })
+  if (error) throw traducirError(error, 'No pudimos calcular los egresos')
+  return (data ?? []).map((f) => ({ ...f, monto: Number(f.monto) }))
+}
+
+/**
  * Lo facturado agrupado (informe_facturado, 0068).
  *
  * @param {Object} filtros Mismos que obtenerIngresos, sin medios.
@@ -62,16 +81,29 @@ export async function listarSucursalesInforme() {
   return data ?? []
 }
 
+// Medios activos, sin "Cuenta corriente" (no es plata que entra ni que sale).
+async function mediosActivosSinCuentaCorriente() {
+  const { data, error } = await supabase.from('medios_pago').select('nombre').eq('activo', true).order('nombre')
+  if (error) throw traducirError(error, 'No pudimos cargar los medios de pago')
+  return (data ?? [])
+    .map((m) => m.nombre)
+    .filter((n) => n?.trim().toLowerCase() !== 'cuenta corriente')
+}
+
 /**
  * Medios de pago para el filtro: los activos, sin "Cuenta corriente" (no es
  * plata que entró), más "Pago online" de la tienda.
  * @returns {Promise<string[]>} Nombres de medio.
  */
 export async function listarMediosInforme() {
-  const { data, error } = await supabase.from('medios_pago').select('nombre').eq('activo', true).order('nombre')
-  if (error) throw traducirError(error, 'No pudimos cargar los medios de pago')
-  const nombres = (data ?? [])
-    .map((m) => m.nombre)
-    .filter((n) => n?.trim().toLowerCase() !== 'cuenta corriente')
-  return [...nombres, MEDIO_PAGO_ONLINE]
+  return [...(await mediosActivosSinCuentaCorriente()), MEDIO_PAGO_ONLINE]
+}
+
+/**
+ * Medios de pago para el filtro de egresos: los activos, sin "Cuenta
+ * corriente". "Pago online" es solo de la tienda y no sale plata por ahí.
+ * @returns {Promise<string[]>} Nombres de medio.
+ */
+export async function listarMediosEgresos() {
+  return mediosActivosSinCuentaCorriente()
 }

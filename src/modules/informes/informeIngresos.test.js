@@ -5,6 +5,7 @@ import {
   diasDelRango,
   etiquetaPeriodo,
   etiquetaRango,
+  FUENTES_EGRESO,
   filasComparacion,
   indicadores,
   rangoDeAtajo,
@@ -106,5 +107,18 @@ describe('comparación de períodos', () => {
     expect(filas.find((f) => f.concepto === 'Tienda online')).toMatchObject({ a: 0, b: 700, variacion: null })
     expect(filas.find((f) => f.grupo === 'Por medio de pago' && f.concepto === 'Pago online').b).toBe(700)
     expect(filas.find((f) => f.grupo === 'Por sucursal' && f.concepto === 'Sucursal Sur').b).toBe(700)
+  })
+
+  it('arma la comparación de egresos con sus fuentes y la etiqueta del total', () => {
+    const a = totalesDe([fila('2026-08-01', '2026-08-31', 'proveedores', 1000)])
+    const b = totalesDe([
+      fila('2026-10-01', '2026-10-31', 'proveedores', 1000),
+      fila('2026-10-01', '2026-10-31', 'caja', 500),
+    ])
+    const filas = filasComparacion(a, b, 31, 31, { fuentes: FUENTES_EGRESO, etiquetaTotal: 'Total pagado' })
+    expect(filas[0]).toMatchObject({ concepto: 'Total pagado', a: 1000, b: 1500, diferencia: 500, variacion: 50 })
+    const porFuente = filas.filter((f) => f.grupo === 'Por fuente').map((f) => f.concepto)
+    expect(porFuente).toEqual(['Pagos a proveedores', 'Egresos de caja'])
+    expect(filas.find((f) => f.concepto === 'Egresos de caja')).toMatchObject({ a: 0, b: 500, variacion: null })
   })
 })

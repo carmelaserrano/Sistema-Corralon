@@ -19,6 +19,14 @@ export const FUENTES = [
 
 export const ETIQUETA_FUENTE = Object.fromEntries(FUENTES.map((f) => [f.id, f.label]))
 
+// Fuentes del informe de egresos (informe_egresos, 0069).
+export const FUENTES_EGRESO = [
+  { id: 'proveedores', label: 'Pagos a proveedores' },
+  { id: 'caja', label: 'Egresos de caja' },
+]
+
+export const ETIQUETA_FUENTE_EGRESO = Object.fromEntries(FUENTES_EGRESO.map((f) => [f.id, f.label]))
+
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
 export const MESES_LARGOS = [
   'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
@@ -190,17 +198,22 @@ export function variacion(a, b) {
 /**
  * Filas de la tabla del modo Comparar: total, promedio por día, cada fuente,
  * cada medio y cada sucursal, con la diferencia (B − A) y su variación.
+ * Por defecto arma la de ingresos; el informe de egresos pasa sus fuentes y
+ * la etiqueta del total.
+ * @param {Object} [opciones]
+ * @param {Array<{id: string, label: string}>} [opciones.fuentes]
+ * @param {string} [opciones.etiquetaTotal]
  */
-export function filasComparacion(totA, totB, diasA, diasB) {
+export function filasComparacion(totA, totB, diasA, diasB, { fuentes = FUENTES, etiquetaTotal = 'Total cobrado' } = {}) {
   const fila = (concepto, grupo, a, b) => ({
     concepto, grupo, a: redondear(a), b: redondear(b), diferencia: redondear(b - a), variacion: variacion(a, b),
   })
   const claves = (objA, objB) => [...new Set([...Object.keys(objA), ...Object.keys(objB)])]
   const filas = [
-    fila('Total cobrado', 'total', totA.total, totB.total),
+    fila(etiquetaTotal, 'total', totA.total, totB.total),
     fila('Promedio por día', 'total', diasA ? totA.total / diasA : 0, diasB ? totB.total / diasB : 0),
   ]
-  for (const f of FUENTES) {
+  for (const f of fuentes) {
     filas.push(fila(f.label, 'Por fuente', totA.porFuente[f.id] ?? 0, totB.porFuente[f.id] ?? 0))
   }
   for (const m of claves(totA.porMedio, totB.porMedio).sort((x, y) => x.localeCompare(y, 'es'))) {

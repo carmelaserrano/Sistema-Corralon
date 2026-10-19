@@ -5,12 +5,14 @@ import KpiCard from '../../../components/ui/KpiCard'
 import Button from '../../../components/ui/Button'
 import Feedback from '../../../components/ui/Feedback'
 import GraficoBarras from '../components/GraficoBarras'
+import SelectorMultiple from '../components/SelectorMultiple'
+import SelectorPeriodo from '../components/SelectorPeriodo'
+import { opcionesDeMes, rangoDePeriodo } from '../selectorPeriodo'
 import {
   ATAJOS_RANGO,
   COLORES_SERIE,
   ETIQUETA_FUENTE,
   FUENTES,
-  MESES_LARGOS,
   agruparPorPeriodo,
   agruparPorSucursal,
   diasDelRango,
@@ -19,11 +21,8 @@ import {
   filasComparacion,
   indicadores,
   rangoDeAtajo,
-  rangoDeMes,
-  rangoDeSemana,
   resumenFacturado,
   totalesDe,
-  deISO,
 } from '../informeIngresos'
 import {
   listarMediosInforme,
@@ -35,96 +34,6 @@ import {
 const moneda = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' })
 const formatoMoneda = (n) => moneda.format(n)
 const formatoVariacion = (v) => (v === null ? '—' : `${v > 0 ? '+' : ''}${v.toLocaleString('es-AR')} %`)
-
-/** Opciones de mes para el modo Comparar: los últimos 18 meses. */
-function opcionesDeMes(hoy = new Date()) {
-  return Array.from({ length: 18 }, (_, i) => {
-    const fecha = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1)
-    return { valor: `${fecha.getFullYear()}-${fecha.getMonth()}`, label: `${MESES_LARGOS[fecha.getMonth()]} ${fecha.getFullYear()}` }
-  })
-}
-
-/** Rango de un período del modo Comparar según cómo se eligió. */
-function rangoDePeriodo(periodo) {
-  if (periodo.tipo === 'mes') {
-    const [anio, mes] = periodo.mes.split('-').map(Number)
-    return rangoDeMes(anio, mes)
-  }
-  if (periodo.tipo === 'semana') return rangoDeSemana(deISO(periodo.fecha))
-  return { desde: periodo.desde, hasta: periodo.hasta }
-}
-
-function SelectorPeriodo({ titulo, periodo, onCambio, meses }) {
-  const rango = rangoDePeriodo(periodo)
-  return (
-    <fieldset className="informe-periodo">
-      <legend>{titulo}</legend>
-      <div className="informe-periodo-tipo" role="group" aria-label={`Cómo elegir el ${titulo.toLowerCase()}`}>
-        {[['mes', 'Un mes'], ['semana', 'Una semana'], ['fechas', 'Entre fechas']].map(([tipo, label]) => (
-          <button
-            key={tipo}
-            type="button"
-            aria-pressed={periodo.tipo === tipo}
-            className={periodo.tipo === tipo ? 'is-active' : undefined}
-            onClick={() => onCambio({ ...periodo, tipo })}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-      {periodo.tipo === 'mes' && (
-        <label>
-          Mes
-          <select value={periodo.mes} onChange={(e) => onCambio({ ...periodo, mes: e.target.value })}>
-            {meses.map((m) => <option key={m.valor} value={m.valor}>{m.label}</option>)}
-          </select>
-        </label>
-      )}
-      {periodo.tipo === 'semana' && (
-        <label>
-          Cualquier día de la semana
-          <input type="date" value={periodo.fecha} onChange={(e) => e.target.value && onCambio({ ...periodo, fecha: e.target.value })} />
-        </label>
-      )}
-      {periodo.tipo === 'fechas' && (
-        <div className="informe-fechas">
-          <label>
-            Desde
-            <input type="date" value={periodo.desde} max={periodo.hasta} onChange={(e) => e.target.value && onCambio({ ...periodo, desde: e.target.value })} />
-          </label>
-          <label>
-            Hasta
-            <input type="date" value={periodo.hasta} min={periodo.desde} onChange={(e) => e.target.value && onCambio({ ...periodo, hasta: e.target.value })} />
-          </label>
-        </div>
-      )}
-      <p className="informe-periodo-rango">{etiquetaRango(rango.desde, rango.hasta)} · {diasDelRango(rango.desde, rango.hasta)} días</p>
-    </fieldset>
-  )
-}
-
-function SelectorMultiple({ titulo, opciones, seleccion, onCambio, textoTodos }) {
-  const alternar = (valor) => onCambio(seleccion.includes(valor) ? seleccion.filter((v) => v !== valor) : [...seleccion, valor])
-  return (
-    <fieldset className="informe-chips">
-      <legend>{titulo}</legend>
-      <button type="button" aria-pressed={seleccion.length === 0} className={seleccion.length === 0 ? 'is-active' : undefined} onClick={() => onCambio([])}>
-        {textoTodos}
-      </button>
-      {opciones.map((o) => (
-        <button
-          key={o.valor}
-          type="button"
-          aria-pressed={seleccion.includes(o.valor)}
-          className={seleccion.includes(o.valor) ? 'is-active' : undefined}
-          onClick={() => alternar(o.valor)}
-        >
-          {o.label}
-        </button>
-      ))}
-    </fieldset>
-  )
-}
 
 export default function InformeIngresosPage() {
   const hoy = useMemo(() => new Date(), [])
@@ -200,7 +109,11 @@ export default function InformeIngresosPage() {
   const periodos = useMemo(() => agruparPorPeriodo(ingresos), [ingresos])
   const porSucursal = useMemo(() => agruparPorSucursal(ingresos), [ingresos])
   const kpis = indicadores(periodos)
+  const redondear = (n) => Math.round(n * 100) / 100
+  const totalFuente = (fuente) => redondear(periodos.reduce((suma, p) => suma + (p.porFuente[fuente] ?? 0), 0))
+  const totalSucursal = (sucursal) => redondear(porSucursal.periodos.reduce((suma, p) => suma + (p.porSucursal[sucursal] ?? 0), 0))
   const facturadoPorPeriodo = useMemo(() => resumenFacturado(facturado), [facturado])
+  const totalFacturado = (campo) => Math.round(facturadoPorPeriodo.reduce((suma, p) => suma + p[campo], 0) * 100) / 100
   const fuentesConDatos = FUENTES.filter((f) => periodos.some((p) => p.porFuente[f.id]))
   const categorias = (compararSucursales ? porSucursal.periodos : periodos).map((p) => ({
     id: p.inicio, label: etiquetaPeriodo(p.inicio, p.fin, agrupacion),
@@ -405,32 +318,46 @@ export default function InformeIngresosPage() {
             {compararSucursales ? (
               <table>
                 <thead>
-                  <tr><th>Período</th>{porSucursal.sucursales.map((s) => <th key={s.id}>{s.nombre}</th>)}<th>Total</th></tr>
+                  <tr><th>Período</th>{porSucursal.sucursales.map((s) => <th key={s.id} className="informe-num">{s.nombre}</th>)}<th className="informe-num">Total</th></tr>
                 </thead>
                 <tbody>
                   {porSucursal.periodos.map((p) => (
                     <tr key={p.inicio}>
                       <td>{etiquetaPeriodo(p.inicio, p.fin, agrupacion)}</td>
-                      {porSucursal.sucursales.map((s) => <td key={s.id}>{formatoMoneda(p.porSucursal[s.id] ?? 0)}</td>)}
-                      <td><strong>{formatoMoneda(Object.values(p.porSucursal).reduce((a, b) => a + b, 0))}</strong></td>
+                      {porSucursal.sucursales.map((s) => <td key={s.id} className="informe-num">{formatoMoneda(p.porSucursal[s.id] ?? 0)}</td>)}
+                      <td className="informe-num"><strong>{formatoMoneda(Object.values(p.porSucursal).reduce((a, b) => a + b, 0))}</strong></td>
                     </tr>
                   ))}
                 </tbody>
+                <tfoot>
+                  <tr>
+                    <th scope="row">Total</th>
+                    {porSucursal.sucursales.map((s) => <td key={s.id} className="informe-num">{formatoMoneda(totalSucursal(s.id))}</td>)}
+                    <td className="informe-num">{formatoMoneda(kpis.total)}</td>
+                  </tr>
+                </tfoot>
               </table>
             ) : (
               <table>
                 <thead>
-                  <tr><th>Período</th>{FUENTES.map((f) => <th key={f.id}>{f.label}</th>)}<th>Total</th></tr>
+                  <tr><th>Período</th>{FUENTES.map((f) => <th key={f.id} className="informe-num">{f.label}</th>)}<th className="informe-num">Total</th></tr>
                 </thead>
                 <tbody>
                   {periodos.map((p) => (
                     <tr key={p.inicio}>
                       <td>{etiquetaPeriodo(p.inicio, p.fin, agrupacion)}</td>
-                      {FUENTES.map((f) => <td key={f.id}>{formatoMoneda(p.porFuente[f.id] ?? 0)}</td>)}
-                      <td><strong>{formatoMoneda(p.total)}</strong></td>
+                      {FUENTES.map((f) => <td key={f.id} className="informe-num">{formatoMoneda(p.porFuente[f.id] ?? 0)}</td>)}
+                      <td className="informe-num"><strong>{formatoMoneda(p.total)}</strong></td>
                     </tr>
                   ))}
                 </tbody>
+                <tfoot>
+                  <tr>
+                    <th scope="row">Total</th>
+                    {FUENTES.map((f) => <td key={f.id} className="informe-num">{formatoMoneda(totalFuente(f.id))}</td>)}
+                    <td className="informe-num">{formatoMoneda(kpis.total)}</td>
+                  </tr>
+                </tfoot>
               </table>
             )}
           </section>
@@ -446,19 +373,27 @@ export default function InformeIngresosPage() {
             ) : (
               <table>
                 <thead>
-                  <tr><th>Período</th><th>Facturas</th><th>Notas de crédito</th><th>Notas de débito</th><th>Neto facturado</th></tr>
+                  <tr><th>Período</th><th className="informe-num">Facturas</th><th className="informe-num">Notas de crédito</th><th className="informe-num">Notas de débito</th><th className="informe-num">Neto facturado</th></tr>
                 </thead>
                 <tbody>
                   {facturadoPorPeriodo.map((p) => (
                     <tr key={p.inicio}>
                       <td>{etiquetaPeriodo(p.inicio, p.fin, agrupacion)}</td>
-                      <td>{formatoMoneda(p.factura)}</td>
-                      <td>{formatoMoneda(p.nota_credito)}</td>
-                      <td>{formatoMoneda(p.nota_debito)}</td>
-                      <td><strong>{formatoMoneda(p.neto)}</strong></td>
+                      <td className="informe-num">{formatoMoneda(p.factura)}</td>
+                      <td className="informe-num">{formatoMoneda(p.nota_credito)}</td>
+                      <td className="informe-num">{formatoMoneda(p.nota_debito)}</td>
+                      <td className="informe-num"><strong>{formatoMoneda(p.neto)}</strong></td>
                     </tr>
                   ))}
                 </tbody>
+                <tfoot>
+                  <tr>
+                    <th scope="row">Total</th>
+                    {['factura', 'nota_credito', 'nota_debito', 'neto'].map((campo) => (
+                      <td key={campo} className="informe-num">{formatoMoneda(totalFacturado(campo))}</td>
+                    ))}
+                  </tr>
+                </tfoot>
               </table>
             )}
           </section>
@@ -500,7 +435,7 @@ export default function InformeIngresosPage() {
             <h2>Comparación</h2>
             <table>
               <thead>
-                <tr><th>Concepto</th><th>{etiquetaA}</th><th>{etiquetaB}</th><th>Diferencia</th><th>Variación</th></tr>
+                <tr><th>Concepto</th><th className="informe-num">{etiquetaA}</th><th className="informe-num">{etiquetaB}</th><th className="informe-num">Diferencia</th><th className="informe-num">Variación</th></tr>
               </thead>
               <tbody>
                 {filasComparar.map((f, i) => {
@@ -511,12 +446,12 @@ export default function InformeIngresosPage() {
                     ),
                     <tr key={`${f.grupo}-${f.concepto}`} className={f.grupo === 'total' ? 'informe-fila-total' : undefined}>
                       <td>{ETIQUETA_FUENTE[f.concepto] ?? f.concepto}</td>
-                      <td>{formatoMoneda(f.a)}</td>
-                      <td>{formatoMoneda(f.b)}</td>
-                      <td className={f.diferencia < 0 ? 'informe-negativo' : f.diferencia > 0 ? 'informe-positivo' : undefined}>
+                      <td className="informe-num">{formatoMoneda(f.a)}</td>
+                      <td className="informe-num">{formatoMoneda(f.b)}</td>
+                      <td className={`informe-num${f.diferencia < 0 ? ' informe-negativo' : f.diferencia > 0 ? ' informe-positivo' : ''}`}>
                         {f.diferencia > 0 ? '+' : ''}{formatoMoneda(f.diferencia)}
                       </td>
-                      <td>{formatoVariacion(f.variacion)}</td>
+                      <td className="informe-num">{formatoVariacion(f.variacion)}</td>
                     </tr>,
                   ]
                 })}

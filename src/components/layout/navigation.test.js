@@ -112,4 +112,12 @@ describe('sección Informes', () => {
     expect(paginaVisibleParaRol('informe-ingresos', ROL_ENCARGADO_DEPOSITO)).toBe(false)
     expect(paginaVisibleParaRol('informe-ingresos', ROL_COMPRAS_PROVEEDORES)).toBe(false)
   })
+
+  it('el informe de egresos lo ven Administrador y Tesorero, nadie más', () => {
+    expect(paginaVisibleParaRol('informe-egresos', ROL_ADMINISTRADOR)).toBe(true)
+    expect(paginaVisibleParaRol('informe-egresos', ROL_TESORERO)).toBe(true)
+    expect(paginaVisibleParaRol('informe-egresos', ROL_VENDEDOR)).toBe(false)
+    expect(paginaVisibleParaRol('informe-egresos', ROL_ENCARGADO_DEPOSITO)).toBe(false)
+    expect(paginaVisibleParaRol('informe-egresos', ROL_COMPRAS_PROVEEDORES)).toBe(false)
+  })
 })
