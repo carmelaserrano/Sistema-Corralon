@@ -25,6 +25,7 @@ import {
   Users,
   Wallet,
   BarChart3,
+  Scale,
   TrendingUp,
   TrendingDown,
 } from 'lucide-react'
@@ -139,6 +140,7 @@ export const navigationGroups = [
     icon: BarChart3,
     module: 'Informes',
     items: [
+      { id: 'informe-balance', label: 'Balance', icon: Scale, roles: [ROL_TESORERO] },
       { id: 'informe-ingresos', label: 'Ingresos', icon: TrendingUp, roles: [ROL_TESORERO] },
       { id: 'informe-egresos', label: 'Egresos', icon: TrendingDown, roles: [ROL_TESORERO] },
     ],

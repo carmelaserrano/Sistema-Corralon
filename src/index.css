@@ -3456,6 +3456,79 @@ td button:hover:not(:disabled),
   box-shadow: var(--shadow-2);
 }
 
+.informe-grid-2 {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: var(--space-4);
+}
+
+/* Las dos tarjetas de la fila quedan con la misma altura (stretch, el
+   default de grid); la de la torta centra su contenido en ese alto. */
+.informe-grid-2 > .informe-bloque {
+  display: flex;
+  flex-direction: column;
+}
+
+.informe-grid-2 > .informe-bloque > .grafico-torta {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+}
+
+@media (max-width: 900px) {
+  .informe-grid-2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.grafico-torta {
+  min-width: 0;
+}
+
+.grafico-torta-lienzo {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+
+.grafico-torta-lienzo svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.grafico-torta-fondo {
+  stroke: var(--border-default);
+}
+
+.grafico-torta-lienzo circle {
+  transition: opacity 120ms ease;
+}
+
+.grafico-torta-total {
+  fill: var(--text-primary);
+  font-size: 20px;
+  font-weight: 750;
+}
+
+.grafico-torta-total-label {
+  fill: var(--text-muted);
+  font-size: 11px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.grafico-torta-detalle {
+  min-height: 1.2em;
+  margin: var(--space-2) 0 0;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-weight: 650;
+}
+
 @media (max-width: 760px) {
   .informe-periodos {
     grid-template-columns: 1fr;
