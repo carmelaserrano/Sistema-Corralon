@@ -109,7 +109,11 @@ export default function InformeIngresosPage() {
   const periodos = useMemo(() => agruparPorPeriodo(ingresos), [ingresos])
   const porSucursal = useMemo(() => agruparPorSucursal(ingresos), [ingresos])
   const kpis = indicadores(periodos)
+  const redondear = (n) => Math.round(n * 100) / 100
+  const totalFuente = (fuente) => redondear(periodos.reduce((suma, p) => suma + (p.porFuente[fuente] ?? 0), 0))
+  const totalSucursal = (sucursal) => redondear(porSucursal.periodos.reduce((suma, p) => suma + (p.porSucursal[sucursal] ?? 0), 0))
   const facturadoPorPeriodo = useMemo(() => resumenFacturado(facturado), [facturado])
+  const totalFacturado = (campo) => Math.round(facturadoPorPeriodo.reduce((suma, p) => suma + p[campo], 0) * 100) / 100
   const fuentesConDatos = FUENTES.filter((f) => periodos.some((p) => p.porFuente[f.id]))
   const categorias = (compararSucursales ? porSucursal.periodos : periodos).map((p) => ({
     id: p.inicio, label: etiquetaPeriodo(p.inicio, p.fin, agrupacion),
@@ -314,32 +318,46 @@ export default function InformeIngresosPage() {
             {compararSucursales ? (
               <table>
                 <thead>
-                  <tr><th>Período</th>{porSucursal.sucursales.map((s) => <th key={s.id}>{s.nombre}</th>)}<th>Total</th></tr>
+                  <tr><th>Período</th>{porSucursal.sucursales.map((s) => <th key={s.id} className="informe-num">{s.nombre}</th>)}<th className="informe-num">Total</th></tr>
                 </thead>
                 <tbody>
                   {porSucursal.periodos.map((p) => (
                     <tr key={p.inicio}>
                       <td>{etiquetaPeriodo(p.inicio, p.fin, agrupacion)}</td>
-                      {porSucursal.sucursales.map((s) => <td key={s.id}>{formatoMoneda(p.porSucursal[s.id] ?? 0)}</td>)}
-                      <td><strong>{formatoMoneda(Object.values(p.porSucursal).reduce((a, b) => a + b, 0))}</strong></td>
+                      {porSucursal.sucursales.map((s) => <td key={s.id} className="informe-num">{formatoMoneda(p.porSucursal[s.id] ?? 0)}</td>)}
+                      <td className="informe-num"><strong>{formatoMoneda(Object.values(p.porSucursal).reduce((a, b) => a + b, 0))}</strong></td>
                     </tr>
                   ))}
                 </tbody>
+                <tfoot>
+                  <tr>
+                    <th scope="row">Total</th>
+                    {porSucursal.sucursales.map((s) => <td key={s.id} className="informe-num">{formatoMoneda(totalSucursal(s.id))}</td>)}
+                    <td className="informe-num">{formatoMoneda(kpis.total)}</td>
+                  </tr>
+                </tfoot>
               </table>
             ) : (
               <table>
                 <thead>
-                  <tr><th>Período</th>{FUENTES.map((f) => <th key={f.id}>{f.label}</th>)}<th>Total</th></tr>
+                  <tr><th>Período</th>{FUENTES.map((f) => <th key={f.id} className="informe-num">{f.label}</th>)}<th className="informe-num">Total</th></tr>
                 </thead>
                 <tbody>
                   {periodos.map((p) => (
                     <tr key={p.inicio}>
                       <td>{etiquetaPeriodo(p.inicio, p.fin, agrupacion)}</td>
-                      {FUENTES.map((f) => <td key={f.id}>{formatoMoneda(p.porFuente[f.id] ?? 0)}</td>)}
-                      <td><strong>{formatoMoneda(p.total)}</strong></td>
+                      {FUENTES.map((f) => <td key={f.id} className="informe-num">{formatoMoneda(p.porFuente[f.id] ?? 0)}</td>)}
+                      <td className="informe-num"><strong>{formatoMoneda(p.total)}</strong></td>
                     </tr>
                   ))}
                 </tbody>
+                <tfoot>
+                  <tr>
+                    <th scope="row">Total</th>
+                    {FUENTES.map((f) => <td key={f.id} className="informe-num">{formatoMoneda(totalFuente(f.id))}</td>)}
+                    <td className="informe-num">{formatoMoneda(kpis.total)}</td>
+                  </tr>
+                </tfoot>
               </table>
             )}
           </section>
@@ -355,19 +373,27 @@ export default function InformeIngresosPage() {
             ) : (
               <table>
                 <thead>
-                  <tr><th>Período</th><th>Facturas</th><th>Notas de crédito</th><th>Notas de débito</th><th>Neto facturado</th></tr>
+                  <tr><th>Período</th><th className="informe-num">Facturas</th><th className="informe-num">Notas de crédito</th><th className="informe-num">Notas de débito</th><th className="informe-num">Neto facturado</th></tr>
                 </thead>
                 <tbody>
                   {facturadoPorPeriodo.map((p) => (
                     <tr key={p.inicio}>
                       <td>{etiquetaPeriodo(p.inicio, p.fin, agrupacion)}</td>
-                      <td>{formatoMoneda(p.factura)}</td>
-                      <td>{formatoMoneda(p.nota_credito)}</td>
-                      <td>{formatoMoneda(p.nota_debito)}</td>
-                      <td><strong>{formatoMoneda(p.neto)}</strong></td>
+                      <td className="informe-num">{formatoMoneda(p.factura)}</td>
+                      <td className="informe-num">{formatoMoneda(p.nota_credito)}</td>
+                      <td className="informe-num">{formatoMoneda(p.nota_debito)}</td>
+                      <td className="informe-num"><strong>{formatoMoneda(p.neto)}</strong></td>
                     </tr>
                   ))}
                 </tbody>
+                <tfoot>
+                  <tr>
+                    <th scope="row">Total</th>
+                    {['factura', 'nota_credito', 'nota_debito', 'neto'].map((campo) => (
+                      <td key={campo} className="informe-num">{formatoMoneda(totalFacturado(campo))}</td>
+                    ))}
+                  </tr>
+                </tfoot>
               </table>
             )}
           </section>
@@ -409,7 +435,7 @@ export default function InformeIngresosPage() {
             <h2>Comparación</h2>
             <table>
               <thead>
-                <tr><th>Concepto</th><th>{etiquetaA}</th><th>{etiquetaB}</th><th>Diferencia</th><th>Variación</th></tr>
+                <tr><th>Concepto</th><th className="informe-num">{etiquetaA}</th><th className="informe-num">{etiquetaB}</th><th className="informe-num">Diferencia</th><th className="informe-num">Variación</th></tr>
               </thead>
               <tbody>
                 {filasComparar.map((f, i) => {
@@ -420,12 +446,12 @@ export default function InformeIngresosPage() {
                     ),
                     <tr key={`${f.grupo}-${f.concepto}`} className={f.grupo === 'total' ? 'informe-fila-total' : undefined}>
                       <td>{ETIQUETA_FUENTE[f.concepto] ?? f.concepto}</td>
-                      <td>{formatoMoneda(f.a)}</td>
-                      <td>{formatoMoneda(f.b)}</td>
-                      <td className={f.diferencia < 0 ? 'informe-negativo' : f.diferencia > 0 ? 'informe-positivo' : undefined}>
+                      <td className="informe-num">{formatoMoneda(f.a)}</td>
+                      <td className="informe-num">{formatoMoneda(f.b)}</td>
+                      <td className={`informe-num${f.diferencia < 0 ? ' informe-negativo' : f.diferencia > 0 ? ' informe-positivo' : ''}`}>
                         {f.diferencia > 0 ? '+' : ''}{formatoMoneda(f.diferencia)}
                       </td>
-                      <td>{formatoVariacion(f.variacion)}</td>
+                      <td className="informe-num">{formatoVariacion(f.variacion)}</td>
                     </tr>,
                   ]
                 })}

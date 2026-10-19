@@ -44,6 +44,18 @@ describe('InformeIngresosPage', () => {
     expect(obtenerIngresos).toHaveBeenCalledWith(expect.objectContaining({ agrupacion: 'mes', sucursales: [], medios: [] }))
   })
 
+  it('cierra el detalle y lo facturado con una fila de totales y alinea los importes a la derecha', async () => {
+    render(<InformeIngresosPage />)
+    await screen.findByText('Total cobrado')
+
+    const pies = [...document.querySelectorAll('tfoot tr')].map((tr) =>
+      [...tr.querySelectorAll('th, td')].map((c) => c.textContent.replace(/\s/g, ' ')))
+    // Detalle: mostrador 1000 + 2000, tienda 500, total 3500. Facturado: una factura de 2600.
+    expect(pies[0]).toEqual(['Total', '$ 3.000,00', '$ 0,00', '$ 500,00', '$ 0,00', '$ 3.500,00'])
+    expect(pies[1]).toEqual(['Total', '$ 2.600,00', '$ 0,00', '$ 0,00', '$ 2.600,00'])
+    expect(screen.getByRole('columnheader', { name: 'Mostrador' })).toHaveClass('informe-num')
+  })
+
   it('al elegir un atajo y una sucursal vuelve a consultar con esos filtros', async () => {
     render(<InformeIngresosPage />)
     await screen.findByText('Total cobrado')
