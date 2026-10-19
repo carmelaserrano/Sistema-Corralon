@@ -19,9 +19,25 @@ function topeEje(maximo) {
 /** Montos cortos para el eje: $ 1,2 M · $ 350 k · $ 800. */
 function montoCorto(valor) {
   const abs = Math.abs(valor)
-  if (abs >= 1_000_000) return `$ ${(valor / 1_000_000).toLocaleString('es-AR', { maximumFractionDigits: 2 })} M`
-  if (abs >= 1_000) return `$ ${(valor / 1_000).toLocaleString('es-AR', { maximumFractionDigits: 1 })} k`
-  return `$ ${valor.toLocaleString('es-AR', { maximumFractionDigits: 0 })}`
+  // El signo va antes del "$", como en el resto de los montos (-$ 2,5 M).
+  const signo = valor < 0 ? '-' : ''
+  if (abs >= 1_000_000) return `${signo}$ ${(abs / 1_000_000).toLocaleString('es-AR', { maximumFractionDigits: 2 })} M`
+  if (abs >= 1_000) return `${signo}$ ${(abs / 1_000).toLocaleString('es-AR', { maximumFractionDigits: 1 })} k`
+  return `${signo}$ ${abs.toLocaleString('es-AR', { maximumFractionDigits: 0 })}`
+}
+
+/**
+ * Escala del eje Y. Sin negativos queda como siempre: de 0 a un tope redondo,
+ * en cuartos. Con negativos (p. ej. un resultado con déficit) el eje baja de
+ * cero con el mismo paso, y las barras negativas se dibujan hacia abajo.
+ */
+function escalaEje(maximo, minimo) {
+  if (minimo >= 0) {
+    const tope = topeEje(maximo)
+    return { piso: 0, tope, paso: tope / 4 }
+  }
+  const paso = topeEje(maximo - minimo) / 4
+  return { piso: -Math.ceil(-minimo / paso) * paso, tope: Math.ceil(maximo / paso) * paso, paso }
 }
 
 /** Rectángulo con las esquinas de arriba redondeadas (punta de dato); base recta. */
@@ -29,6 +45,14 @@ function rutaBarra(x, y, ancho, alto, radio) {
   const r = Math.min(radio, ancho / 2, alto)
   if (alto <= 0) return ''
   return `M${x},${y + alto} L${x},${y + r} Q${x},${y} ${x + r},${y} L${x + ancho - r},${y} Q${x + ancho},${y} ${x + ancho},${y + r} L${x + ancho},${y + alto} Z`
+}
+
+/** Barra negativa: base recta arriba (en el cero) y punta redondeada abajo. */
+function rutaBarraNegativa(x, y, ancho, alto, radio) {
+  const r = Math.min(radio, ancho / 2, alto)
+  if (alto <= 0) return ''
+  const fondo = y + alto
+  return `M${x},${y} L${x + ancho},${y} L${x + ancho},${fondo - r} Q${x + ancho},${fondo} ${x + ancho - r},${fondo} L${x + r},${fondo} Q${x},${fondo} ${x},${fondo - r} Z`
 }
 
 /**
@@ -61,13 +85,17 @@ export default function GraficoBarras({ categorias, series, valor, modo = 'apila
   const anchoPlot = ANCHO - MARGEN.izquierda - MARGEN.derecha
   const altoPlot = ALTO - MARGEN.arriba - MARGEN.abajo
   const totalCategoria = (c) => series.reduce((s, serie) => s + (valor(c.id, serie.id) || 0), 0)
-  const maximo = modo === 'apilado'
-    ? Math.max(0, ...categorias.map(totalCategoria))
-    : Math.max(0, ...categorias.flatMap((c) => series.map((s) => valor(c.id, s.id) || 0)))
-  const tope = topeEje(maximo)
-  const escalaY = (v) => (v / tope) * altoPlot
+  // El modo apilado suma tramos positivos; el agrupado admite negativos.
+  const valores = modo === 'apilado'
+    ? categorias.map(totalCategoria)
+    : categorias.flatMap((c) => series.map((s) => valor(c.id, s.id) || 0))
+  const { piso, tope, paso } = escalaEje(Math.max(0, ...valores), modo === 'apilado' ? 0 : Math.min(0, ...valores))
+  // Posición vertical de un monto y altura de un monto (siempre positiva).
+  const posY = (v) => MARGEN.arriba + ((tope - v) / (tope - piso)) * altoPlot
+  const escalaY = (v) => (Math.abs(v) / (tope - piso)) * altoPlot
+  const cero = posY(0)
   const anchoBanda = anchoPlot / Math.max(categorias.length, 1)
-  const marcas = [0, 0.25, 0.5, 0.75, 1].map((p) => p * tope)
+  const marcas = Array.from({ length: Math.round((tope - piso) / paso) + 1 }, (_, i) => piso + i * paso)
   // Si hay muchas categorías, el eje muestra una de cada N etiquetas.
   const pasoEtiqueta = Math.ceil(categorias.length / 12)
 
@@ -85,10 +113,10 @@ export default function GraficoBarras({ categorias, series, valor, modo = 'apila
       <div className="grafico-lienzo" ref={lienzoRef}>
         <svg viewBox={`0 0 ${ANCHO} ${ALTO}`} width={ANCHO} height={ALTO} role="img" aria-label={titulo}>
           {/* Grilla y eje Y, en tono recesivo */}
-          {marcas.map((m) => {
-            const y = MARGEN.arriba + altoPlot - escalaY(m)
+          {marcas.map((m, i) => {
+            const y = posY(m)
             return (
-              <g key={m}>
+              <g key={i}>
                 <line x1={MARGEN.izquierda} x2={ANCHO - MARGEN.derecha} y1={y} y2={y} className="grafico-grilla" />
                 <text x={MARGEN.izquierda - 8} y={y} className="grafico-eje" textAnchor="end" dominantBaseline="middle">
                   {montoCorto(m)}
@@ -99,7 +127,7 @@ export default function GraficoBarras({ categorias, series, valor, modo = 'apila
 
           {categorias.map((c, i) => {
             const x0 = MARGEN.izquierda + i * anchoBanda
-            const base = MARGEN.arriba + altoPlot
+            const base = cero
             const marcasCategoria = []
 
             if (modo === 'apilado') {
@@ -145,10 +173,10 @@ export default function GraficoBarras({ categorias, series, valor, modo = 'apila
                 marcasCategoria.push(
                   <path
                     key={s.id}
-                    d={rutaBarra(x, base - alto, ancho, alto, 4)}
+                    d={v < 0 ? rutaBarraNegativa(x, base, ancho, alto, 4) : rutaBarra(x, base - alto, ancho, alto, 4)}
                     fill={s.color}
                     className={foco && (foco.categoria !== c.id || foco.serie !== s.id) ? 'grafico-atenuado' : undefined}
-                    onMouseEnter={() => setFoco({ categoria: c.id, serie: s.id, x: x + ancho / 2, y: base - alto, texto: `${c.label} · ${s.label}: ${formato(v)}` })}
+                    onMouseEnter={() => setFoco({ categoria: c.id, serie: s.id, x: x + ancho / 2, y: v < 0 ? base : base - alto, texto: `${c.label} · ${s.label}: ${formato(v)}` })}
                     onMouseLeave={() => setFoco(null)}
                   />,
                 )
@@ -167,7 +195,7 @@ export default function GraficoBarras({ categorias, series, valor, modo = 'apila
             )
           })}
 
-          <line x1={MARGEN.izquierda} x2={ANCHO - MARGEN.derecha} y1={MARGEN.arriba + altoPlot} y2={MARGEN.arriba + altoPlot} className="grafico-base" />
+          <line x1={MARGEN.izquierda} x2={ANCHO - MARGEN.derecha} y1={cero} y2={cero} className="grafico-base" />
         </svg>
 
         {foco && (

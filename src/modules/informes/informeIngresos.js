@@ -192,7 +192,9 @@ export function indicadores(periodos) {
 /** Variación porcentual de B respecto de A; null si A es 0. */
 export function variacion(a, b) {
   if (!a) return null
-  return Math.round(((b - a) / a) * 1000) / 10
+  // Sobre el valor absoluto: si A es negativo (p. ej. un resultado con
+  // pérdida), mejorar hacia B da una variación positiva y empeorar, negativa.
+  return Math.round(((b - a) / Math.abs(a)) * 1000) / 10
 }
 
 /**

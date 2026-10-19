@@ -42,6 +42,12 @@ vi.mock('../api/proveedoresApi', () => ({
 
 vi.mock('../api/rubrosApi', () => ({
   getRubros: vi.fn(),
+  // Los usa RubrosPage, que se abre desde "Ver rubros".
+  puedeGestionarRubros: vi.fn(() => Promise.resolve(true)),
+  createRubro: vi.fn(),
+  updateRubro: vi.fn(),
+  darDeBajaRubro: vi.fn(),
+  reactivarRubro: vi.fn(),
 }))
 
 vi.mock('../api/contactosApi', () => ({
@@ -857,5 +863,30 @@ describe('ProveedoresPage', () => {
         screen.queryByText(/Sólo podés consultar los contactos/),
       ).not.toBeInTheDocument()
     })
+  })
+})
+
+describe('ProveedoresPage · Ver rubros', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    puedeAltaProveedores.mockResolvedValue(true)
+    puedeModificarProveedores.mockResolvedValue(true)
+    puedeCambiarEstadoProveedores.mockResolvedValue(true)
+    getProveedores.mockResolvedValue(paginaDe([corralon]))
+    getHistorialEstadoProveedor.mockResolvedValue([])
+    getRubros.mockResolvedValue([{ id: 'r1', nombre: 'Cemento', activo: true, proveedores_asociados: 1 }])
+  })
+
+  it('abre la gestión de rubros dentro de Proveedores y vuelve recargando los rubros', async () => {
+    render(<ProveedoresPage />)
+    await screen.findByText('Corralón San Martín S.A.')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ver rubros' }))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Rubros de proveedor' })).toBeInTheDocument()
+
+    const llamadasAntes = getRubros.mock.calls.length
+    fireEvent.click(screen.getByRole('button', { name: 'Volver a proveedores' }))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Proveedores' })).toBeInTheDocument()
+    await waitFor(() => expect(getRubros.mock.calls.length).toBeGreaterThan(llamadasAntes))
   })
 })

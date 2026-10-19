@@ -12,6 +12,7 @@ import {
   updateProveedor,
 } from '../api/proveedoresApi'
 import { getRubros } from '../api/rubrosApi'
+import RubrosPage from './RubrosPage'
 import { cuitEsValido, formatearCuit } from '../cuit'
 import ContactosProveedor from '../components/ContactosProveedor'
 import Button from '../../../components/ui/Button'
@@ -426,6 +427,16 @@ function ProveedoresPage() {
     Boolean(filtroRubroId) ||
     filtroEstado !== 'activo'
 
+  // Rubros se gestiona también desde acá ("Ver rubros"), sin salir de
+  // Proveedores. Al volver se recargan para que el filtro y el formulario
+  // muestren los rubros nuevos o editados.
+  const [verRubros, setVerRubros] = useState(false)
+
+  function volverDeRubros() {
+    setVerRubros(false)
+    cargarRubros()
+  }
+
   function exportarCsv() {
     if (proveedores.length === 0) {
       showToast({ message: 'No hay proveedores para exportar', tone: 'warning' })
@@ -460,6 +471,8 @@ function ProveedoresPage() {
   const totalActivos = proveedores.filter((p) => p.estado === 'activo').length
   const totalInactivos = proveedores.filter((p) => p.estado === 'inactivo').length
 
+  if (verRubros) return <RubrosPage onVolver={volverDeRubros} />
+
   return (
     <main>
       <PageHeader
@@ -467,6 +480,12 @@ function ProveedoresPage() {
         kicker="Módulo Proveedores"
         description="Padrón de proveedores comerciales, datos fiscales y condiciones de pago habituales."
         actions={[
+          {
+            label: 'Ver rubros',
+            icon: Tags,
+            onClick: () => setVerRubros(true),
+            className: 'button-destacado',
+          },
           {
             label: 'Exportar CSV',
             icon: Download,

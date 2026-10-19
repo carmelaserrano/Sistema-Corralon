@@ -74,7 +74,6 @@ describe('Sidebar', () => {
     ).toEqual([
       'Compras',
       'Proveedores',
-      'Rubros',
       'Órdenes de Compra',
       'Recepciones',
       'Notas de Crédito/Débito',
@@ -85,7 +84,7 @@ describe('Sidebar', () => {
 
     fireEvent.click(seccion('Compras'))
     expect(seccion('Compras')).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.queryByRole('button', { name: 'Rubros' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Proveedores' })).not.toBeInTheDocument()
   })
 
   it('al remontar abre solo la sección de la página activa', () => {
