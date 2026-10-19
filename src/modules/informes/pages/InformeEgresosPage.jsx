@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeftRight, BarChart3, CalendarRange, FileDown, FileSpreadsheet, TrendingDown, Trophy } from 'lucide-react'
+import { ArrowLeftRight, BarChart3, CalendarRange, FileDown, FileSpreadsheet, Flame, TrendingDown, TrendingUp } from 'lucide-react'
 import PageHeader from '../../../components/ui/PageHeader'
 import KpiCard from '../../../components/ui/KpiCard'
 import Button from '../../../components/ui/Button'
@@ -296,7 +296,7 @@ export default function InformeEgresosPage() {
             <KpiCard
               label={`${agrupacion === 'mes' ? 'Mes' : 'Semana'} con más egresos`}
               value={kpis.mejor ? formatoMoneda(kpis.mejor.total) : '—'}
-              icon={Trophy}
+              icon={Flame}
               tone="danger"
               helperText={kpis.mejor ? etiquetaPeriodo(kpis.mejor.inicio, kpis.mejor.fin, agrupacion) : ''}
             />
@@ -359,7 +359,7 @@ export default function InformeEgresosPage() {
             <KpiCard
               label="Variación de B contra A"
               value={formatoVariacion(variacionTotal?.variacion ?? null)}
-              icon={TrendingDown}
+              icon={subio ? TrendingUp : TrendingDown}
               tone={subio ? 'danger' : 'success'}
               helperText={`${subio ? '+' : ''}${formatoMoneda(variacionTotal?.diferencia ?? 0)}`}
             />
