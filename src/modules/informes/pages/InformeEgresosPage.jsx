@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeftRight, BarChart3, CalendarRange, FileDown, FileSpreadsheet, Flame, TrendingDown, TrendingUp } from 'lucide-react'
+import { ArrowLeftRight, BarChart3, CalendarRange, FileDown, FileSpreadsheet, Flame, Info, TrendingDown, TrendingUp } from 'lucide-react'
 import PageHeader from '../../../components/ui/PageHeader'
 import KpiCard from '../../../components/ui/KpiCard'
 import Button from '../../../components/ui/Button'
@@ -220,17 +220,22 @@ export default function InformeEgresosPage() {
         }
       />
 
-      <ul className="informe-nota">
-        <li>
-          Las órdenes de pago a proveedores ya se cuentan solas: si una se pagó en efectivo desde la caja, no la registres
-          además como egreso de caja porque se contaría dos veces.
-        </li>
-        <li>
-          Los traslados de dinero (por ejemplo, depositar efectivo en el banco o pasar plata entre cajas) se registran hoy
-          como egresos de caja y están incluidos.
-        </li>
-        <li>Las devoluciones de dinero a clientes figuran como egresos de caja.</li>
-      </ul>
+      <details className="informe-callout">
+        <summary>
+          <Info size={16} aria-hidden="true" /> ¿Qué incluye este informe?
+        </summary>
+        <ul>
+          <li>
+            Las órdenes de pago a proveedores ya se cuentan solas: si una se pagó en efectivo desde la caja, no la registres
+            además como egreso de caja porque se contaría dos veces.
+          </li>
+          <li>
+            Los traslados de dinero (por ejemplo, depositar efectivo en el banco o pasar plata entre cajas) se registran hoy
+            como egresos de caja y están incluidos.
+          </li>
+          <li>Las devoluciones de dinero a clientes figuran como egresos de caja.</li>
+        </ul>
+      </details>
 
       <div className="tabs" role="tablist" aria-label="Modo del informe">
         <button type="button" role="tab" aria-selected={modo === 'evolucion'} onClick={() => setModo('evolucion')}>

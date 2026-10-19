@@ -39,6 +39,9 @@ describe('InformeEgresosPage', () => {
     expect(screen.getByRole('columnheader', { name: 'Egresos de caja' })).toBeInTheDocument()
     expect(screen.getByText(/ya se cuentan solas/)).toBeInTheDocument()
     expect(screen.getByText(/traslados de dinero/)).toBeInTheDocument()
+    // Las aclaraciones vienen plegadas: una sola línea hasta que se abren.
+    const callout = screen.getByText('¿Qué incluye este informe?').closest('details')
+    expect(callout).not.toHaveAttribute('open')
     expect(obtenerEgresos).toHaveBeenCalledWith(expect.objectContaining({ agrupacion: 'mes', sucursales: [], medios: [] }))
   })
 
