@@ -42,6 +42,19 @@ describe('InformeEgresosPage', () => {
     expect(obtenerEgresos).toHaveBeenCalledWith(expect.objectContaining({ agrupacion: 'mes', sucursales: [], medios: [] }))
   })
 
+  it('cierra el detalle con una fila de totales por columna y alinea los importes a la derecha', async () => {
+    render(<InformeEgresosPage />)
+    await screen.findByText('Total pagado')
+
+    const pie = document.querySelector('tfoot tr')
+    expect(pie).toBeInTheDocument()
+    const celdas = [...pie.querySelectorAll('th, td')].map((c) => c.textContent.replace(/\s/g, ' '))
+    // Proveedores 1000 + 2000, caja 500, total general 3500.
+    expect(celdas).toEqual(['Total', '$ 3.000,00', '$ 500,00', '$ 3.500,00'])
+    expect(screen.getByRole('columnheader', { name: 'Pagos a proveedores' })).toHaveClass('informe-num')
+    expect(pie.querySelectorAll('td.informe-num')).toHaveLength(3)
+  })
+
   it('al elegir un atajo y una sucursal vuelve a consultar y avisa de los pagos a proveedores', async () => {
     render(<InformeEgresosPage />)
     await screen.findByText('Total pagado')

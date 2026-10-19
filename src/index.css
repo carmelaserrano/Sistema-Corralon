@@ -3310,6 +3310,22 @@ td button:hover:not(:disabled),
   font-weight: 750;
 }
 
+/* Importes alineados a la derecha, con cifras de ancho fijo para compararlos de un vistazo. */
+.informe-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.informe-bloque tfoot th,
+.informe-bloque tfoot td {
+  border-top: 2px solid var(--border-default);
+  border-bottom: 0;
+  background: var(--surface-subtle);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 750;
+}
+
 .informe-positivo {
   color: var(--color-success) !important;
 }
