@@ -26,6 +26,7 @@ import {
   Wallet,
   BarChart3,
   TrendingUp,
+  TrendingDown,
 } from 'lucide-react'
 
 // Roles canónicos del sistema (issue CA-01). "Cliente Web" no es un rol
@@ -139,6 +140,7 @@ export const navigationGroups = [
     module: 'Informes',
     items: [
       { id: 'informe-ingresos', label: 'Ingresos', icon: TrendingUp, roles: [ROL_TESORERO] },
+      { id: 'informe-egresos', label: 'Egresos', icon: TrendingDown, roles: [ROL_TESORERO] },
     ],
   },
   {
