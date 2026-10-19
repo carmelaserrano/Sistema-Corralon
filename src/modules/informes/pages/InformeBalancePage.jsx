@@ -355,7 +355,12 @@ export default function InformeBalancePage() {
 
             <section className="informe-bloque">
               <h2>Composición del rango</h2>
-              <GraficoTorta datos={donutDatos} formato={formatoMoneda} titulo="Ingresos y egresos del rango seleccionado" />
+              <GraficoTorta
+                datos={donutDatos}
+                formato={formatoMoneda}
+                titulo="Ingresos y egresos del rango seleccionado"
+                centro={{ valor: kpis.resultado, etiqueta: 'Resultado neto' }}
+              />
             </section>
           </div>
 

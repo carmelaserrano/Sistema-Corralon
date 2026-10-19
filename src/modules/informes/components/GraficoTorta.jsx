@@ -10,7 +10,10 @@ const RADIO = 78
 const GROSOR = 34
 const CIRCUNFERENCIA = 2 * Math.PI * RADIO
 
-export default function GraficoTorta({ datos, formato, titulo }) {
+// `centro`: qué mostrar en el medio. Por defecto, la suma de las porciones;
+// cuando sumarlas no tiene sentido (ingresos + egresos) se pasa otro valor,
+// como el resultado neto.
+export default function GraficoTorta({ datos, formato, titulo, centro }) {
   const [foco, setFoco] = useState(null)
   const total = datos.reduce((suma, d) => suma + (d.valor || 0), 0)
 
@@ -65,10 +68,10 @@ export default function GraficoTorta({ datos, formato, titulo }) {
             ))}
           </g>
           <text x={CENTRO} y={CENTRO - 6} textAnchor="middle" className="grafico-torta-total">
-            {formato(total)}
+            {formato(centro ? centro.valor : total)}
           </text>
           <text x={CENTRO} y={CENTRO + 14} textAnchor="middle" className="grafico-torta-total-label">
-            Total
+            {centro ? centro.etiqueta : 'Total'}
           </text>
         </svg>
 

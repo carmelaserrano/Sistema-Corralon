@@ -92,6 +92,9 @@ describe('comparación de períodos', () => {
     expect(variacion(1000, 1250)).toBe(25)
     expect(variacion(1000, 500)).toBe(-50)
     expect(variacion(0, 500)).toBeNull()
+    // Con A negativo (pérdida), mejorar da positivo y empeorar, negativo.
+    expect(variacion(-1000, 500)).toBe(150)
+    expect(variacion(-1000, -1500)).toBe(-50)
   })
 
   it('arma total, promedio por día y desgloses lado a lado', () => {
