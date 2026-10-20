@@ -66,7 +66,7 @@ describe('App', () => {
     expect(screen.getByRole('heading', { name: 'Ingresar' })).toBeInTheDocument()
   })
 
-  it('CA-04: sesión sin fila interna activa desloguea y redirige a /tienda, sin mostrar el backoffice', async () => {
+  it('CA-04: cliente web redirige a /tienda sin cerrar la sesión compartida ni mostrar backoffice', async () => {
     const signOut = vi.fn().mockResolvedValue({})
     useAuth.mockReturnValue({
       session: { user: { id: 'u-web', email: 'cliente@web.com' } },
@@ -82,8 +82,8 @@ describe('App', () => {
 
     const { container } = render(<App />)
 
-    await waitFor(() => expect(signOut).toHaveBeenCalled())
     await waitFor(() => expect(window.location.href).toBe('/tienda'))
+    expect(signOut).not.toHaveBeenCalled()
     expect(container).toBeEmptyDOMElement()
 
     window.location = originalLocation

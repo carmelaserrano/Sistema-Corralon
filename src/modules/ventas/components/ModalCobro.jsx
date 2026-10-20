@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Button from '../../../components/ui/Button'
 import Feedback from '../../../components/ui/Feedback'
+import { obtenerSesionCajaActiva } from '../../tesoreria/api/cajasApi'
 import {
   esCuentaCorriente,
   esEfectivo,
@@ -127,6 +128,9 @@ export default function ModalCobro({ abierto, venta, onCobrado, onCancelar }) {
   const [error, setError] = useState('')
   const [exito, setExito] = useState('')
   const [resumenCtaCte, setResumenCtaCte] = useState(null)
+  const [sesionCaja, setSesionCaja] = useState(null)
+  const [cargandoCaja, setCargandoCaja] = useState(true)
+  const [errorCaja, setErrorCaja] = useState('')
   const siguienteId = useRef(2)
   const enviando = useRef(false)
 
@@ -186,6 +190,25 @@ export default function ModalCobro({ abierto, venta, onCobrado, onCancelar }) {
 
   useEffect(() => {
     if (!abierto) return undefined
+    let vigente = true
+    setSesionCaja(null)
+    setErrorCaja('')
+    setCargandoCaja(true)
+    obtenerSesionCajaActiva()
+      .then((sesion) => {
+        if (vigente) setSesionCaja(sesion)
+      })
+      .catch((err) => {
+        if (vigente) setErrorCaja(`No pudimos verificar tu caja activa. ${err.message || 'Volvé a abrir el cobro para reintentar.'}`)
+      })
+      .finally(() => {
+        if (vigente) setCargandoCaja(false)
+      })
+    return () => { vigente = false }
+  }, [abierto, venta?.id])
+
+  useEffect(() => {
+    if (!abierto) return undefined
     const cerrarConEscape = (evento) => {
       if (evento.key === 'Escape' && !enviando.current) onCancelar()
     }
@@ -207,7 +230,10 @@ export default function ModalCobro({ abierto, venta, onCobrado, onCancelar }) {
     ),
   )
   const ventaPendiente = venta?.estado === 'Pendiente'
+  const cajaValida = Boolean(sesionCaja?.id && sesionCaja.estado === 'abierta') && !cargandoCaja && !errorCaja
+  const puntoVenta = sesionCaja?.caja?.punto_venta
   const formularioValido =
+    cajaValida &&
     ventaPendiente &&
     !ventaCobrada &&
     lineas.length > 0 &&
@@ -278,7 +304,7 @@ export default function ModalCobro({ abierto, venta, onCobrado, onCancelar }) {
           referencia: linea.referencia,
         })),
       )
-      setExito(`Cobro N.º ${cobro.numero} registrado correctamente`)
+      setExito(`Cobro N.º ${cobro.numero} registrado correctamente. Factura generada automáticamente.`)
       setCobroConfirmado(true)
       onCobrado(cobro)
     } catch (err) {
@@ -322,7 +348,7 @@ export default function ModalCobro({ abierto, venta, onCobrado, onCancelar }) {
           </Button>
         </header>
 
-        {ventaCobrada && (
+        {ventaCobrada && !cobroConfirmado && (
           <Feedback tone="error">
             Esta venta ya tiene un cobro registrado.
           </Feedback>
@@ -337,6 +363,29 @@ export default function ModalCobro({ abierto, venta, onCobrado, onCancelar }) {
         {error && <Feedback tone="error">{error}</Feedback>}
         {exito && <Feedback tone="success">{exito}</Feedback>}
 
+        <section className="cobro-caja" aria-labelledby="cobro-caja-titulo" aria-busy={cargandoCaja}>
+          <h3 id="cobro-caja-titulo">Caja activa</h3>
+          {cargandoCaja ? (
+            <p role="status">Consultando caja activa…</p>
+          ) : cajaValida ? (
+            <>
+              <strong>{sesionCaja.caja?.nombre || 'Nombre de caja no disponible'}</strong>
+              <dl>
+                <div><dt>Punto de venta</dt><dd>{puntoVenta
+                  ? `${String(puntoVenta.numero).padStart(4, '0')} · ${puntoVenta.nombre}`
+                  : 'No disponible'}</dd></div>
+                <div><dt>Cajero / responsable</dt><dd>{sesionCaja.responsable?.nombre || 'Nombre no disponible'}</dd></div>
+                <div><dt>Estado</dt><dd>Abierta</dd></div>
+              </dl>
+            </>
+          ) : (
+            <Feedback tone="error">
+              {errorCaja || 'No hay una caja abierta para registrar el cobro.'}
+              {!errorCaja && <span> Abrí una caja asignada a tu usuario en Tesorería &gt; Cajas.</span>}
+            </Feedback>
+          )}
+        </section>
+
         <form className="cobro-form" onSubmit={confirmarCobro}>
           <ol className="cobro-pasos">
             <li>Elegí el medio de pago.</li>
@@ -344,6 +393,7 @@ export default function ModalCobro({ abierto, venta, onCobrado, onCancelar }) {
             <li>Completá los datos que pide cada medio.</li>
           </ol>
           <p className="cobro-nota">
+            Al confirmar se generará la factura automáticamente. Necesitás permisos de cobro y facturación, una caja abierta y un punto de venta activo.{' '}
             Si el cliente paga con más de un medio, usá «Agregar medio de pago». La suma
             de los importes tiene que ser igual al total de la venta.
           </p>

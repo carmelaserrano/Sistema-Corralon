@@ -1,4 +1,5 @@
 import { supabase } from '../../../lib/supabaseClient'
+import { MEDIOS_PAGO_MOCK } from '../mediosPagoMock'
 
 async function errorFuncion(error, mensaje) {
   try {
@@ -43,13 +44,16 @@ export async function iniciarPago(pedidoId) {
  * Envía una decisión de la pasarela simulada. La RPC valida propietario, vencimiento y modo demo.
  * @param {string} pedidoId ID del pedido.
  * @param {'approved'|'rejected'} estado Resultado elegido por QA.
+ * @param {'tarjeta'|'mercado_pago'|'transferencia'} medio Medio demo (tarjeta por defecto).
  * @returns {Promise<Object>} Pedido actualizado.
  */
-export async function resolverPagoSimulado(pedidoId, estado) {
+export async function resolverPagoSimulado(pedidoId, estado, medio = 'tarjeta') {
   if (!pedidoId) throw new Error('Falta el pedido a pagar')
   if (!['approved', 'rejected'].includes(estado)) throw new Error('Resultado de pago no válido')
+  if (!Object.hasOwn(MEDIOS_PAGO_MOCK, medio)) throw new Error('Medio de pago no válido')
   const { data, error } = await supabase.rpc('confirmar_pago_mock', {
     p_pedido: pedidoId, p_estado: estado,
+    ...(medio !== 'tarjeta' ? { p_medio: medio } : {}),
   })
   if (error) throw error
   if (!data?.id || (estado === 'approved' && data.estado !== 'Pagado')) {
@@ -78,7 +82,7 @@ export async function obtenerPedido(pedidoId) {
   if (!pedidoId) return null
   const { data, error } = await supabase
     .from('pedidos_web')
-    .select('id, numero, estado, total, tipo_entrega, pago_estado, pago_motivo, vence_at, referencia_pago, created_at')
+    .select('id, numero, estado, total, tipo_entrega, pago_estado, pago_motivo, vence_at, referencia_pago, pagado_at, created_at')
     .eq('id', pedidoId)
     .maybeSingle()
   if (error) throw error

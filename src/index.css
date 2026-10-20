@@ -1320,6 +1320,34 @@ td button,
   gap: var(--space-3);
 }
 
+.cobro-panel > .cobro-caja {
+  padding: 16px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--surface-subtle);
+  overflow-wrap: anywhere;
+}
+
+.cobro-caja h3 {
+  margin: 0 0 8px;
+}
+
+.cobro-caja dl {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  margin: 12px 0 0;
+}
+
+.cobro-caja dt {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.cobro-caja dd {
+  margin: 4px 0 0;
+}
+
 .cobro-linea {
   display: grid;
   gap: var(--space-3);
@@ -3153,6 +3181,15 @@ td button:hover:not(:disabled),
 .tienda-pago-mock-acciones { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 24px; }
 .tienda-pago-mock-acciones button { transition: transform 150ms ease; }
 .tienda-pago-mock-acciones button:active { transform: scale(.98); }
+.tienda-pago-metodos { display: flex; flex-wrap: wrap; gap: 12px; margin: 24px 0 12px; padding: 16px; border: 1px solid var(--border-default); border-radius: 12px; text-align: left; }
+.tienda-pago-metodos legend { padding: 0 6px; font-weight: 700; }
+.tienda-pago-metodos label { display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid #ddd; border-radius: 8px; cursor: pointer; }
+.tienda-pago-metodos label:has(input:checked) { border-color: #f26419; background: #fff4ec; }
+.tienda-pago-metodos input { width: auto; accent-color: #f26419; }
+.tienda-pago-alternativa { padding: 20px 0; }
+.tienda-pago-alternativa dl { display: grid; gap: 6px; text-align: left; overflow-wrap: anywhere; }
+.tienda-pago-alternativa dt { font-weight: 600; }
+.tienda-pago-alternativa dd { margin: 0 0 10px; }
 .tienda-pago-mock-spinner { animation: pago-mock-giro 900ms linear infinite; }
 .tienda-pago-mock-check { color: var(--color-success); animation: pago-mock-entrada 220ms ease-out; }
 @keyframes pago-mock-entrada { from { opacity: 0; transform: translateY(5px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }

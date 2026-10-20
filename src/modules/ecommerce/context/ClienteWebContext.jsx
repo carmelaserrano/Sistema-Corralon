@@ -30,6 +30,9 @@ export function ClienteWebProvider({ children }) {
   // misma promesa, así el registro pendiente se completa una sola vez.
   const enCurso = useRef({ usuarioId: undefined, promesa: null })
   const turno = useRef(0)
+  // INITIAL_SESSION es una instantánea inicial: nunca debe reemplazar una
+  // transición de Auth (o un ingreso explícito) recibida posteriormente.
+  const authActualizada = useRef(false)
 
   const cargar = useCallback((usuario) => {
     const usuarioId = usuario?.id ?? null
@@ -67,9 +70,12 @@ export function ClienteWebProvider({ children }) {
     let activo = true
     let evento = 0
     const { data: listener } = supabase.auth.onAuthStateChange((_evento, sesion) => {
+      if (_evento === 'INITIAL_SESSION' && authActualizada.current) return
+      if (_evento !== 'INITIAL_SESSION') authActualizada.current = true
       const actual = ++evento
       setTimeout(() => {
         if (!activo || actual !== evento || operacion.current) return
+        if (_evento === 'INITIAL_SESSION' && authActualizada.current) return
         const usuario = sesion?.user
         if (!usuario) { setPendiente(null); setErrorRegistro('') }
         cargar(usuario ?? null).catch((error) => {
@@ -96,6 +102,7 @@ export function ClienteWebProvider({ children }) {
    */
   const ingresar = useCallback(async (email, password) => {
     const usuario = await ingresarApi(email, password)
+    authActualizada.current = true
     let encontrado
     try {
       encontrado = await cargar(usuario)
@@ -105,7 +112,8 @@ export function ClienteWebProvider({ children }) {
         setErrorRegistro(error.message)
         return
       }
-      await salirApi().catch(() => {})
+      // Un fallo consultando clientes no invalida las credenciales ni debe
+      // cerrar la sesión de Auth; el usuario puede reintentar la consulta.
       throw error
     }
     if (!encontrado) {

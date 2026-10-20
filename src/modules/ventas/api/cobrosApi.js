@@ -67,13 +67,13 @@ export async function puedeRegistrarCobros() {
 }
 
 /**
- * Registra, de forma atómica, un cobro con uno o más medios de pago.
+ * Registra, de forma atómica, el cobro total y su factura con uno o más medios.
  *
  * @param {string} ventaId
  * @param {Array<{medio_pago_id: string, monto: number|string, monto_recibido?: number|string|null, referencia?: string|null}>} detalle
  * @returns {Promise<{venta_id: string, cobro_id: string, numero: number, total: number, fecha: string, created_by: string, cobrada: boolean, estado_venta: string}>}
  *   Cobro confirmado. `cobrada` describe el estado de pago; `estado_venta`
- *   conserva el estado operativo de la venta.
+ *   refleja el estado Facturada luego de la emisión automática.
  */
 export async function registrarCobro(ventaId, detalle) {
   if (!ventaId) throw errorDeApi('La venta es obligatoria', 400)

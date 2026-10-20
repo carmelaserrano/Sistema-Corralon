@@ -21,7 +21,8 @@ import { useCarrito } from '../context/CarritoContext'
 import { useClienteWeb } from '../context/ClienteWebContext'
 import { armarLineaDeTiempo, listarMisPedidos, obtenerSeguimientoPedido } from '../api/pedidosWebApi'
 import { DATOS_COMERCIALES } from '../datosComerciales'
-import { descargarRemitoWebPdf } from '../pdf/remitoWebPdf'
+import { descargarRemitoWebPdf, tieneComprobanteCompra } from '../pdf/remitoWebPdf'
+import { medioPagoPedido } from '../mediosPagoMock'
 
 // Un color por estado, con los tonos de .estado-badge (mismo criterio que
 // EstadoVentaBadge en Supervisión de ventas).
@@ -180,11 +181,11 @@ function DetallePedido({ pedidoId, cliente, onVolver, onVerProducto, onNotificar
   }
 
   function handleDescargarPdf() {
-    descargarRemitoWebPdf({
-      pedido,
-      items,
-      cliente,
-    })
+    try {
+      descargarRemitoWebPdf({ pedido, items, cliente })
+    } catch (err) {
+      setError(err.message || 'No se pudo generar el comprobante PDF')
+    }
   }
 
   // Contenido explicativo del banner según estado
@@ -241,15 +242,15 @@ function DetallePedido({ pedidoId, cliente, onVolver, onVerProducto, onNotificar
       <div className="tienda-detalle-top-bar">
         {volver}
         <div className="tienda-detalle-top-actions">
-          <Button
+          {tieneComprobanteCompra(pedido) && (<Button
             type="button"
             variant="ghost"
             icon={Download}
             onClick={handleDescargarPdf}
-            title="Descargar Remito Web en PDF"
+            title="Descargar comprobante de compra en PDF"
           >
-            Descargar Remito PDF
-          </Button>
+            Descargar comprobante
+          </Button>)}
           <Button
             type="button"
             variant="primary"
@@ -393,6 +394,7 @@ function DetallePedido({ pedidoId, cliente, onVolver, onVerProducto, onNotificar
             </div>
 
             <div className="tienda-detalle-totales">
+              {tieneComprobanteCompra(pedido) && <p>Medio de pago: {medioPagoPedido(pedido)}</p>}
               <div className="tienda-detalle-totales-fila">
                 <span>Subtotal materiales:</span>
                 <span>{formatearMoneda(pedido.total)}</span>
@@ -402,7 +404,7 @@ function DetallePedido({ pedidoId, cliente, onVolver, onVerProducto, onNotificar
                 <span>{esEnvio ? 'Bonificado' : 'Sin cargo'}</span>
               </div>
               <div className="tienda-detalle-totales-fila is-total">
-                <span>Total pagado:</span>
+                <span>{tieneComprobanteCompra(pedido) ? 'Total pagado:' : 'Total del pedido:'}</span>
                 <strong>{formatearMoneda(pedido.total)}</strong>
               </div>
             </div>
@@ -419,15 +421,15 @@ function DetallePedido({ pedidoId, cliente, onVolver, onVerProducto, onNotificar
               >
                 Volver a comprar pedido
               </Button>
-              <Button
+              {tieneComprobanteCompra(pedido) && (<Button
                 type="button"
                 variant="secondary"
                 icon={Download}
                 onClick={handleDescargarPdf}
                 style={{ width: '100%', justifyContent: 'center' }}
               >
-                Descargar Remito PDF
-              </Button>
+                Descargar comprobante
+              </Button>)}
             </div>
           </div>
         </div>
@@ -511,7 +513,7 @@ export default function MisPedidosPage({ onNavigate, onVerProducto, onNotificar,
       <section className="tienda-pedidos-page">
         <EmptyState
           title="Ingresá para ver tus compras y pedidos"
-          description="Iniciá sesión para realizar el seguimiento en vivo de tus pedidos de materiales y descargar tus remitos."
+          description="Iniciá sesión para realizar el seguimiento en vivo de tus pedidos de materiales y descargar tus comprobantes."
         />
         <div style={{ display: 'flex', justifyContent: 'center', marginTop: 16 }}>
           <Button type="button" variant="primary" onClick={() => onNavigate?.('ingresar')}>
@@ -543,7 +545,7 @@ export default function MisPedidosPage({ onNavigate, onVerProducto, onNotificar,
           Mis Compras y Pedidos Web
         </h1>
         <p>
-          Seguí tus entregas de materiales en tiempo real, descargá tus remitos oficiales o volvé a comprar con 1 clic.
+          Seguí tus entregas de materiales en tiempo real, descargá tus comprobantes de compra o volvé a comprar con 1 clic.
         </p>
       </div>
 
@@ -590,6 +592,7 @@ export default function MisPedidosPage({ onNavigate, onVerProducto, onNotificar,
 
                   <div className="tienda-pedido-card-total-box">
                     <span className="tienda-pedido-card-total-label">Total del pedido</span>
+                    {tieneComprobanteCompra(pedido) && <small>Medio de pago: {medioPagoPedido(pedido)}</small>}
                     <span className="tienda-pedido-card-total">
                       {formatearMoneda(pedido.total)}
                     </span>
@@ -619,7 +622,7 @@ export default function MisPedidosPage({ onNavigate, onVerProducto, onNotificar,
                     Volver a comprar
                   </Button>
 
-                  <Button
+                  {tieneComprobanteCompra(pedido) && (<Button
                     type="button"
                     variant="ghost"
                     icon={Download}
@@ -628,8 +631,8 @@ export default function MisPedidosPage({ onNavigate, onVerProducto, onNotificar,
                     onClick={() => handleDescargarPdfDesdeLista(pedido)}
                     title="Descargar comprobante en PDF"
                   >
-                    Remito PDF
-                  </Button>
+                    Descargar comprobante
+                  </Button>)}
                 </div>
               </article>
             )

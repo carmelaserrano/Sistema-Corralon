@@ -109,6 +109,10 @@ export async function obtenerComprobante(comprobanteId) {
         detalle_venta(
           *,
           producto:productos(*)
+        ),
+        cobros:cobros_venta(
+          id,
+          detalle:detalle_cobro(monto, medio_pago:medios_pago(nombre))
         )
       )
     `)

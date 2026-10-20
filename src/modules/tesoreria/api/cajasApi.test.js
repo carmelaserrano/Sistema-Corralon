@@ -37,7 +37,11 @@ describe('cajasApi', () => {
     query.select.mockReturnValue(query)
     query.eq.mockReturnValue(query)
     query.maybeSingle.mockResolvedValue({
-      data: { id: 's-1', usuario_id: 'u-1', estado: 'abierta' },
+      data: {
+        id: 's-1', usuario_id: 'u-1', estado: 'abierta',
+        responsable: { nombre: 'Lucas Cenzano' },
+        caja: { nombre: 'Sur/lucas', punto_venta: { numero: '0004', nombre: 'Sucursal Sur' } },
+      },
       error: null,
     })
     supabase.auth.getUser.mockResolvedValue({
@@ -46,10 +50,35 @@ describe('cajasApi', () => {
     })
     supabase.from.mockReturnValue(query)
 
-    await obtenerSesionCajaActiva()
+    const sesion = await obtenerSesionCajaActiva()
+
+    expect(sesion.responsable.nombre).toBe('Lucas Cenzano')
+    expect(sesion.caja.punto_venta).toEqual({ numero: '0004', nombre: 'Sucursal Sur' })
+    expect(query.select.mock.calls[0][0]).toContain('responsable:usuarios_internos(nombre)')
+    expect(query.select.mock.calls[0][0]).toContain('caja:cajas(nombre, punto_venta:puntos_venta(numero, nombre))')
 
     expect(query.eq).toHaveBeenNthCalledWith(1, 'usuario_id', 'u-1')
     expect(query.eq).toHaveBeenNthCalledWith(2, 'estado', 'abierta')
+  })
+
+  it('sin usuario autenticado no busca una caja ajena', async () => {
+    supabase.auth.getUser.mockResolvedValue({ data: { user: null }, error: null })
+    await expect(obtenerSesionCajaActiva()).resolves.toBeNull()
+    expect(supabase.from).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { data: null, error: null },
+    { data: null, error: { code: 'PGRST116', message: 'Varias sesiones' } },
+  ])('no elige arbitrariamente una sesión si falta o la consulta es ambigua', async (respuesta) => {
+    const query = { select: vi.fn(), eq: vi.fn(), maybeSingle: vi.fn().mockResolvedValue(respuesta) }
+    query.select.mockReturnValue(query)
+    query.eq.mockReturnValue(query)
+    supabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'u-1' } }, error: null })
+    supabase.from.mockReturnValue(query)
+    if (respuesta.error) await expect(obtenerSesionCajaActiva()).rejects.toEqual(respuesta.error)
+    else await expect(obtenerSesionCajaActiva()).resolves.toBeNull()
+    expect(query.eq).toHaveBeenCalledWith('usuario_id', 'u-1')
   })
 
   it('abre una caja con saldo inicial numérico', async () => {

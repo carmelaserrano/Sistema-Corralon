@@ -212,12 +212,14 @@ describe('VentaDetalle', () => {
       })
     })
 
-    it('cobra el total, cierra el modal, recarga la venta y habilita Facturar', async () => {
+    it('cobra el total, recarga la factura automática y ofrece descargarla sin emitir otra', async () => {
       getVentaById
         .mockResolvedValueOnce({ ...ventaBase })
         .mockResolvedValueOnce({
           ...ventaBase,
+          estado: 'Facturada',
           cobros: [{ id: 'cb-1', numero: 7, total: 1000, created_at: '2026-03-20T10:05:00Z', detalle: [] }],
+          comprobantes: [{ id: 'fact-auto', tipo_comprobante: 'factura', letra: 'A', estado: 'Emitido', numero: 123, punto_venta: { numero: '0002' }, total: 1000 }],
           totalCobrado: 1000,
           estaCobrada: true,
         })
@@ -237,9 +239,12 @@ describe('VentaDetalle', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Confirmar cobro' }))
 
       await waitFor(() => expect(registrarCobro).toHaveBeenCalledWith('v-10', expect.any(Array)))
-      expect(await screen.findByText(/Cobro Nº 7 registrado/)).toBeInTheDocument()
+      expect(await screen.findByText(/Factura generada: Nº 0002-00000123/)).toBeInTheDocument()
       expect(screen.queryByRole('dialog', { name: /Registrar cobro/i })).not.toBeInTheDocument()
-      expect(screen.getByRole('button', { name: /Facturar \(Factura A\)/i })).toBeEnabled()
+      expect(screen.queryByRole('button', { name: /Facturar \(Factura A\)/i })).not.toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: /Descargar PDF/i }))
+      await waitFor(() => expect(descargarComprobantePdf).toHaveBeenCalledWith('fact-auto', true))
+      expect(emitirComprobante).not.toHaveBeenCalled()
       expect(onComprobanteEmitido).toHaveBeenCalled()
     })
 

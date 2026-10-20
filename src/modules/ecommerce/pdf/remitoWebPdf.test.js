@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   EMISOR_CORRALON,
   generarRemitoWebPdf,
+  tieneComprobanteCompra,
 } from './remitoWebPdf'
 import { DATOS_COMERCIALES } from '../datosComerciales'
 
@@ -49,6 +50,36 @@ const clienteEjemplo = {
 }
 
 describe('remitoWebPdf', () => {
+  it.each([
+    ['mock:ped-1', 'Tarjeta'],
+    ['mock:tarjeta:ped-1', 'Tarjeta'],
+    ['mock:mercado_pago:ped-1', 'Mercado Pago'],
+    ['mock:transferencia:ped-1', 'Transferencia bancaria'],
+    ['externa-123', 'No informado'],
+  ])('incluye el medio persistido de %s al descargar después', (referencia_pago, nombre) => {
+    const salida = generarRemitoWebPdf({ pedido: { ...pedidoEjemplo, referencia_pago } }).output()
+    expect(salida).toContain(`Medio de pago: ${nombre}`)
+    expect(salida).not.toContain('pago simulado')
+  })
+  it('usa pagado_at, pedido, cliente, productos, cantidades, precios y total pagado', () => {
+    const pedido = { ...pedidoEjemplo, pagado_at: '2026-10-19T15:45:00Z', referencia_pago: 'mock:ped-1' }
+    const salida = generarRemitoWebPdf({ pedido, items: itemsEjemplo, cliente: clienteEjemplo }).output()
+    for (const texto of ['COMPROBANTE DE COMPRA WEB', '000105', '19/10/26, 12:45', '32123456', 'Cemento Portland 50kg', '(15)', '2.000,00', '30.000,00', '45.000,00', 'TOTAL PAGADO', 'Aprobado', 'mock:ped-1']) {
+      expect(salida).toContain(texto)
+    }
+    expect(salida).not.toContain('CONFORMIDAD DE RECEPCI')
+  })
+
+  it.each(['Pendiente de pago', 'Cancelado'])('rechaza generar PDF para %s sin pago', (estado) => {
+    const pedido = { ...pedidoEjemplo, estado, pago_estado: 'rejected' }
+    expect(tieneComprobanteCompra(pedido)).toBe(false)
+    expect(() => generarRemitoWebPdf({ pedido })).toThrow('El pedido no tiene un pago aprobado')
+  })
+
+  it('conserva comprobante cuando un pedido pagado avanza o se cancela después', () => {
+    expect(tieneComprobanteCompra({ estado: 'En preparación' })).toBe(true)
+    expect(tieneComprobanteCompra({ estado: 'Cancelado', pagado_at: '2026-10-19T15:45:00Z' })).toBe(true)
+  })
   it('usa la marca Corralón Norte e incluye el logo en el PDF', () => {
     const doc = generarRemitoWebPdf({
       pedido: pedidoEjemplo,
@@ -93,7 +124,7 @@ describe('remitoWebPdf', () => {
 
   it('soporta pedidos sin artículos o con cliente vacío sin fallar', () => {
     const doc = generarRemitoWebPdf({
-      pedido: { id: 'ped-2', numero: 1, total: 0 },
+      pedido: { id: 'ped-2', numero: 1, total: 0, estado: 'Pagado' },
       items: [],
       cliente: {},
     })

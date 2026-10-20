@@ -32,6 +32,17 @@ describe('crearPedidoWeb', () => {
 })
 
 describe('pago', () => {
+  it.each(['mercado_pago', 'transferencia'])('envía %s a la misma RPC mock sin contactar pasarelas', async (medio) => {
+    supabase.rpc.mockResolvedValue({ data: { id: 'pedido-1', estado: 'Pagado' }, error: null })
+    await resolverPagoSimulado('pedido-1', 'approved', medio)
+    expect(supabase.rpc).toHaveBeenCalledWith('confirmar_pago_mock', { p_pedido: 'pedido-1', p_estado: 'approved', p_medio: medio })
+    expect(supabase.functions.invoke).not.toHaveBeenCalled()
+  })
+
+  it('rechaza medios no permitidos antes de confirmar', async () => {
+    await expect(resolverPagoSimulado('pedido-1', 'approved', 'real')).rejects.toThrow('Medio de pago no válido')
+    expect(supabase.rpc).not.toHaveBeenCalled()
+  })
   it('inicia la preferencia y exige una URL de retorno', async () => {
     supabase.functions.invoke.mockResolvedValue({ data: { init_point: 'https://mp.test', preference_id: 'pref-1' }, error: null })
     await expect(iniciarPago('pedido-1')).resolves.toMatchObject({ preference_id: 'pref-1' })

@@ -62,18 +62,16 @@ function App() {
 
   // CA-04: un autenticado por Supabase Auth que no está en usuarios_internos
   // (o tiene activo=false) no es parte del equipo interno — p. ej. un
-  // cliente de /tienda que probó entrar al backoffice. Se lo desloguea y se
-  // lo manda a la tienda; nunca llega a ver AppShell.
+  // cliente de /tienda que probó entrar al backoffice. Se lo manda a la
+  // tienda sin cerrar la sesión compartida entre pestañas; nunca ve AppShell.
   // Si la consulta de permisos falló no se sabe si es interno: no se lo
   // desloguea (sacaría a todo el equipo ante un corte o si la 0064 todavía
   // no está aplicada); se muestra el aviso con "Reintentar" más abajo.
   useEffect(() => {
     if (!loading && session && !esInterno && !errorPermisos) {
-      signOut().then(() => {
-        window.location.href = '/tienda'
-      })
+      window.location.href = '/tienda'
     }
-  }, [loading, session, esInterno, errorPermisos, signOut])
+  }, [loading, session, esInterno, errorPermisos])
 
   function navegar(nuevaPagina) {
     setPagina(nuevaPagina)

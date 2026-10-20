@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf'
 import logoCorralon from './logo-corralon-norte.jpg?inline'
 import { DATOS_COMERCIALES } from '../datosComerciales'
+import { medioPagoPedido } from '../mediosPagoMock'
 
 /**
  * Datos del corralón emisor para el remito web.
@@ -27,11 +28,12 @@ function formatearFecha(fechaStr) {
   const fecha = new Date(fechaStr)
   return isNaN(fecha.getTime())
     ? String(fechaStr)
-    : fecha.toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })
+    : fecha.toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Argentina/Buenos_Aires' })
 }
 
 /**
- * Genera el documento PDF del comprobante/remito de pedido web del corralón.
+ * Genera el comprobante no fiscal de una compra pagada. Conserva el nombre
+ * de la función para reutilizar las integraciones del antiguo remito web.
  *
  * @param {Object} params
  * @param {Object} params.pedido Datos del pedido web (numero, estado, tipo_entrega, total, created_at, domicilio)
@@ -40,12 +42,18 @@ function formatearFecha(fechaStr) {
  * @param {Object} [params.emisor] Datos comerciales del emisor
  * @returns {jsPDF}
  */
+export function tieneComprobanteCompra(pedido) {
+  return Boolean(pedido?.pagado_at) || pedido?.pago_estado === 'approved' ||
+    ['Pagado', 'En preparación', 'Listo para retirar', 'Enviado', 'Entregado'].includes(pedido?.estado)
+}
+
 export function generarRemitoWebPdf({
   pedido,
   items = [],
   cliente = {},
   emisor = EMISOR_CORRALON,
 }) {
+  if (!tieneComprobanteCompra(pedido)) throw new Error('El pedido no tiene un pago aprobado')
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -53,7 +61,7 @@ export function generarRemitoWebPdf({
   })
 
   const numeroPedido = String(pedido?.numero || '0').padStart(6, '0')
-  const fecha = formatearFecha(pedido?.created_at)
+  const fecha = formatearFecha(pedido?.pagado_at || pedido?.created_at)
   const esEnvio = pedido?.tipo_entrega === 'envio'
   const modalidadTexto = esEnvio ? 'ENVÍO A OBRA / DOMICILIO' : 'RETIRO EN SUCURSAL / CORRALÓN'
 
@@ -85,9 +93,9 @@ export function generarRemitoWebPdf({
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(20)
   doc.setTextColor(30, 30, 30)
-  doc.text('R', 105, 23.5, { align: 'center' })
+  doc.text('W', 105, 23.5, { align: 'center' })
   doc.setFontSize(6.5)
-  doc.text('REMITO WEB', 105, 27, { align: 'center' })
+  doc.text('COMPRA WEB', 105, 27, { align: 'center' })
 
   // Línea divisoria central
   doc.setLineWidth(0.2)
@@ -122,8 +130,8 @@ export function generarRemitoWebPdf({
   doc.setFontSize(8)
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(60, 60, 60)
-  doc.text(`Fecha de compra: ${fecha}`, 115, 34)
-  doc.text(`Estado del pedido: ${pedido?.estado || 'Pagado'}`, 115, 39)
+  doc.text(`Fecha de pago: ${fecha}`, 115, 34)
+  doc.text('Estado del pago: Aprobado', 115, 39)
   doc.setFont('helvetica', 'bold')
   doc.text(`Modalidad: ${modalidadTexto}`, 115, 45)
 
@@ -255,51 +263,25 @@ export function generarRemitoWebPdf({
   doc.setFontSize(11)
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(20, 20, 20)
-  doc.text('TOTAL GENERAL:', 125, yTotales + 18.5)
+  doc.text('TOTAL PAGADO:', 125, yTotales + 18.5)
   doc.setTextColor(242, 100, 25)
   doc.text(formatearMoneda(total), 195, yTotales + 18.5, { align: 'right' })
 
   // --------------------------------------------------------------------------
-  // CONFORMIDAD DE ENTREGA / FIRMA EN OBRA
+  // PAGO (sin datos de tarjeta)
   // --------------------------------------------------------------------------
-  const yFirma = 238
-  doc.setDrawColor(180, 180, 180)
-  doc.line(10, yFirma - 4, 200, yFirma - 4)
-
-  doc.setFontSize(8)
-  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(9)
   doc.setTextColor(40, 40, 40)
-  doc.text('CONFORMIDAD DE RECEPCIÓN Y DESCARGA EN OBRA', 14, yFirma)
+  doc.text(`Medio de pago: ${medioPagoPedido(pedido)}`, 14, 240)
+  const referencia = pedido.referencia_pago || pedido.ultimo_pago_referencia
+  if (referencia) doc.text(doc.splitTextToSize(`Referencia de pago: ${referencia}`, 180), 14, 247)
 
-  doc.setFontSize(7)
-  doc.setFont('helvetica', 'normal')
-  doc.setTextColor(90, 90, 90)
-  doc.text(
-    'Recibí en conformidad los materiales detallados precedentemente, en perfecto estado de conservación y embalaje.',
-    14,
-    yFirma + 4.5,
-  )
-
-  // Líneas de firma
-  doc.setDrawColor(100, 100, 100)
-  doc.setLineWidth(0.3)
-  doc.line(20, yFirma + 24, 75, yFirma + 24)
-  doc.line(85, yFirma + 24, 140, yFirma + 24)
-  doc.line(150, yFirma + 24, 190, yFirma + 24)
-
-  doc.setFontSize(7.5)
-  doc.setTextColor(80, 80, 80)
-  doc.text('Firma del Receptor', 47.5, yFirma + 28, { align: 'center' })
-  doc.text('Aclaración de Firma', 112.5, yFirma + 28, { align: 'center' })
-  doc.text('DNI / Fecha y Hora', 170, yFirma + 28, { align: 'center' })
-
-  // Pie de página legal
   doc.setFillColor(245, 245, 245)
   doc.rect(10, 275, 190, 12, 'F')
   doc.setFontSize(6.5)
   doc.setTextColor(100, 100, 100)
   doc.text(
-    `Documento no válido como factura. Para solicitar Factura A o B correspondiente a esta compra web, comuníquese a ${DATOS_COMERCIALES.email} informando el número de pedido.`,
+    'Documento no válido como factura.',
     105,
     280,
     { align: 'center' },
@@ -324,7 +306,7 @@ export function descargarRemitoWebPdf({
   emisor = EMISOR_CORRALON,
 }) {
   const doc = generarRemitoWebPdf({ pedido, items, cliente, emisor })
-  const nombreArchivo = `remito-pedido-web-${pedido?.numero || 'doc'}.pdf`
+  const nombreArchivo = `comprobante-compra-web-${pedido?.numero || 'doc'}.pdf`
   doc.save(nombreArchivo)
   return doc
 }
