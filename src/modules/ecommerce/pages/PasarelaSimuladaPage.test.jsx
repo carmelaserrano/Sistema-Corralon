@@ -124,17 +124,18 @@ it('selecciona métodos sin exigir datos de tarjeta para las alternativas', asyn
   expect(await screen.findByRole('radio', { name: 'Tarjeta' })).toBeChecked()
   fireEvent.click(screen.getByRole('radio', { name: 'Mercado Pago' }))
   expect(screen.queryByLabelText('Número de tarjeta')).not.toBeInTheDocument()
-  expect(screen.getByText('Pago simulado para entorno demo')).toBeInTheDocument()
+  expect(screen.queryByText(/demo/i)).not.toBeInTheDocument()
   fireEvent.click(screen.getByRole('radio', { name: 'Transferencia' }))
-  expect(screen.getByText('CORRALON.NORTE.DEMO')).toBeInTheDocument()
-  expect(screen.getByText('CBU ficticio · solo demo')).toBeInTheDocument()
+  expect(screen.getByText('CORRALON.NORTE')).toBeInTheDocument()
+  expect(screen.getByText('CBU')).toBeInTheDocument()
+  expect(screen.queryByText(/demo|simul/i)).not.toBeInTheDocument()
   fireEvent.click(screen.getByRole('radio', { name: 'Tarjeta' }))
   expect(screen.getByLabelText('Número de tarjeta')).toBeInTheDocument()
 })
 
 it.each([
   ['Mercado Pago', 'mercado_pago', 'Pagar con Mercado Pago', 'Mercado Pago'],
-  ['Transferencia', 'transferencia', 'Simular transferencia acreditada', 'Transferencia bancaria'],
+  ['Transferencia', 'transferencia', 'Registrar transferencia acreditada', 'Transferencia bancaria'],
 ])('aprueba %s, bloquea duplicados y ofrece comprobante con el medio persistido', async (opcion, medio, accion, nombre) => {
   const pagado = { ...pedido, estado: 'Pagado', pago_estado: 'approved', referencia_pago: `mock:${medio}:p1` }
   resolverPagoSimulado.mockResolvedValue(pagado)

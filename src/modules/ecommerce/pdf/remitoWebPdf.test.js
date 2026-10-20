@@ -58,12 +58,13 @@ describe('remitoWebPdf', () => {
     ['externa-123', 'No informado'],
   ])('incluye el medio persistido de %s al descargar después', (referencia_pago, nombre) => {
     const salida = generarRemitoWebPdf({ pedido: { ...pedidoEjemplo, referencia_pago } }).output()
-    expect(salida).toContain(`Medio de pago: ${nombre} - pago simulado`)
+    expect(salida).toContain(`Medio de pago: ${nombre}`)
+    expect(salida).not.toContain('pago simulado')
   })
   it('usa pagado_at, pedido, cliente, productos, cantidades, precios y total pagado', () => {
     const pedido = { ...pedidoEjemplo, pagado_at: '2026-10-19T15:45:00Z', referencia_pago: 'mock:ped-1' }
     const salida = generarRemitoWebPdf({ pedido, items: itemsEjemplo, cliente: clienteEjemplo }).output()
-    for (const texto of ['COMPROBANTE DE COMPRA WEB', '000105', '19/10/26, 12:45', '32123456', 'Cemento Portland 50kg', '(15)', '2.000,00', '30.000,00', '45.000,00', 'TOTAL PAGADO', 'Aprobado', 'mock:ped-1', 'pago simulado']) {
+    for (const texto of ['COMPROBANTE DE COMPRA WEB', '000105', '19/10/26, 12:45', '32123456', 'Cemento Portland 50kg', '(15)', '2.000,00', '30.000,00', '45.000,00', 'TOTAL PAGADO', 'Aprobado', 'mock:ped-1']) {
       expect(salida).toContain(texto)
     }
     expect(salida).not.toContain('CONFORMIDAD DE RECEPCI')

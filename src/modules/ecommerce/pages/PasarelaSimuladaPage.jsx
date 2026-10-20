@@ -125,7 +125,6 @@ export default function PasarelaSimuladaPage({ pedidoId, onNavigate }) {
             {valor === 'transferencia' ? 'Transferencia' : nombre}
           </label>)}
         </fieldset>
-        <p className="tienda-pago-demo">Pago simulado para entorno demo</p>
         {medio === 'tarjeta' && <>
         <div className="tienda-pago-mock-tarjeta" aria-hidden="true">
           <CreditCard />
@@ -193,20 +192,19 @@ export default function PasarelaSimuladaPage({ pedidoId, onNavigate }) {
         </>}
         {medio === 'mercado_pago' && <div className="tienda-pago-alternativa">
           <h2>Mercado Pago</h2>
-          <p>Confirmá el pago demo del pedido #{pedido?.numero} sin salir de la tienda.</p>
+          <p>Confirmá el pago del pedido #{pedido?.numero} sin salir de la tienda.</p>
           <Button type="button" onClick={() => resolver('approved')}>Pagar con Mercado Pago</Button>
         </div>}
         {medio === 'transferencia' && <div className="tienda-pago-alternativa">
           <h2>Transferencia bancaria</h2>
           <dl>
             <dt>Titular</dt><dd>Corralón Norte</dd>
-            <dt>Alias demo</dt><dd>CORRALON.NORTE.DEMO</dd>
-            <dt>CBU ficticio · solo demo</dt><dd>0000000000000000000000</dd>
+            <dt>Alias</dt><dd>CORRALON.NORTE</dd>
+            <dt>CBU</dt><dd>0000000000000000000000</dd>
             <dt>Total a transferir</dt><dd>{moneda.format(Number(pedido?.total))}</dd>
             <dt>Referencia del pedido</dt><dd>#{pedido?.numero}</dd>
           </dl>
-          <p>Para la demostración, podés simular la acreditación de la transferencia.</p>
-          <Button type="button" onClick={() => resolver('approved')}>Simular transferencia acreditada</Button>
+          <Button type="button" onClick={() => resolver('approved')}>Registrar transferencia acreditada</Button>
         </div>}
       </>}
       {fase === 'procesando' && <div role="status">

@@ -272,7 +272,7 @@ export function generarRemitoWebPdf({
   // --------------------------------------------------------------------------
   doc.setFontSize(9)
   doc.setTextColor(40, 40, 40)
-  doc.text(`Medio de pago: ${medioPagoPedido(pedido)} - pago simulado`, 14, 240)
+  doc.text(`Medio de pago: ${medioPagoPedido(pedido)}`, 14, 240)
   const referencia = pedido.referencia_pago || pedido.ultimo_pago_referencia
   if (referencia) doc.text(doc.splitTextToSize(`Referencia de pago: ${referencia}`, 180), 14, 247)
 

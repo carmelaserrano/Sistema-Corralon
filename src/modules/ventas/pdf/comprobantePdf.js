@@ -1,17 +1,31 @@
 import { jsPDF } from 'jspdf'
+import logoCorralon from '../../ecommerce/pdf/logo-corralon-norte.jpg?inline'
+import { DATOS_COMERCIALES } from '../../ecommerce/datosComerciales'
 
 /**
- * Datos por defecto del emisor (Corralón).
+ * Datos por defecto del emisor: los mismos de Corralón Norte que usa el
+ * comprobante de compra de la tienda web.
  */
 export const EMISOR_DEFAULT = {
-  razonSocial: 'Corralón Central S.R.L.',
+  razonSocial: 'Corralón Norte',
+  subtitulo: 'Materiales para la Construcción · Ferretería · Logística de Obra',
   cuit: '30-71234567-8',
   condicionIva: 'IVA Responsable Inscripto',
-  domicilio: 'Av. Entre Ríos 1234, Salta, Argentina',
+  domicilio: DATOS_COMERCIALES.domicilio,
+  telefono: `${DATOS_COMERCIALES.telefono} / WhatsApp: ${DATOS_COMERCIALES.whatsapp}`,
+  email: DATOS_COMERCIALES.email,
   ingresosBrutos: '30-71234567-8',
   inicioActividades: '01/01/2020',
   puntoVentaPredeterminado: '0001',
 }
+
+// Paleta compartida con el comprobante de la tienda web.
+const NARANJA = [242, 100, 25]
+const TEXTO = [30, 30, 30]
+const TEXTO_SUAVE = [90, 90, 90]
+const FONDO_SUAVE = [248, 249, 250]
+const FONDO_TABLA = [235, 238, 242]
+const LINEA_SUAVE = [225, 228, 232]
 
 const CODIGOS_AFIP = {
   factura: { A: '01', B: '06', C: '11' },
@@ -57,7 +71,8 @@ function formatearMoneda(val) {
 }
 
 /**
- * Genera un documento jsPDF con el diseño fiscal AFIP de la factura o comprobante.
+ * Genera la factura o nota (diseño fiscal AFIP) con el mismo estilo que el
+ * comprobante de compra de la tienda web: logo, franja naranja y totales destacados.
  *
  * @param {Object} params
  * @param {Object} params.comprobante Fila de comprobantes_venta
@@ -92,116 +107,141 @@ export function generarComprobantePdf({ comprobante, venta, emisor = EMISOR_DEFA
     ? `${cliente.domicilios[0].calle || ''} ${cliente.domicilios[0].numero || ''}, ${cliente.domicilios[0].localidad || ''}`.trim()
     : '—'
 
-  // Borde exterior
+  // Medios con los que se cobró la venta (vienen con el comprobante).
+  const mediosCobro = (venta?.cobros || [])
+    .flatMap((cobro) => cobro.detalle || [])
+    .map((d) => d.medio_pago?.nombre)
+    .filter(Boolean)
+  const medioPago = [...new Set(mediosCobro)].join(' + ')
+
+  // Borde exterior y franja naranja (mismo estilo que el comprobante web)
   doc.setLineWidth(0.4)
-  doc.setDrawColor(60, 60, 60)
+  doc.setDrawColor(50, 50, 50)
   doc.rect(10, 10, 190, 277)
+  doc.setFillColor(...NARANJA)
+  doc.rect(10, 10, 190, 4, 'F')
 
   // --------------------------------------------------------------------------
-  // CABECERA FISCAL CON LETRA EN EL CENTRO
+  // CABECERA: logo y emisor a la izquierda, letra al centro, comprobante a la derecha
   // --------------------------------------------------------------------------
-  // Caja de la Letra central
+  doc.addImage(logoCorralon, 'JPEG', 14, 17, 20, 15)
+
   doc.setFillColor(245, 245, 245)
-  doc.rect(98, 10, 14, 14, 'FD')
+  doc.setDrawColor(60, 60, 60)
+  doc.rect(98, 17, 14, 15, 'FD')
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(22)
-  doc.setTextColor(30, 30, 30)
-  doc.text(letra, 105, 19, { align: 'center' })
-  doc.setFontSize(7)
-  doc.text(`COD. ${codigoAfip}`, 105, 23, { align: 'center' })
+  doc.setTextColor(...TEXTO)
+  doc.text(letra, 105, 26.5, { align: 'center' })
+  doc.setFontSize(6.5)
+  doc.text(`COD. ${codigoAfip}`, 105, 30.5, { align: 'center' })
 
-  // Línea divisoria central
   doc.setLineWidth(0.2)
-  doc.line(105, 24, 105, 58)
+  doc.line(105, 32, 105, 64)
 
-  // Columna Izquierda: Emisor
-  doc.setFontSize(13)
+  doc.setFontSize(14)
   doc.setFont('helvetica', 'bold')
-  doc.text(emisor.razonSocial, 15, 20)
+  doc.setTextColor(20, 20, 20)
+  doc.text(emisor.razonSocial, 37, 24)
+  if (emisor.subtitulo) {
+    doc.setFontSize(6.5)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(...TEXTO_SUAVE)
+    // Hasta dos líneas, para que no quede cortado a mitad de frase.
+    doc.splitTextToSize(emisor.subtitulo, 58).slice(0, 2).forEach((linea, i) => doc.text(linea, 37, 29 + i * 3))
+  }
+
+  doc.setFontSize(7.5)
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(70, 70, 70)
+  const datosEmisor = [
+    `Dirección: ${emisor.domicilio}`,
+    emisor.telefono && `Tel: ${emisor.telefono}`,
+    emisor.email && `Email: ${emisor.email}`,
+    emisor.condicionIva,
+  ].filter(Boolean)
+  datosEmisor.forEach((linea, i) => doc.text(doc.splitTextToSize(linea, 86)[0], 15, 40 + i * 5))
+
+  doc.setFontSize(15)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(20, 20, 20)
+  doc.text(tipoTitulo, 115, 24)
+
+  doc.setFontSize(11)
+  doc.setTextColor(...NARANJA)
+  doc.text(`Nº ${formatearPv4(pvNumero)}-${compNumero}`, 115, 31)
 
   doc.setFontSize(8)
   doc.setFont('helvetica', 'normal')
-  doc.text(emisor.condicionIva, 15, 26)
-  doc.text(emisor.domicilio, 15, 31)
+  doc.setTextColor(60, 60, 60)
+  doc.text(`Punto de Venta: ${formatearPv4(pvNumero)}    Comp. Nro: ${compNumero}`, 115, 38)
+  doc.text(`Fecha de Emisión: ${fechaEmision}`, 115, 43)
+  doc.text(`CUIT: ${emisor.cuit}`, 115, 48)
+  doc.text(`Ingresos Brutos: ${emisor.ingresosBrutos}`, 115, 53)
+  doc.text(`Inicio de Actividades: ${emisor.inicioActividades}`, 115, 58)
 
-  // Columna Derecha: Tipo de Comprobante, Número y Fechas
-  doc.setFontSize(14)
-  doc.setFont('helvetica', 'bold')
-  doc.text(tipoTitulo, 115, 20)
-
-  doc.setFontSize(9)
-  doc.setFont('helvetica', 'bold')
-  doc.text(`Punto de Venta: ${formatearPv4(pvNumero)}    Comp. Nro: ${compNumero}`, 115, 26)
-
-  doc.setFont('helvetica', 'normal')
-  doc.text(`Fecha de Emisión: ${fechaEmision}`, 115, 32)
-  doc.text(`CUIT: ${emisor.cuit}`, 115, 37)
-  doc.text(`Ingresos Brutos: ${emisor.ingresosBrutos}`, 115, 42)
-  doc.text(`Inicio de Actividades: ${emisor.inicioActividades}`, 115, 47)
-
-  // Línea horizontal que separa cabecera de datos de cliente
-  doc.line(10, 58, 200, 58)
+  doc.setLineWidth(0.3)
+  doc.setDrawColor(60, 60, 60)
+  doc.line(10, 64, 200, 64)
 
   // --------------------------------------------------------------------------
   // DATOS DEL CLIENTE
   // --------------------------------------------------------------------------
-  doc.setFillColor(248, 249, 250)
-  doc.rect(10, 58, 190, 24, 'F')
+  doc.setFillColor(...FONDO_SUAVE)
+  doc.rect(10, 64, 190, 24, 'F')
 
   doc.setFontSize(8.5)
-  doc.setFont('helvetica', 'bold')
-  doc.text(`Razón Social / Nombre:`, 14, 64)
-  doc.setFont('helvetica', 'normal')
-  doc.text(nombreCli, 50, 64)
+  doc.setTextColor(...TEXTO)
+  const dato = (etiqueta, valor, x, y, xValor) => {
+    doc.setFont('helvetica', 'bold')
+    doc.text(etiqueta, x, y)
+    doc.setFont('helvetica', 'normal')
+    doc.text(doc.splitTextToSize(String(valor), 200 - xValor - 4)[0], xValor, y)
+  }
+  dato('Razón Social / Nombre:', nombreCli, 14, 70, 52)
+  dato('Documento:', docCli, 125, 70, 145)
+  dato('Condición IVA:', condIvaCli, 14, 77, 52)
+  if (venta?.numero) dato('Venta Nº:', String(venta.numero), 125, 77, 145)
+  dato('Domicilio:', domicilioCli, 14, 84, 52)
 
-  doc.setFont('helvetica', 'bold')
-  doc.text(`Documento:`, 130, 64)
-  doc.setFont('helvetica', 'normal')
-  doc.text(docCli, 150, 64)
-
-  doc.setFont('helvetica', 'bold')
-  doc.text(`Condición IVA:`, 14, 71)
-  doc.setFont('helvetica', 'normal')
-  doc.text(condIvaCli, 50, 71)
-
-  doc.setFont('helvetica', 'bold')
-  doc.text(`Domicilio:`, 14, 78)
-  doc.setFont('helvetica', 'normal')
-  doc.text(domicilioCli, 50, 78)
-
-  doc.line(10, 82, 200, 82)
+  doc.line(10, 88, 200, 88)
 
   // --------------------------------------------------------------------------
   // TABLA DE ÍTEMS / DETALLE
   // --------------------------------------------------------------------------
-  // Cabecera de la tabla
-  doc.setFillColor(235, 238, 242)
-  doc.rect(10, 82, 190, 7, 'F')
-  doc.setFontSize(8)
-  doc.setFont('helvetica', 'bold')
-  doc.setTextColor(40, 40, 40)
-  doc.text('Código / Descripción', 14, 86.5)
-  doc.text('Cant.', 115, 86.5, { align: 'right' })
-  doc.text('Precio Unit.', 142, 86.5, { align: 'right' })
-  doc.text('Desc. %', 165, 86.5, { align: 'right' })
-  doc.text('Subtotal', 195, 86.5, { align: 'right' })
+  const encabezadoTabla = (yCabecera) => {
+    doc.setFillColor(...FONDO_TABLA)
+    doc.rect(10, yCabecera, 190, 7, 'F')
+    doc.setFontSize(8)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(40, 40, 40)
+    doc.text('Código / Descripción', 14, yCabecera + 4.5)
+    doc.text('Cant.', 115, yCabecera + 4.5, { align: 'right' })
+    doc.text('Precio Unit.', 142, yCabecera + 4.5, { align: 'right' })
+    doc.text('Desc. %', 165, yCabecera + 4.5, { align: 'right' })
+    doc.text('Subtotal', 195, yCabecera + 4.5, { align: 'right' })
+  }
+  encabezadoTabla(88)
 
-  doc.line(10, 89, 200, 89)
-
-  // Filas de detalle
   const items = venta?.detalle_venta || venta?.detalle || []
-  let y = 94
+  let y = 100
   doc.setFont('helvetica', 'normal')
-  doc.setTextColor(30, 30, 30)
+  doc.setTextColor(...TEXTO)
 
   if (items.length === 0) {
     doc.text('Comprobante global / Sin detalle de artículos', 14, y)
     y += 7
   } else {
     items.forEach((item) => {
-      if (y > 220) {
+      if (y > 200) {
         doc.addPage()
-        y = 20
+        doc.setLineWidth(0.4)
+        doc.setDrawColor(50, 50, 50)
+        doc.rect(10, 10, 190, 277)
+        encabezadoTabla(14)
+        doc.setFont('helvetica', 'normal')
+        doc.setTextColor(...TEXTO)
+        y = 26
       }
       const prodNombre = item.producto?.nombre || item.producto_nombre || 'Artículo'
       const prodCodigo = item.producto?.sku ? `[${item.producto.sku}] ` : ''
@@ -213,90 +253,91 @@ export function generarComprobantePdf({ comprobante, venta, emisor = EMISOR_DEFA
       // Se corta por ancho (hasta la columna Cant.), en el límite de una
       // palabra y con "…", no a los 50 caracteres a mitad de palabra.
       const [primeraLinea, ...resto] = doc.splitTextToSize(`${prodCodigo}${prodNombre}`, 88)
+      doc.setFontSize(8.5)
       doc.text(resto.length > 0 ? `${primeraLinea.trimEnd()}…` : primeraLinea, 14, y)
       doc.text(String(cant), 115, y, { align: 'right' })
       doc.text(formatearMoneda(precioUnit), 142, y, { align: 'right' })
       doc.text(descPct > 0 ? `${descPct}%` : '0%', 165, y, { align: 'right' })
       doc.text(formatearMoneda(subtotal), 195, y, { align: 'right' })
 
-      y += 6
+      doc.setDrawColor(...LINEA_SUAVE)
+      doc.setLineWidth(0.1)
+      doc.line(12, y + 2.5, 198, y + 2.5)
+      y += 6.5
     })
   }
 
   // --------------------------------------------------------------------------
   // TOTALES
   // --------------------------------------------------------------------------
-  const yTotales = Math.max(y + 6, 215)
+  const yTotales = Math.max(y + 6, 200)
   doc.setLineWidth(0.2)
-  doc.line(10, yTotales - 4, 200, yTotales - 4)
+  doc.setDrawColor(60, 60, 60)
+  doc.line(10, yTotales - 3, 200, yTotales - 3)
 
   const total = Number(comprobante?.total || venta?.total || 0)
   const neto = Number(comprobante?.neto || (total / 1.21).toFixed(2))
   const iva = Number(comprobante?.iva || (total - neto).toFixed(2))
 
   doc.setFontSize(8.5)
-  doc.setFont('helvetica', 'bold')
-
+  doc.setTextColor(60, 60, 60)
+  const filaTotal = (etiqueta, valor, yFila) => {
+    doc.setFont('helvetica', 'bold')
+    doc.text(etiqueta, 125, yFila)
+    doc.setFont('helvetica', 'normal')
+    doc.text(formatearMoneda(valor), 195, yFila, { align: 'right' })
+  }
   if (letra === 'A') {
-    doc.text('Subtotal Neto Gravado:', 130, yTotales)
-    doc.setFont('helvetica', 'normal')
-    doc.text(formatearMoneda(neto), 195, yTotales, { align: 'right' })
-
-    doc.setFont('helvetica', 'bold')
-    doc.text('IVA 21%:', 130, yTotales + 6)
-    doc.setFont('helvetica', 'normal')
-    doc.text(formatearMoneda(iva), 195, yTotales + 6, { align: 'right' })
-
-    doc.setFontSize(10)
-    doc.setFont('helvetica', 'bold')
-    doc.text('Importe Total:', 130, yTotales + 13)
-    doc.text(formatearMoneda(total), 195, yTotales + 13, { align: 'right' })
+    filaTotal('Subtotal Neto Gravado:', neto, yTotales + 2)
+    filaTotal('IVA 21%:', iva, yTotales + 8)
   } else {
-    doc.text('Subtotal:', 130, yTotales)
-    doc.setFont('helvetica', 'normal')
-    doc.text(formatearMoneda(neto), 195, yTotales, { align: 'right' })
+    filaTotal('Subtotal:', neto, yTotales + 2)
+    filaTotal('IVA Contenido (21%):', iva, yTotales + 8)
+  }
 
-    doc.setFont('helvetica', 'bold')
-    doc.text('IVA Contenido (21%):', 130, yTotales + 6)
-    doc.setFont('helvetica', 'normal')
-    doc.text(formatearMoneda(iva), 195, yTotales + 6, { align: 'right' })
+  doc.setFillColor(...FONDO_SUAVE)
+  doc.rect(120, yTotales + 12, 78, 10, 'F')
+  doc.setFontSize(11)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(20, 20, 20)
+  doc.text('IMPORTE TOTAL:', 125, yTotales + 18.5)
+  doc.setTextColor(...NARANJA)
+  doc.text(formatearMoneda(total), 195, yTotales + 18.5, { align: 'right' })
 
-    doc.setFontSize(10)
-    doc.setFont('helvetica', 'bold')
-    doc.text('Importe Total:', 130, yTotales + 13)
-    doc.text(formatearMoneda(total), 195, yTotales + 13, { align: 'right' })
+  if (medioPago) {
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(40, 40, 40)
+    doc.text(`Medio de pago: ${medioPago}`, 14, yTotales + 18.5)
   }
 
   // --------------------------------------------------------------------------
   // PIE FISCAL / CAE
   // --------------------------------------------------------------------------
-  const yPie = 250
-  doc.line(10, yPie, 200, yPie)
-
+  const yPie = 252
   const cae = comprobante?.cae || 'HOMOLOGACIÓN'
   // Sin vencimiento cargado no se inventa uno (antes imprimía la fecha de hoy).
   const caeVto = comprobante?.cae_vencimiento ? formatearFecha(comprobante.cae_vencimiento) : '—'
 
-  doc.setFillColor(250, 250, 250)
-  doc.rect(10, yPie, 190, 37, 'F')
-
+  doc.setDrawColor(60, 60, 60)
+  doc.setLineWidth(0.2)
+  doc.line(10, yPie, 200, yPie)
   doc.setFontSize(9)
   doc.setFont('helvetica', 'bold')
+  doc.setTextColor(...TEXTO)
   doc.text(`CAE Nº: ${cae}`, 14, yPie + 8)
   doc.text(`Fecha de Vto. de CAE: ${caeVto}`, 140, yPie + 8)
 
-  doc.setFontSize(7.5)
+  doc.setFillColor(245, 245, 245)
+  doc.rect(10, 272, 190, 15, 'F')
+  doc.setFontSize(7)
   doc.setFont('helvetica', 'italic')
-  doc.setTextColor(90, 90, 90)
-  doc.text('Comprobante emitido en ambiente de HOMOLOGACIÓN — Sin validez fiscal ante AFIP', 105, yPie + 16, {
+  doc.setTextColor(100, 100, 100)
+  doc.text('Comprobante emitido en ambiente de HOMOLOGACIÓN — Sin validez fiscal ante AFIP', 105, 278, {
     align: 'center',
   })
-  doc.text(
-    'Sistema-Corralon · Gestión Comercial y Emisión de Comprobantes Electrónicos',
-    105,
-    yPie + 22,
-    { align: 'center' },
-  )
+  doc.setFont('helvetica', 'normal')
+  doc.text(`Generado el ${new Date().toLocaleString('es-AR')} · Sistema Corralón Norte`, 105, 283, { align: 'center' })
 
   return doc
 }

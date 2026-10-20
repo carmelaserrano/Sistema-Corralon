@@ -3186,7 +3186,6 @@ td button:hover:not(:disabled),
 .tienda-pago-metodos label { display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid #ddd; border-radius: 8px; cursor: pointer; }
 .tienda-pago-metodos label:has(input:checked) { border-color: #f26419; background: #fff4ec; }
 .tienda-pago-metodos input { width: auto; accent-color: #f26419; }
-.tienda-pago-demo { color: var(--text-muted); font-size: 13px; }
 .tienda-pago-alternativa { padding: 20px 0; }
 .tienda-pago-alternativa dl { display: grid; gap: 6px; text-align: left; overflow-wrap: anywhere; }
 .tienda-pago-alternativa dt { font-weight: 600; }

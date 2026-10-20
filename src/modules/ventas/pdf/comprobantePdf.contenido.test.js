@@ -19,6 +19,7 @@ vi.mock('jspdf', () => ({
     rect() {}
     line() {}
     addPage() {}
+    addImage() {}
     text(valor) {
       impresos.push(String(valor))
     }
@@ -142,6 +143,32 @@ describe('comprobantePdf: contenido impreso', () => {
       expect(impresos).toContain('Documento:')
       expect(impresos).toContain('CUIT: 20123456786')
       expect(impresos).not.toContain('Doc / CUIT:')
+    })
+  })
+
+  describe('diseño Corralón Norte', () => {
+    it('muestra el emisor, el número completo y el total destacado', () => {
+      generarComprobantePdf({ comprobante, venta })
+
+      expect(impresos).toContain('Corralón Norte')
+      expect(impresos).toContain('Nº 0001-00000005')
+      expect(impresos).toContain('IMPORTE TOTAL:')
+    })
+
+    it('muestra los medios con los que se cobró la venta, sin repetirlos', () => {
+      const cobros = [
+        { detalle: [{ medio_pago: { nombre: 'Efectivo' } }, { medio_pago: { nombre: 'Tarjeta de débito' } }] },
+        { detalle: [{ medio_pago: { nombre: 'Efectivo' } }] },
+      ]
+      generarComprobantePdf({ comprobante, venta: { ...venta, cobros } })
+
+      expect(impresos).toContain('Medio de pago: Efectivo + Tarjeta de débito')
+    })
+
+    it('sin cobros no imprime la línea de medio de pago', () => {
+      generarComprobantePdf({ comprobante, venta })
+
+      expect(impresos.some((t) => t.startsWith('Medio de pago'))).toBe(false)
     })
   })
 
