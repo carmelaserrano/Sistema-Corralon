@@ -14,6 +14,8 @@ import Feedback from '../../../components/ui/Feedback'
 import PageHeader from '../../../components/ui/PageHeader'
 import { useToast } from '../../../components/ui/ToastContext'
 import LineasVenta from '../components/LineasVenta'
+import ModalCobro from '../components/ModalCobro'
+import VentaDetalle from './VentaDetalle'
 import {
   listarDepositos,
   buscarClientes,
@@ -73,6 +75,8 @@ export default function NuevaVentaPage() {
   const [guardando, setGuardando] = useState(false)
   const [errorEnvio, setErrorEnvio] = useState('')
   const [ventaConfirmada, setVentaConfirmada] = useState(null)
+  const [mostrarCobro, setMostrarCobro] = useState(false)
+  const [mostrarDetalle, setMostrarDetalle] = useState(false)
   const [lineasStockError, setLineasStockError] = useState([])
 
   const dropdownClienteRef = useRef(null)
@@ -159,6 +163,8 @@ export default function NuevaVentaPage() {
   // Reiniciar formulario para una nueva venta
 function handleNuevaVenta() {
   setVentaConfirmada(null)
+  setMostrarCobro(false)
+  setMostrarDetalle(false)
   setLineas([])
   setObservaciones('')
   setErrorEnvio('')
@@ -244,6 +250,7 @@ function handleNuevaVenta() {
       const ventaCreada = await registrarVenta(cabecera, items)
       setLineasStockError([])
       setVentaConfirmada(ventaCreada)
+      setMostrarCobro(true)
       toast?.success?.(`¡Venta #${ventaCreada.numero} registrada con éxito!`)
     } catch (err) {
       if (err.code === 'STOCK_INSUFICIENTE') {
@@ -285,10 +292,11 @@ function handleNuevaVenta() {
             <CheckCircle2 size={48} />
           </div>
 
-          <h2 style={{ marginBottom: '8px' }}>¡Venta registrada con éxito!</h2>
+          <h2 style={{ marginBottom: '8px' }}>{ventaConfirmada.cobrada ? 'Venta registrada y cobrada correctamente' : '¡Venta registrada con éxito!'}</h2>
           <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>
-            La venta se registró correctamente en estado{' '}
-            <strong>Pendiente</strong> y con reserva de stock comprometido.
+            {ventaConfirmada.cobrada
+              ? 'La factura se generó automáticamente. Podés consultarla y descargarla desde el detalle.'
+              : 'Registrá el cobro para generar la factura automáticamente. El stock ya está reservado.'}
           </p>
 
           <div
@@ -337,6 +345,8 @@ function handleNuevaVenta() {
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'center', gap: '12px' }}>
+            {!ventaConfirmada.cobrada && <Button type="button" onClick={() => setMostrarCobro(true)}>Registrar cobro y facturar</Button>}
+            {ventaConfirmada.cobrada && <Button type="button" onClick={() => setMostrarDetalle(true)}>Ver / descargar factura</Button>}
             <Button
               type="button"
               variant="primary"
@@ -347,6 +357,12 @@ function handleNuevaVenta() {
             </Button>
           </div>
         </section>
+        <ModalCobro abierto={mostrarCobro} venta={{ ...ventaConfirmada, cliente }} onCancelar={() => setMostrarCobro(false)} onCobrado={(cobro) => {
+          setMostrarCobro(false)
+          setVentaConfirmada((actual) => ({ ...actual, cobrada: true, estado: cobro.estado_venta }))
+          setMostrarDetalle(true)
+        }} />
+        {mostrarDetalle && <VentaDetalle ventaId={ventaConfirmada.id} onCerrar={() => setMostrarDetalle(false)} />}
       </div>
     )
   }

@@ -39,7 +39,11 @@ export async function obtenerSesionCajaActiva() {
 
   const { data, error } = await supabase
     .from('sesiones_caja')
-    .select('id, caja_id, usuario_id, estado, saldo_inicial, abierta_at, caja:cajas(nombre)')
+    .select(`
+      id, caja_id, usuario_id, estado, saldo_inicial, abierta_at,
+      responsable:usuarios_internos(nombre),
+      caja:cajas(nombre, punto_venta:puntos_venta(numero, nombre))
+    `)
     .eq('usuario_id', usuario.user.id)
     .eq('estado', 'abierta')
     .maybeSingle()

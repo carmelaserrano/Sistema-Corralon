@@ -1,9 +1,13 @@
 ﻿import { useEffect, useRef, useState } from 'react'
-import { CheckCircle2, CreditCard, LoaderCircle } from 'lucide-react'
+import { CheckCircle2, CreditCard, Landmark, LoaderCircle, Wallet } from 'lucide-react'
 import Button from '../../../components/ui/Button'
 import Feedback from '../../../components/ui/Feedback'
 import { obtenerPedido, resolverPagoSimulado } from '../api/checkoutApi'
 import { useCarrito } from '../context/CarritoContext'
+import { useClienteWeb } from '../context/ClienteWebContext'
+import { obtenerSeguimientoPedido } from '../api/pedidosWebApi'
+import { descargarRemitoWebPdf } from '../pdf/remitoWebPdf'
+import { MEDIOS_PAGO_MOCK, medioPagoPedido } from '../mediosPagoMock'
 import {
   TARJETA_RECHAZO,
   formatearNumeroTarjeta,
@@ -16,11 +20,14 @@ const TARJETA_VACIA = { numero: '', titular: '', vencimiento: '', cvv: '' }
 
 export default function PasarelaSimuladaPage({ pedidoId, onNavigate }) {
   const { vaciar } = useCarrito()
+  const { cliente } = useClienteWeb()
+  const [descargando, setDescargando] = useState(false)
   const [pedido, setPedido] = useState(null)
   const [fase, setFase] = useState('cargando')
   const [error, setError] = useState('')
   const [tarjeta, setTarjeta] = useState(TARJETA_VACIA)
   const [erroresTarjeta, setErroresTarjeta] = useState({})
+  const [medio, setMedio] = useState('tarjeta')
   const bloqueado = useRef(false)
   const activo = useRef(false)
 
@@ -56,7 +63,7 @@ export default function PasarelaSimuladaPage({ pedidoId, onNavigate }) {
     setError('')
     try {
       const [actualizado] = await Promise.all([
-        resolverPagoSimulado(pedidoId, estado),
+        resolverPagoSimulado(pedidoId, estado, medio),
         new Promise((resolve) => setTimeout(resolve, 650)),
       ])
       if (!activo.current) return
@@ -83,18 +90,43 @@ export default function PasarelaSimuladaPage({ pedidoId, onNavigate }) {
 
   const digitos = tarjeta.numero.replace(/\D/g, '')
 
+  async function descargarComprobante() {
+    if (descargando) return
+    setDescargando(true)
+    setError('')
+    try {
+      const datos = await obtenerSeguimientoPedido(pedidoId)
+      if (!datos || datos.pedido.id !== pedidoId) throw new Error('Comprobante no disponible')
+      descargarRemitoWebPdf({ pedido: datos.pedido, items: datos.items, cliente })
+    } catch (err) {
+      setError(err.message || 'No pudimos descargar el comprobante')
+    } finally { setDescargando(false) }
+  }
+
   return <section className="tienda-pago-mock" aria-busy={fase === 'procesando'}>
     {error && <Feedback tone="error">{error}</Feedback>}
     <div key={fase} className="tienda-pago-mock-fase">
       {fase === 'cargando' && <p role="status">Consultando pedido…</p>}
       {fase === 'formulario' && <>
-        <CreditCard size={36} aria-hidden="true" />
+        {medio === 'transferencia' ? <Landmark size={36} aria-hidden="true" />
+          : medio === 'mercado_pago' ? <Wallet size={36} aria-hidden="true" />
+            : <CreditCard size={36} aria-hidden="true" />}
         <h1>Completá tu pago</h1>
         <p>Resumen del pedido <strong>#{pedido?.numero}</strong></p>
         <p>{pedido?.tipo_entrega === 'envio' ? 'Envío a domicilio' : 'Retiro en sucursal'}</p>
         <p>Total a pagar</p>
         <strong className="tienda-pago-mock-total">{moneda.format(Number(pedido?.total))}</strong>
 
+        <fieldset className="tienda-pago-metodos">
+          <legend>¿Cómo querés pagar?</legend>
+          {Object.entries(MEDIOS_PAGO_MOCK).map(([valor, nombre]) => <label key={valor}>
+            <input type="radio" name="medio-pago" value={valor} checked={medio === valor}
+              onChange={() => { setMedio(valor); setError('') }} />
+            {valor === 'transferencia' ? 'Transferencia' : nombre}
+          </label>)}
+        </fieldset>
+        <p className="tienda-pago-demo">Pago simulado para entorno demo</p>
+        {medio === 'tarjeta' && <>
         <div className="tienda-pago-mock-tarjeta" aria-hidden="true">
           <CreditCard />
           <strong>Tarjeta de crédito o débito</strong>
@@ -158,18 +190,39 @@ export default function PasarelaSimuladaPage({ pedidoId, onNavigate }) {
             <Button type="submit">Pagar {moneda.format(Number(pedido?.total))}</Button>
           </div>
         </form>
+        </>}
+        {medio === 'mercado_pago' && <div className="tienda-pago-alternativa">
+          <h2>Mercado Pago</h2>
+          <p>Confirmá el pago demo del pedido #{pedido?.numero} sin salir de la tienda.</p>
+          <Button type="button" onClick={() => resolver('approved')}>Pagar con Mercado Pago</Button>
+        </div>}
+        {medio === 'transferencia' && <div className="tienda-pago-alternativa">
+          <h2>Transferencia bancaria</h2>
+          <dl>
+            <dt>Titular</dt><dd>Corralón Norte</dd>
+            <dt>Alias demo</dt><dd>CORRALON.NORTE.DEMO</dd>
+            <dt>CBU ficticio · solo demo</dt><dd>0000000000000000000000</dd>
+            <dt>Total a transferir</dt><dd>{moneda.format(Number(pedido?.total))}</dd>
+            <dt>Referencia del pedido</dt><dd>#{pedido?.numero}</dd>
+          </dl>
+          <p>Para la demostración, podés simular la acreditación de la transferencia.</p>
+          <Button type="button" onClick={() => resolver('approved')}>Simular transferencia acreditada</Button>
+        </div>}
       </>}
       {fase === 'procesando' && <div role="status">
         <LoaderCircle className="tienda-pago-mock-spinner" size={48} aria-hidden="true" />
         <h1>Procesando pago...</h1><p>Estamos confirmando tu pedido.</p>
+        <Button type="button" disabled>Procesando...</Button>
       </div>}
       {fase === 'aprobado' && <>
         <CheckCircle2 className="tienda-pago-mock-check" size={64} aria-hidden="true" />
         <h1>Pago aprobado</h1>
         <p role="status">¡Tu compra fue exitosa! Ya recibimos el pago.</p>
         <p>Pedido <strong>#{pedido?.numero}</strong></p>
+        <p>Medio de pago: {medioPagoPedido(pedido)}</p>
         <strong className="tienda-pago-mock-total">{moneda.format(Number(pedido?.total))}</strong>
         <div className="tienda-pago-mock-acciones">
+          <Button type="button" onClick={descargarComprobante} loading={descargando} loadingLabel="Generando…">Descargar comprobante</Button>
           <Button type="button" onClick={() => onNavigate?.('mis-pedidos')}>Mis pedidos</Button>
           <Button type="button" variant="ghost" onClick={() => onNavigate?.('catalogo')}>Volver a la tienda</Button>
         </div>

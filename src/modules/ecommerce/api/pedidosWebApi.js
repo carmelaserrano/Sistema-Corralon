@@ -20,17 +20,15 @@ export const ESTADOS_PEDIDO = [
 // SQLSTATE que usa avanzar_estado_pedido para "transición no permitida".
 const CODIGO_TRANSICION_INVALIDA = '22023'
 
-const COLUMNAS_PEDIDO = 'id, numero, estado, total, tipo_entrega, created_at'
+const COLUMNAS_PEDIDO = 'id, numero, estado, total, tipo_entrega, created_at, pagado_at, pago_estado, referencia_pago'
 
 const COLUMNAS_PEDIDO_BACKOFFICE = `
   ${COLUMNAS_PEDIDO},
-  referencia_pago,
   cliente:clientes(id, tipo_persona, nombre, apellido, razon_social)
 `
 
 const COLUMNAS_DETALLE_PEDIDO_BACKOFFICE = `
   ${COLUMNAS_PEDIDO},
-  referencia_pago,
   cliente:clientes(
     id,
     tipo_persona,

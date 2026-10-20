@@ -165,8 +165,10 @@ export default function VentaDetalle({ ventaId, onCerrar, onComprobanteEmitido }
   async function handleCobroRegistrado(cobro) {
     setMostrarCobro(false)
     setError('')
-    setAviso(`Cobro Nº ${cobro.numero} registrado por ${formatearMoneda(cobro.total)}`)
-    await cargarDatos()
+    setAviso(`Venta registrada y cobrada correctamente. Cobro Nº ${cobro.numero} por ${formatearMoneda(cobro.total)}. Factura generada automáticamente.`)
+    const recargada = await cargarDatos()
+    const factura = recargada?.comprobantes?.find((c) => c.tipo_comprobante === 'factura' && c.estado === 'Emitido')
+    if (factura) setAviso(`Venta registrada y cobrada correctamente. Factura generada: Nº ${formatearComprobanteNumero(factura.punto_venta, factura.numero)}`)
     if (onComprobanteEmitido) onComprobanteEmitido()
   }
 

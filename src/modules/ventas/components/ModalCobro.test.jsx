@@ -3,6 +3,9 @@ import '@testing-library/jest-dom/vitest'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ModalCobro from './ModalCobro'
 import { listarMediosPago, registrarCobro } from '../api/cobrosApi'
+import { obtenerSesionCajaActiva } from '../../tesoreria/api/cajasApi'
+
+vi.mock('../../tesoreria/api/cajasApi', () => ({ obtenerSesionCajaActiva: vi.fn() }))
 
 vi.mock('../api/cobrosApi', () => ({
   listarMediosPago: vi.fn(),
@@ -32,6 +35,12 @@ const ventaPendiente = {
   cliente: { habilita_cta_cte: false },
 }
 
+const sesionActiva = {
+  id: 'sesion-1', usuario_id: 'admin-uid', estado: 'abierta',
+  caja: { nombre: 'Sur/lucas', punto_venta: { numero: '0004', nombre: 'Sucursal Sur' } },
+  responsable: { nombre: 'Lucas Cenzano' },
+}
+
 function renderModal(venta = ventaPendiente, props = {}) {
   return render(
     <ModalCobro
@@ -58,6 +67,7 @@ function ingresarImporte(numero, valor) {
 describe('ModalCobro', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    obtenerSesionCajaActiva.mockResolvedValue(sesionActiva)
     listarMediosPago.mockResolvedValue(medios)
     registrarCobro.mockResolvedValue({
       venta_id: 'venta-1',
@@ -66,6 +76,49 @@ describe('ModalCobro', () => {
       cobrada: true,
       estado_venta: 'Pendiente',
     })
+  })
+
+  it('muestra caja, punto de venta, responsable real de la sesión y estado sin selector', async () => {
+    renderModal()
+    const bloque = await screen.findByRole('region', { name: 'Caja activa' })
+    await waitFor(() => expect(bloque).toHaveTextContent('Sur/lucas'))
+    expect(bloque).toHaveTextContent('0004 · Sucursal Sur')
+    expect(bloque).toHaveTextContent('Cajero / responsableLucas Cenzano')
+    expect(bloque).toHaveTextContent('EstadoAbierta')
+    expect(bloque.querySelector('select, input, button')).toBeNull()
+  })
+
+  it.each([null, { ...sesionActiva, estado: 'cerrada' }])('sin sesión abierta válida bloquea incluso un formulario completo', async (sesion) => {
+    obtenerSesionCajaActiva.mockResolvedValue(sesion)
+    renderModal()
+    await seleccionarMedio(1, 'otro')
+    ingresarImporte(1, '1000')
+    await screen.findByText(/No hay una caja abierta para registrar el cobro/)
+    const confirmar = screen.getByRole('button', { name: 'Confirmar cobro' })
+    expect(confirmar).toBeDisabled()
+    fireEvent.submit(confirmar.closest('form'))
+    expect(registrarCobro).not.toHaveBeenCalled()
+    expect(screen.getByRole('region', { name: 'Caja activa' })).toHaveTextContent('No hay una caja abierta para registrar el cobro.')
+  })
+
+  it('no permite confirmar mientras se verifica la sesión', async () => {
+    obtenerSesionCajaActiva.mockReturnValue(new Promise(() => {}))
+    renderModal()
+    await seleccionarMedio(1, 'otro')
+    ingresarImporte(1, '1000')
+    expect(screen.getByText('Consultando caja activa…')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Caja activa' })).toHaveAttribute('aria-busy', 'true')
+    expect(screen.getByRole('button', { name: 'Confirmar cobro' })).toBeDisabled()
+  })
+
+  it('bloquea ante error de consulta, sin mostrar datos de caja inventados', async () => {
+    obtenerSesionCajaActiva.mockRejectedValue(new Error('Sin conexión'))
+    renderModal()
+    await seleccionarMedio(1, 'otro')
+    ingresarImporte(1, '1000')
+    await screen.findByText(/No pudimos verificar tu caja activa. Sin conexión/)
+    expect(screen.getByRole('button', { name: 'Confirmar cobro' })).toBeDisabled()
+    expect(registrarCobro).not.toHaveBeenCalled()
   })
 
   it('registra un cobro con dos medios cuya suma coincide con la venta', async () => {
@@ -270,7 +323,7 @@ describe('ModalCobro', () => {
       cobrada: true,
       estado_venta: 'Pendiente',
     })
-    await screen.findByText('Cobro N.º 1 registrado correctamente')
+    await screen.findByText(/Cobro N.º 1 registrado correctamente. Factura generada automáticamente/)
     expect(screen.getByRole('button', { name: 'Confirmar cobro' })).toBeDisabled()
   })
 

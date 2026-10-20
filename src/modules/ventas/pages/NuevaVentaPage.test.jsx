@@ -13,6 +13,11 @@ vi.mock('../../../lib/supabaseClient', () => ({
   supabase: { from: vi.fn(), rpc: vi.fn(), auth: { getUser: vi.fn() } },
 }))
 
+vi.mock('../components/ModalCobro', () => ({ default: ({ abierto, venta, onCobrado }) => abierto
+  ? <button onClick={() => onCobrado({ venta_id: venta.id, estado_venta: 'Facturada' })}>Simular cobro de venta {venta.numero}</button>
+  : null }))
+vi.mock('./VentaDetalle', () => ({ default: ({ ventaId }) => <p>Factura consultable de {ventaId}</p> }))
+
 // La grilla de líneas tiene sus propios tests: acá sólo se precarga una línea.
 vi.mock('../components/LineasVenta', () => ({
   default: ({ lineas, onLineasChange }) => (
@@ -86,6 +91,17 @@ describe('NuevaVentaPage · errores de la base al confirmar', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     window.location.hash = ''
+  })
+
+  it('continúa del alta al cobro y muestra confirmación y factura sin salir del POS', async () => {
+    registrarVenta.mockResolvedValue({ id: 'v-pos', numero: 99, total: 200, estado: 'Pendiente' })
+    await prepararVenta()
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar venta' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Simular cobro de venta 99' }))
+    expect(screen.getByText('Venta registrada y cobrada correctamente')).toBeInTheDocument()
+    expect(screen.getByText('Factura consultable de v-pos')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Ver / descargar factura' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Iniciar nueva venta' })).toBeInTheDocument()
   })
 
   it('ofrece crear un cliente y navega a la sección Clientes', async () => {
