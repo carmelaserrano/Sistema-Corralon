@@ -9,6 +9,8 @@ const COLUMNAS_LISTADO_VENTAS = `
   observaciones,
   created_at,
   deposito_id,
+  origen,
+  caja:cajas(nombre, tipo_caja),
   cliente:clientes(
     id,
     tipo_persona,
@@ -97,6 +99,10 @@ export async function getVentaById(id) {
       created_at,
       deposito_id,
       vendedor_id,
+      origen,
+      pedido_web_id,
+      caja:cajas(nombre, tipo_caja),
+      pedido_web:pedidos_web(numero),
       cliente:clientes(
         id,
         tipo_persona,
