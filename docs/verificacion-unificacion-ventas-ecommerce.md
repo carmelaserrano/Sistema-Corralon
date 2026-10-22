@@ -15,8 +15,11 @@ Aplicar con la aplicación sin uso y luego iniciar el código de esta rama con
 La caja **Ecommerce** queda activa permanentemente y registra los pagos aprobados
 automáticamente. Se identifica como un proceso del sistema, sin una cuenta de
 usuario ni una sesión de caja física. Los pedidos conservan su preparación,
-entrega y manejo de stock. Las ventas web pagadas quedan pendientes de **factura**,
-pero ya cobradas; la facturación se puede realizar desde el detalle de venta.
+entrega y manejo de stock. Con `0073_ventas_ecommerce_factura_y_entrega.sql`, al
+aprobarse el pago el sistema también emite la **factura** (la venta queda
+Facturada) y, cuando el pedido pasa a Entregado, la venta pasa a **Entregada**
+sin volver a mover stock. Si la factura automática falla, el pago se acepta igual
+y la venta queda Pendiente para facturarla desde el detalle de venta.
 
 ## Controles de datos en SQL Editor
 
@@ -100,11 +103,13 @@ where tgname in ('trg_cobros_venta_inmutables', 'trg_movimientos_caja_inmutables
 2. Abrir **Gestión de cajas** con un administrador. Debe figurar Ecommerce activa,
    sin apertura/cierre de turno ni edición manual.
 3. En la tienda, crear una compra y aprobar su pago. Debe generarse exactamente
-   una venta, un cobro y un ingreso asociados a Ecommerce, aunque no haya una
-   caja física abierta. Reintentar la confirmación no debe duplicarlos.
+   una venta, un cobro, un ingreso y una factura asociados a Ecommerce, aunque no
+   haya una caja física abierta. La venta debe quedar Facturada. Reintentar la
+   confirmación no debe duplicarlos.
 4. Rechazar otra compra: no debe aparecer como venta cobrada.
 5. Gestionar preparación y entrega desde **Pedidos web**. El stock debe egresar
-   una sola vez. No gestionar su entrega desde Supervisión de ventas.
+   una sola vez y, al marcar el pedido Entregado, la venta debe pasar a
+   Entregada. No gestionar su entrega desde Supervisión de ventas.
 6. Registrar una venta de mostrador y cobrarla con una caja física abierta.
    Debe facturarse y registrar su movimiento en esa caja. Probar también un
    ingreso/egreso manual y un recibo de cuenta corriente.

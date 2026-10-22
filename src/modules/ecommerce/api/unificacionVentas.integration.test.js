@@ -3,8 +3,8 @@ import { readFileSync } from 'node:fs'
 import { PGlite } from '@electric-sql/pglite'
 import { afterAll, afterEach, beforeAll, beforeEach, expect, it } from 'vitest'
 
-// Ejecuta 0072 completa sobre tablas y RPC de las migraciones anteriores,
-// incluidos sus triggers de inmutabilidad y registros históricos.
+// Ejecuta 0072 y 0073 completas sobre tablas y RPC de las migraciones
+// anteriores, incluidos sus triggers de inmutabilidad y registros históricos.
 const migration = name => readFileSync(`supabase/migrations/${name}.sql`, 'utf8')
 const base = migration('0033_base_sprint3')
 const id = n => `00000000-0000-0000-0000-${String(n).padStart(12, '0')}`
@@ -123,6 +123,7 @@ beforeAll(async () => {
     insert into items_carrito(carrito_id, producto_id, cantidad) values ('${id(22)}', '${id(11)}', 2);
   `)
   await db.exec(migration('0072_unificacion_ventas_ecommerce'))
+  await db.exec(migration('0073_ventas_ecommerce_factura_y_entrega'))
 }, 30000)
 beforeEach(async () => { await db.exec('begin') })
 afterEach(async () => { await db.exec('rollback') })
@@ -230,8 +231,8 @@ it('entrega web descuenta stock una vez y bloquea la entrega desde ventas', asyn
 })
 
 it('nota de crédito web no libera por segunda vez la reserva del pedido', async () => {
+  // La venta histórica ya quedó facturada por la puesta al día de 0073.
   const [venta] = await query('select id from ventas where pedido_web_id=$1', [id(20)])
-  await query("select emitir_comprobante($1,'factura')", [venta.id])
   await query("select emitir_comprobante($1,'nota_credito')", [venta.id])
   expect(await query('select comprometido from stock_x_deposito')).toEqual([{ comprometido: '4' }])
   await query("select avanzar_estado_pedido($1,'Cancelado','Cancelación de prueba')", [id(20)])
@@ -248,8 +249,10 @@ it('mantiene las protecciones contra modificar cobros y movimientos', async () =
 it('el cliente no puede invocar helpers internos ni editar ventas o la caja Ecommerce', async () => {
   const [acl] = await query(`select
     has_function_privilege('authenticated','fn_registrar_venta_desde_pedido_web(uuid)','execute') as helper,
-    has_function_privilege('anon','confirmar_pago_mock(uuid,text,text)','execute') as anon_pago`)
-  expect(acl).toEqual({ helper: false, anon_pago: false })
+    has_function_privilege('anon','confirmar_pago_mock(uuid,text,text)','execute') as anon_pago,
+    has_function_privilege('authenticated','fn_facturar_venta_ecommerce(uuid)','execute') as facturar,
+    has_function_privilege('authenticated','fn_intentar_facturar_venta_ecommerce(uuid)','execute') as intentar`)
+  expect(acl).toEqual({ helper: false, anon_pago: false, facturar: false, intentar: false })
   await db.exec('set local role authenticated')
   expect(await query("update cajas set activa=false where tipo_caja='ecommerce' returning id")).toHaveLength(0)
   expect(await query("update ventas set total=1 where origen='ecommerce' returning id")).toHaveLength(0)
@@ -257,4 +260,65 @@ it('el cliente no puede invocar helpers internos ni editar ventas o la caja Ecom
   await db.exec("select set_config('test.internal','false',true)")
   expect(await query('select * from ventas')).toHaveLength(0)
   await db.exec('reset role')
+})
+
+// ---------------------------------------------------------------------------
+// 0073 · factura automática y entrega sincronizada
+// ---------------------------------------------------------------------------
+const ventaDelPedido = async pedido => (await query('select * from ventas where pedido_web_id=$1', [pedido]))[0]
+const facturasDe = venta => query("select letra,estado,total from comprobantes_venta where venta_id=$1 and tipo_comprobante='factura'", [venta])
+
+it('0073: la venta histórica queda facturada y no se entrega si el pedido no se entregó', async () => {
+  const venta = await ventaDelPedido(id(20))
+  expect(venta.estado).toBe('Facturada')
+  expect(await facturasDe(venta.id)).toEqual([{ letra: 'B', estado: 'Emitido', total: '242.00' }])
+})
+
+it('0073: el pago aprobado del cliente factura la venta sin permisos de usuario interno', async () => {
+  await db.exec("select set_config('test.internal', 'false', true); set local role authenticated")
+  await pagar('mercado_pago')
+  await db.exec('reset role')
+  const venta = await ventaDelPedido(id(21))
+  expect(venta.estado).toBe('Facturada')
+  expect(await facturasDe(venta.id)).toEqual([{ letra: 'B', estado: 'Emitido', total: '242.00' }])
+})
+
+it('0073: entregar el pedido pasa la venta a Entregada sin volver a mover stock', async () => {
+  await pagar()
+  for (const estado of ['En preparación', 'Listo para retirar', 'Entregado']) {
+    await query('select avanzar_estado_pedido($1,$2)', [id(21), estado])
+  }
+  const venta = await ventaDelPedido(id(21))
+  expect(venta.estado).toBe('Entregada')
+  expect(await query("select estado_anterior,estado_nuevo from historial_estado_venta where venta_id=$1 and estado_nuevo='Entregada'", [venta.id]))
+    .toEqual([{ estado_anterior: 'Facturada', estado_nuevo: 'Entregada' }])
+  expect(await query('select cantidad,comprometido from stock_x_deposito')).toEqual([{ cantidad: '98', comprometido: '2' }])
+  expect(await query('select * from movimientos_stock')).toHaveLength(1)
+})
+
+it('0073: si la factura falla, el pago se acepta y la venta se factura al entregar', async () => {
+  await query('update puntos_venta set activo=false')
+  await pagar()
+  expect((await query('select estado from pedidos_web where id=$1', [id(21)]))[0].estado).toBe('Pagado')
+  let venta = await ventaDelPedido(id(21))
+  expect(venta.estado).toBe('Pendiente')
+  expect(await facturasDe(venta.id)).toHaveLength(0)
+  expect(await query('select * from items_carrito')).toHaveLength(0)
+
+  await query('update puntos_venta set activo=true')
+  for (const estado of ['En preparación', 'Listo para retirar', 'Entregado']) {
+    await query('select avanzar_estado_pedido($1,$2)', [id(21), estado])
+  }
+  venta = await ventaDelPedido(id(21))
+  expect(venta.estado).toBe('Entregada')
+  expect(await facturasDe(venta.id)).toHaveLength(1)
+})
+
+it('0073: facturar dos veces la misma venta Ecommerce no duplica la factura', async () => {
+  const venta = await ventaDelPedido(id(20))
+  const [primera] = await query('select fn_facturar_venta_ecommerce($1) as id', [venta.id])
+  const [segunda] = await query('select fn_facturar_venta_ecommerce($1) as id', [venta.id])
+  expect(segunda.id).toBe(primera.id)
+  expect(await facturasDe(venta.id)).toHaveLength(1)
+  await debeFallar(() => query('select fn_facturar_venta_ecommerce($1)', [id(7)]), 'no es una venta Ecommerce')
 })
