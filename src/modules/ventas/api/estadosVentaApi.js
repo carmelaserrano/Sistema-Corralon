@@ -16,6 +16,7 @@ const CODIGO_TRANSICION_INVALIDA = '22023'
 const COLUMNAS_VENTA = `
   id,
   numero,
+  origen,
   estado,
   total,
   observaciones,
@@ -91,7 +92,7 @@ function manejarErrorCambioEstado(error) {
  * @returns {Promise<Array<Object>>}
  */
 export async function listarVentasSupervision({ estado, desde, hasta } = {}) {
-  let consulta = supabase.from('ventas').select(COLUMNAS_VENTA)
+  let consulta = supabase.from('ventas').select(COLUMNAS_VENTA).eq('origen', 'mostrador')
 
   if (estado) consulta = consulta.eq('estado', estado)
   if (desde) consulta = consulta.gte('created_at', `${desde}T00:00:00`)

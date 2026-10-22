@@ -45,6 +45,14 @@ function formatearFecha(fechaIso) {
   return new Date(fechaIso).toLocaleString('es-AR')
 }
 
+function canalVenta(venta) {
+  if (venta.origen === 'ecommerce') {
+    const nombreCaja = venta.caja?.nombre === 'Ecommerce' ? 'Caja Ecommerce' : venta.caja?.nombre
+    return `Ecommerce · ${nombreCaja || 'Caja Ecommerce'}`
+  }
+  return venta.caja?.nombre || 'Mostrador'
+}
+
 function formatearComprobanteNumero(pv, numero) {
   const pvStr = String(pv?.numero || pv || '1').padStart(4, '0')
   const numStr = String(numero || 0).padStart(8, '0')
@@ -65,7 +73,7 @@ export default function VentasPage() {
 
   function exportarCsv() {
     if (!ventasFiltradas || ventasFiltradas.length === 0) {
-      toast?.info?.('No hay comprobantes para exportar con los filtros actuales.')
+      toast?.info?.('No hay ventas para exportar con los filtros actuales.')
       return
     }
 
@@ -76,6 +84,7 @@ export default function VentasPage() {
         Cliente: nombreCliente(v.cliente),
         Documento: v.cliente?.numero_documento || '',
         CondicionIVA: v.cliente?.condicion_iva?.nombre || 'Consumidor Final',
+        CanalCaja: canalVenta(v),
         Estado: v.estado,
         Total: v.total,
       }))
@@ -147,21 +156,24 @@ export default function VentasPage() {
     return numVenta.includes(q) || nomCli.includes(q) || docCli.includes(q)
   })
 
-  const totalFacturado = ventas.reduce(
+  const totalVendido = ventas.reduce(
     (acc, v) => acc + Number(v.total || 0),
     0,
   )
   const ventasFacturadas = ventas.filter(
     (v) => v.estado === 'Facturada' || v.estado === 'Entregada',
   ).length
-  const ventasPendientes = ventas.filter((v) => v.estado === 'Pendiente').length
+  const ventasPendientes = ventas.filter((v) => {
+    const totalCobrado = (v.cobros ?? []).reduce((acc, c) => acc + Number(c.total || 0), 0)
+    return v.estado === 'Pendiente' && totalCobrado < Number(v.total || 0)
+  }).length
 
   return (
     <main>
       <PageHeader
         kicker="Módulo Ventas"
         title="Ventas y Facturación"
-        description="Emisión de facturas A y B, notas de crédito y exportación de comprobantes PDF."
+        description="Ventas de mostrador y Ecommerce, con facturación y comprobantes relacionados."
         actions={
           <Button
             type="button"
@@ -178,15 +190,15 @@ export default function VentasPage() {
 
       <div className="kpi-grid">
         <KpiCard
-          label="Comprobantes emitidos"
+          label="Ventas registradas"
           value={ventas.length}
           icon={ShoppingBag}
           tone="brand"
           helperText="Total en el período seleccionado"
         />
         <KpiCard
-          label="Total facturado"
-          value={formatearMoneda(totalFacturado)}
+          label="Total vendido"
+          value={formatearMoneda(totalVendido)}
           icon={DollarSign}
           tone="success"
           helperText="Monto bruto acumulado"
@@ -203,7 +215,7 @@ export default function VentasPage() {
           value={ventasPendientes}
           icon={Clock}
           tone={ventasPendientes > 0 ? 'warning' : 'default'}
-          helperText="Aguardando cobro o facturación"
+          helperText="Aguardando cobro"
         />
       </div>
 
@@ -298,6 +310,7 @@ export default function VentasPage() {
                 <tr>
                   <th>Nº Venta</th>
                   <th>Fecha</th>
+                  <th>Canal / caja</th>
                   <th>Cliente</th>
                   <th>Condición IVA</th>
                   <th>Estado</th>
@@ -322,6 +335,7 @@ export default function VentasPage() {
                     <tr key={venta.id}>
                       <td><strong>#{venta.numero}</strong></td>
                       <td>{formatearFecha(venta.created_at)}</td>
+                      <td>{canalVenta(venta)}</td>
                       <td>
                         <div>{nombreCliente(venta.cliente)}</div>
                         <small style={{ color: 'var(--text-secondary)' }}>

@@ -120,6 +120,17 @@ describe('VentasPage', () => {
     })
   })
 
+  it('identifica la caja Ecommerce y no cuenta su venta pagada como pendiente de cobro', async () => {
+    listarVentas.mockResolvedValue([{
+      ...ventasMock[0], origen: 'ecommerce', caja: { nombre: 'Ecommerce', tipo_caja: 'ecommerce' },
+    }])
+    render(<VentasPage />)
+
+    expect(await screen.findByText('Ecommerce · Caja Ecommerce')).toBeInTheDocument()
+    const pendientes = screen.getByText('Pendientes de cobro').closest('.kpi-card')
+    expect(pendientes.querySelector('.kpi-card-value')).toHaveTextContent('0')
+  })
+
   it('aplica filtros de estado y rango de fechas', async () => {
     render(<VentasPage />)
 

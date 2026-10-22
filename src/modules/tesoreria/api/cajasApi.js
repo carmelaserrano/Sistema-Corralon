@@ -63,6 +63,7 @@ export async function listarCajas() {
     .select(`
       id,
       nombre,
+      tipo_caja,
       punto_venta_id,
       usuario_asignado_id,
       activa,

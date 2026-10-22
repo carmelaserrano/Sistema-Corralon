@@ -54,14 +54,14 @@ describe('estadosVentaApi', () => {
   })
 
   describe('listarVentasSupervision (CA-01)', () => {
-    it('sin filtros, no aplica ningún filtro extra', async () => {
+    it('sin filtros opcionales, limita la supervisión a ventas de mostrador', async () => {
       const builder = crearQueryBuilder({ data: [ventaPendiente], error: null })
       supabase.from.mockReturnValue(builder)
 
       const ventas = await listarVentasSupervision()
 
       expect(supabase.from).toHaveBeenCalledWith('ventas')
-      expect(builder.eq).not.toHaveBeenCalled()
+      expect(builder.eq).toHaveBeenCalledExactlyOnceWith('origen', 'mostrador')
       expect(builder.gte).not.toHaveBeenCalled()
       expect(builder.lt).not.toHaveBeenCalled()
       expect(ventas).toEqual([ventaPendiente])

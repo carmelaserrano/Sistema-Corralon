@@ -313,6 +313,13 @@ export default function VentaDetalle({ ventaId, onCerrar, onComprobanteEmitido }
           <p style={{ margin: '0 0 4px', fontSize: '13px' }}>
             <strong>Condición frente al IVA:</strong> {condicionIvaNombre || 'Consumidor Final'} → <em>Letra de comprobante: Factura {letraComprobante}</em>
           </p>
+          <p style={{ margin: '0 0 4px', fontSize: '13px' }}>
+            <strong>Origen:</strong>{' '}
+            {venta.origen === 'ecommerce'
+              ? `Ecommerce · ${venta.caja?.nombre === 'Ecommerce' ? 'Caja Ecommerce' : venta.caja?.nombre || 'Caja Ecommerce'}`
+              : venta.caja?.nombre || 'Mostrador'}
+            {venta.pedido_web?.numero && <span> · Pedido web N.º {venta.pedido_web.numero}</span>}
+          </p>
           <p style={{ margin: 0, fontSize: '13px' }}>
             <strong>Estado de Cobro:</strong>{' '}
             {venta.estaCobrada ? (
@@ -438,7 +445,9 @@ export default function VentaDetalle({ ventaId, onCerrar, onComprobanteEmitido }
                   checked={tipoNc === 'total'}
                   onChange={() => setTipoNc('total')}
                 />
-                Total ({formatearMoneda(saldoFactura)}) — Anulará la venta y liberará stock
+                Total ({formatearMoneda(saldoFactura)}) — {venta.origen === 'ecommerce'
+                  ? 'Anulará la venta; la entrega y el stock se gestionan desde Pedidos web'
+                  : 'Anulará la venta y liberará stock'}
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
                 <input

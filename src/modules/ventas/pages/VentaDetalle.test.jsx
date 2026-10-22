@@ -88,6 +88,20 @@ describe('VentaDetalle', () => {
     expect(screen.getByText('Cargando detalle de venta…')).toBeInTheDocument()
   })
 
+  it('una venta web muestra pedido y caja, sin ofrecer un segundo cobro ni exigir turno físico', async () => {
+    getVentaById.mockResolvedValue({
+      ...ventaBase, origen: 'ecommerce', pedido_web: { numero: 25 },
+      caja: { nombre: 'Ecommerce', tipo_caja: 'ecommerce' },
+      cobros: [{ id: 'web-cobro', total: 1000, detalle: [] }], totalCobrado: 1000, estaCobrada: true,
+    })
+    obtenerSesionCajaActiva.mockResolvedValue(null)
+    render(<VentaDetalle ventaId="v-10" onCerrar={vi.fn()} />)
+
+    expect(await screen.findByText(/Pedido web N.º 25/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Registrar cobro/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Facturar/ })).toBeEnabled()
+  })
+
   it('muestra mensaje de error si falla la consulta', async () => {
     getVentaById.mockRejectedValue(new Error('Fallo al obtener venta'))
     render(<VentaDetalle ventaId="v-10" onCerrar={vi.fn()} />)

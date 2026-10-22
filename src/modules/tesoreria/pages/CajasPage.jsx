@@ -324,7 +324,7 @@ export default function CajasPage() {
 
       {(puedeAdministrar || puedeAbrir) && (
         <section className="cajas-section">
-          <h2>Cajas físicas</h2>
+          <h2>Cajas</h2>
           {cajas.length === 0 ? (
             <p className="empty-state">No hay cajas configuradas o asignadas a tu usuario.</p>
           ) : (
@@ -339,15 +339,22 @@ export default function CajasPage() {
                       <div>
                         <h3>{caja.nombre}</h3>
                         <p>{puntoVentaLabel(caja.punto_venta)}</p>
+                        {caja.tipo_caja === 'ecommerce' && (
+                          <small style={{ color: 'var(--text-secondary)' }}>
+                            Los pagos online se registran automáticamente, sin apertura de turno.
+                          </small>
+                        )}
                       </div>
                       <span className={`estado-badge ${caja.activa ? 'estado-badge-activo' : 'estado-badge-inactivo'}`}>
                         {caja.activa ? 'Activa' : 'Inactiva'}
                       </span>
                     </div>
                     <p className="caja-asignado">
-                      Cajero: {cajero?.nombre || (caja.usuario_asignado_id ? 'Asignado' : 'Sin asignar')}
+                      {caja.tipo_caja === 'ecommerce'
+                        ? 'Operador: Ecommerce'
+                        : `Cajero: ${cajero?.nombre || (caja.usuario_asignado_id ? 'Asignado' : 'Sin asignar')}`}
                     </p>
-                    {puedeAdministrar && (
+                    {puedeAdministrar && caja.tipo_caja !== 'ecommerce' && (
                       <Button type="button" variant="ghost" onClick={() => editarCaja(caja)}>
                         Administrar
                       </Button>
