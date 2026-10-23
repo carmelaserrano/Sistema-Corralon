@@ -9,6 +9,7 @@ import Feedback from '../../../components/ui/Feedback'
 import PageHeader from '../../../components/ui/PageHeader'
 import KpiCard from '../../../components/ui/KpiCard'
 import { useToast } from '../../../components/ui/ToastContext'
+import { formatearFechaHora } from '../../../lib/fechas'
 
 
 const ESTADOS_VENTA = ['Pendiente', 'Facturada', 'Entregada', 'Anulada']
@@ -42,7 +43,7 @@ function formatearMoneda(valor) {
 
 function formatearFecha(fechaIso) {
   if (!fechaIso) return '—'
-  return new Date(fechaIso).toLocaleString('es-AR')
+  return formatearFechaHora(fechaIso)
 }
 
 function canalVenta(venta) {

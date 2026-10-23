@@ -14,6 +14,7 @@ import { obtenerSesionCajaActiva } from '../../tesoreria/api/cajasApi'
 import ModalCobro from '../components/ModalCobro'
 import Button from '../../../components/ui/Button'
 import Feedback from '../../../components/ui/Feedback'
+import { formatearFechaHora } from '../../../lib/fechas'
 
 const TONOS_ESTADO = {
   Pendiente: 'advertencia',
@@ -44,7 +45,7 @@ function formatearMoneda(valor) {
 
 function formatearFecha(fechaIso) {
   if (!fechaIso) return '—'
-  return new Date(fechaIso).toLocaleString('es-AR')
+  return formatearFechaHora(fechaIso)
 }
 
 function formatearComprobanteNumero(pv, numero) {

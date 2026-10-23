@@ -2,10 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { getHistorialArticuloDeposito } from '../api/movimientosApi'
 import EmptyState from '../../../components/ui/EmptyState'
+import { formatearFechaHora } from '../../../lib/fechas'
 
 function formatearFecha(fecha) {
   if (!fecha) return '-'
-  return new Date(fecha).toLocaleString('es-AR')
+  return formatearFechaHora(fecha)
 }
 
 function formatearCantidad(valor) {

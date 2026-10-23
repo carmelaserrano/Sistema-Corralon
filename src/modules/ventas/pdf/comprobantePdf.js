@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf'
 import logoCorralon from '../../ecommerce/pdf/logo-corralon-norte.jpg?inline'
 import { DATOS_COMERCIALES } from '../../ecommerce/datosComerciales'
+import { formatearFechaHora } from '../../../lib/fechas'
 
 /**
  * Datos por defecto del emisor: los mismos de Corralón Norte que usa el
@@ -337,7 +338,7 @@ export function generarComprobantePdf({ comprobante, venta, emisor = EMISOR_DEFA
     align: 'center',
   })
   doc.setFont('helvetica', 'normal')
-  doc.text(`Generado el ${new Date().toLocaleString('es-AR')} · Sistema Corralón Norte`, 105, 283, { align: 'center' })
+  doc.text(`Generado el ${formatearFechaHora(new Date())} · Sistema Corralón Norte`, 105, 283, { align: 'center' })
 
   return doc
 }

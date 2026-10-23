@@ -33,6 +33,7 @@ import KpiCard from '../../../components/ui/KpiCard'
 import { useToast } from '../../../components/ui/ToastContext'
 import Papa from 'papaparse'
 import { FileText, DollarSign, Clock, CheckCircle2, Download, Plus } from 'lucide-react'
+import { formatearFechaHora as formatearFechaHora24h } from '../../../lib/fechas'
 
 function formatearFechaCorta(isoDateString) {
   if (!isoDateString) return '—'
@@ -49,7 +50,7 @@ function formatearMoneda(valor) {
 
 function formatearFechaHora(iso) {
   if (!iso) return '—'
-  return new Date(iso).toLocaleString('es-AR')
+  return formatearFechaHora24h(iso)
 }
 
 function EstadoBadge({ estado }) {

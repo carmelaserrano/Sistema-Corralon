@@ -5,6 +5,7 @@ import KpiCard from '../../../components/ui/KpiCard'
 import { useToast } from '../../../components/ui/ToastContext'
 import Papa from 'papaparse'
 import { AlertTriangle, ShieldAlert, Warehouse, CheckCircle2, Download, RefreshCw } from 'lucide-react'
+import { formatearFechaHora } from '../../../lib/fechas'
 
 export default function AlertasStockPage() {
   const { showToast } = useToast()
@@ -60,7 +61,7 @@ export default function AlertasStockPage() {
       Depósito: a.deposito?.nombre || '',
       'Stock disponible': a.stock_disponible,
       'Stock mínimo': a.stock_minimo,
-      Generada: a.generada_en ? new Date(a.generada_en).toLocaleString('es-AR') : '',
+      Generada: a.generada_en ? formatearFechaHora(a.generada_en) : '',
       Estado: a.estado || '',
     }))
     const csv = Papa.unparse(datosCsv)

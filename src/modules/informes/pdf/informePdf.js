@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf'
 import logoCorralon from '../../ecommerce/pdf/logo-corralon-norte.jpg?inline'
+import { formatearFechaHora } from '../../../lib/fechas'
 
 /**
  * Arma el PDF de un informe: encabezado, subtítulo y una o más tablas.
@@ -34,7 +35,7 @@ export function armarInformePdf({ titulo, subtitulo, tablas }) {
   doc.setFontSize(9)
   doc.setTextColor(100, 116, 139)
   doc.text(subtitulo, xTexto, (y += 6))
-  doc.text(`Generado el ${new Date().toLocaleString('es-AR')}`, anchoPagina - margen, y, { align: 'right' })
+  doc.text(`Generado el ${formatearFechaHora(new Date())}`, anchoPagina - margen, y, { align: 'right' })
   y += 6
 
   for (const tabla of tablas) {

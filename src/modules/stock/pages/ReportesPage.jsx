@@ -17,6 +17,7 @@ import { getCategorias } from '../api/categoriasApi'
 import PageHeader from '../../../components/ui/PageHeader'
 import KpiCard from '../../../components/ui/KpiCard'
 import { useToast } from '../../../components/ui/ToastContext'
+import { formatearFechaHora } from '../../../lib/fechas'
 
 const formatoMoneda = (val) =>
   val == null
@@ -367,7 +368,7 @@ function ReportesPage() {
                 <tbody>
                   {filas.map((movimiento) => (
                     <tr key={movimiento.id}>
-                      <td>{new Date(movimiento.fecha).toLocaleString('es-AR')}</td>
+                      <td>{formatearFechaHora(movimiento.fecha)}</td>
                       <td>{movimiento.tipo?.nombre || '-'}</td>
                       <td>{movimiento.detalle?.[0]?.producto?.nombre || '-'}</td>
                       <td>{movimiento.detalle?.[0]?.cantidad ?? '-'}</td>

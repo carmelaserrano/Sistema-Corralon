@@ -23,10 +23,11 @@ import KpiCard from '../../../components/ui/KpiCard'
 import { useToast } from '../../../components/ui/ToastContext'
 import Papa from 'papaparse'
 import { Building2, CheckCircle2, XCircle, Download, Tags } from 'lucide-react'
+import { formatearFechaHora } from '../../../lib/fechas'
 
 function formatearFecha(iso) {
   if (!iso) return '—'
-  return new Date(iso).toLocaleString('es-AR')
+  return formatearFechaHora(iso)
 }
 
 // CA 3: el estado se muestra con un indicador visual, no sólo con texto.
