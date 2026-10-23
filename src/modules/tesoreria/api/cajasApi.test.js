@@ -99,13 +99,25 @@ describe('cajasApi', () => {
   })
 
   it('cierra una sesión con el importe físico declarado', async () => {
-    supabase.rpc.mockResolvedValue({ data: { id: 's-1', diferencia: -50 }, error: null })
+    supabase.rpc.mockResolvedValue({ data: { id: 's-1', diferencia: 0 }, error: null })
 
     await cerrarCaja('s-1', '950')
 
     expect(supabase.rpc).toHaveBeenCalledWith('cerrar_caja', {
       p_sesion_caja_id: 's-1',
       p_monto_declarado: 950,
+    })
+  })
+
+  it('informa el rechazo de cierre cuando el efectivo declarado no coincide', async () => {
+    supabase.rpc.mockResolvedValue({
+      data: null,
+      error: { code: 'CX004', message: 'El efectivo contado (950.00) no coincide con el efectivo esperado (1000.00).' },
+    })
+
+    await expect(cerrarCaja('s-1', '950')).rejects.toMatchObject({
+      status: 409,
+      message: 'El efectivo contado (950.00) no coincide con el efectivo esperado (1000.00).',
     })
   })
 
@@ -195,6 +207,10 @@ describe('contrato SQL de gestión de cajas', () => {
     'supabase/migrations/0065_puntos_venta_por_sucursal.sql',
     'utf8',
   )
+  const migracionCierre = readFileSync(
+    'supabase/migrations/0076_cierre_caja_sin_diferencias.sql',
+    'utf8',
+  )
 
   it('define los permisos, unicidad de sesión abierta y políticas RLS', () => {
     expect(migracion).toContain("'cajas.abrir'")
@@ -217,6 +233,13 @@ describe('contrato SQL de gestión de cajas', () => {
     expect(migracion).toMatch(/v_sesion\.saldo_inicial[\s\S]*sum\(case when mc\.tipo = 'ingreso' then mc\.monto else -mc\.monto end\)/)
     expect(migracion).toMatch(/lower\(mp\.nombre\) = 'efectivo'/)
     expect(migracion).toContain('monto_declarado - v_saldo_teorico')
+  })
+
+  it('exige coincidencia exacta para cerrar y conserva abierta la sesión ante una diferencia', () => {
+    expect(migracionCierre).toMatch(/v_monto_declarado is distinct from v_saldo_teorico/)
+    expect(migracionCierre).toContain("using errcode = 'CX004'")
+    expect(migracionCierre).toMatch(/La sesión sigue abierta/)
+    expect(migracionCierre).toMatch(/diferencia = 0/)
   })
 
   it('asocia cada sucursal con su punto de venta y factura según el depósito', () => {

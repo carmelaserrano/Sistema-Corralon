@@ -8,6 +8,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 const migration = (name) => readFileSync(`supabase/migrations/${name}.sql`, 'utf8')
 const base = migration('0033_base_sprint3')
 const caja = migration('0062_gestion_cajas_y_sesiones')
+const cierreCaja = migration('0076_cierre_caja_sin_diferencias')
 function table(sql, name) {
   return sql.match(new RegExp(`create table (?:if not exists )?public\\.${name} \\([\\s\\S]*?\\n\\);`))[0]
 }
@@ -51,6 +52,7 @@ beforeAll(async () => {
   await db.exec(fn(migration('0039_estados_venta'), 'fn_facturar_venta_automatico'))
   await db.exec(fn(caja, 'asociar_sesion_caja_a_cobro'))
   await db.exec(fn(caja, 'registrar_movimiento_por_detalle_cobro'))
+  await db.exec(fn(cierreCaja, 'cerrar_caja'))
   await db.exec(`
     create trigger factura after insert on comprobantes_venta for each row
       when (new.tipo_comprobante = 'factura') execute function fn_facturar_venta_automatico();
@@ -142,6 +144,36 @@ describe('cobro y facturación en una transacción', () => {
     await db.exec('rollback to savepoint intento')
     expect(await rows('comprobantes_venta')).toHaveLength(0)
     expect(await rows('cobros_venta')).toHaveLength(0)
+  })
+
+  it('mantiene abierta la caja con diferencia y la cierra al coincidir el efectivo', async () => {
+    await db.exec(`
+      update sesiones_caja set saldo_inicial = 1000;
+      insert into movimientos_caja (
+        sesion_caja_id, tipo, origen, medio_pago_id, monto, motivo, comprobante, created_by
+      ) values
+        ('${id(10)}', 'ingreso', 'manual', '${id(5)}', 100, 'Venta 1', 'V-1', '${id(1)}'),
+        ('${id(10)}', 'ingreso', 'manual', '${id(5)}', 200, 'Venta 2', 'V-2', '${id(1)}'),
+        ('${id(10)}', 'ingreso', 'manual', '${id(6)}', 500, 'Transferencia', 'T-1', '${id(1)}');
+      savepoint cierre_descuadrado;
+    `)
+
+    await expect(
+      db.query('select * from public.cerrar_caja($1, $2)', [id(10), 1299]),
+    ).rejects.toMatchObject({ code: 'CX004' })
+    await db.exec('rollback to savepoint cierre_descuadrado')
+    expect((await rows('sesiones_caja'))[0]).toMatchObject({ estado: 'abierta', monto_declarado: null })
+
+    const resultado = await db.query(
+      'select * from public.cerrar_caja($1, $2)',
+      [id(10), 1300],
+    )
+    expect(resultado.rows[0]).toMatchObject({
+      estado: 'cerrada',
+      monto_declarado: '1300.00',
+      saldo_teorico: '1300.00',
+      diferencia: '0.00',
+    })
   })
 
   it('no permite omitir el permiso de facturación', async () => {
