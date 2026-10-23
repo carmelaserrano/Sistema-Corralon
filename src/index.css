@@ -2607,6 +2607,15 @@ td button:hover:not(:disabled),
   flex: 1 1 220px;
 }
 
+.caja-cierre-resumen {
+  flex: 1 1 100%;
+  font-size: 13px;
+}
+
+.caja-cierre-resumen p {
+  margin: 0 0 var(--space-2);
+}
+
 .cajas-actions {
   display: flex;
   flex-wrap: wrap;

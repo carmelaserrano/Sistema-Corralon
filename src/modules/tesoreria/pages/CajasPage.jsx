@@ -66,6 +66,10 @@ function puntoVentaLabel(punto) {
   return punto ? `${punto.numero} · ${punto.nombre}` : '—'
 }
 
+function centavos(valor) {
+  return Math.round(Number(valor) * 100)
+}
+
 export default function CajasPage() {
   const cerrarMovimientosRef = useRef(null)
   const cerrarFormularioCajaRef = useRef(null)
@@ -96,6 +100,22 @@ export default function CajasPage() {
   const puedeAdministrar = permisos[PERMISOS_CAJAS.administrar]
   const puedeAbrir = permisos[PERMISOS_CAJAS.abrir]
   const puedeCerrar = permisos[PERMISOS_CAJAS.cerrar]
+  const saldoEfectivoEsperado = useMemo(() => {
+    if (!sesionActiva) return 0
+    const saldoMovimientos = movimientos.reduce((saldo, movimiento) => {
+      if (movimiento.medio_pago?.nombre?.toLocaleLowerCase('es') !== 'efectivo') {
+        return saldo
+      }
+      const importe = centavos(movimiento.monto)
+      return saldo + (movimiento.tipo === 'ingreso' ? importe : -importe)
+    }, 0)
+    return centavos(sesionActiva.saldo_inicial) + saldoMovimientos
+  }, [movimientos, sesionActiva])
+  const montoDeclaradoCentavos = montoDeclarado === '' ? null : centavos(montoDeclarado)
+  const cierreCoincide = montoDeclaradoCentavos === saldoEfectivoEsperado
+  const diferenciaDeclarada = montoDeclaradoCentavos === null
+    ? 0
+    : montoDeclaradoCentavos - saldoEfectivoEsperado
   const puntosVentaDisponibles = puntosVenta.filter(
     (punto) => punto.deposito_id || punto.id === cajaForm.punto_venta_id,
   )
@@ -144,7 +164,10 @@ export default function CajasPage() {
         (item) => item.estado === 'abierta' && item.usuario_id === idUsuario,
       ) ?? null
       setSesionActiva(sesion)
-      setMovimientos(sesion && permisosActuales[PERMISOS_CAJAS.operar]
+      setMovimientos(sesion && (
+        permisosActuales[PERMISOS_CAJAS.operar] ||
+        permisosActuales[PERMISOS_CAJAS.cerrar]
+      )
         ? await listarMovimientosCaja(sesion.id)
         : [])
     } catch (err) {
@@ -482,7 +505,29 @@ export default function CajasPage() {
                     onChange={(event) => setMontoDeclarado(event.target.value)}
                   />
                 </label>
-                <Button type="submit" loading={guardando}>Cerrar caja</Button>
+                <div className="caja-cierre-resumen">
+                  <p>Efectivo esperado: <strong>{moneda(saldoEfectivoEsperado / 100)}</strong></p>
+                  {montoDeclaradoCentavos !== null && !cierreCoincide && (
+                    <p className={diferenciaDeclarada < 0
+                      ? 'caja-diferencia-faltante'
+                      : 'caja-diferencia-sobrante'} role="alert">
+                      {diferenciaDeclarada < 0 ? 'Faltan' : 'Sobran'} {moneda(Math.abs(diferenciaDeclarada) / 100)}.
+                      El efectivo contado debe coincidir con el esperado para cerrar.
+                    </p>
+                  )}
+                  {montoDeclaradoCentavos !== null && cierreCoincide && (
+                    <p className="caja-diferencia-sin-diferencia">El efectivo coincide; ya podés cerrar la caja.</p>
+                  )}
+                </div>
+                <Button
+                  type="submit"
+                  loading={guardando}
+                  disabled={montoDeclaradoCentavos === null ||
+                    !Number.isFinite(montoDeclaradoCentavos) ||
+                    !cierreCoincide}
+                >
+                  Cerrar caja
+                </Button>
               </form>
             </div>
           )}
