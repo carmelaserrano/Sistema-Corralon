@@ -218,7 +218,7 @@ function UnidadesMedidaPage() {
       {error && <p role="alert">{error}</p>}
       {aviso && <p role="status">{aviso}</p>}
 
-      <form onSubmit={guardarUnidad}>
+      <form className="form-inline" onSubmit={guardarUnidad}>
         <h2>{editandoId ? 'Editar unidad' : 'Nueva unidad'}</h2>
 
         <label>
@@ -268,7 +268,7 @@ function UnidadesMedidaPage() {
           </select>
         </label>
 
-        <label>
+        <label className="checkbox-field">
           <input
             type="checkbox"
             name="activo"
