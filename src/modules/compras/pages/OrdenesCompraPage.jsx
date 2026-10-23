@@ -30,11 +30,12 @@ import Feedback from '../../../components/ui/Feedback'
 import PageHeader from '../../../components/ui/PageHeader'
 import KpiCard from '../../../components/ui/KpiCard'
 import { useToast } from '../../../components/ui/ToastContext'
+import { formatearFechaHora } from '../../../lib/fechas'
 
 
 function formatearFecha(iso) {
   if (!iso) return '—'
-  return new Date(iso).toLocaleString('es-AR')
+  return formatearFechaHora(iso)
 }
 
 function formatearFechaCorta(isoDateString) {

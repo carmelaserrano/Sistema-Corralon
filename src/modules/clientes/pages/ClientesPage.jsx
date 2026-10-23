@@ -25,6 +25,7 @@ import Feedback from '../../../components/ui/Feedback'
 import PageHeader from '../../../components/ui/PageHeader'
 import KpiCard from '../../../components/ui/KpiCard'
 import { useToast } from '../../../components/ui/ToastContext'
+import { formatearFechaHora } from '../../../lib/fechas'
 
 
 const DEBOUNCE_BUSQUEDA_MS = 300
@@ -198,7 +199,7 @@ function ModalCambiarEstadoCliente({ cliente, onCambiado, onCerrar }) {
             <tbody>
               {historial.map((cambio) => (
                 <tr key={cambio.id}>
-                  <td>{new Date(cambio.created_at).toLocaleString('es-AR')}</td>
+                  <td>{formatearFechaHora(cambio.created_at)}</td>
                   <td>{cambio.estado_anterior ?? '—'}</td>
                   <td>{cambio.estado_nuevo}</td>
                   <td>{cambio.motivo || '—'}</td>

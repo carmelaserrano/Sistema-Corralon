@@ -327,25 +327,24 @@ function InventarioFisicoPage() {
         <section>
           <h2>Iniciar toma de inventario</h2>
 
-          <form onSubmit={iniciarToma}>
+          <form className="form-inline" onSubmit={iniciarToma}>
             <label htmlFor="deposito_inventario">
               Depósito
+              <select
+                id="deposito_inventario"
+                value={depositoId}
+                onChange={(event) => setDepositoId(event.target.value)}
+                required
+              >
+                <option value="">Seleccionar depósito...</option>
+
+                {depositos.map((deposito) => (
+                  <option key={deposito.id} value={deposito.id}>
+                    {deposito.nombre}
+                  </option>
+                ))}
+              </select>
             </label>
-
-            <select
-              id="deposito_inventario"
-              value={depositoId}
-              onChange={(event) => setDepositoId(event.target.value)}
-              required
-            >
-              <option value="">Seleccionar depósito...</option>
-
-              {depositos.map((deposito) => (
-                <option key={deposito.id} value={deposito.id}>
-                  {deposito.nombre}
-                </option>
-              ))}
-            </select>
 
             <button type="submit" disabled={loading}>
               {loading ? 'Iniciando...' : 'Iniciar toma'}

@@ -442,12 +442,12 @@ export default function CheckoutPage({ onPasarelaSimulada, onVolverCarrito }) {
             <Button
               type="button"
               className="tienda-btn-confirmar-pago"
+              icon={CreditCard}
               loading={cargando}
               loadingLabel="Reservando stock y creando pago…"
               disabled={tipo === 'envio' && !domicilioId}
               onClick={confirmar}
             >
-              <CreditCard size={18} />
               Confirmar pedido y pagar
             </Button>
 

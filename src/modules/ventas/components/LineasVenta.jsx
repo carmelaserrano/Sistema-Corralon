@@ -454,14 +454,14 @@ export default function LineasVenta({
         <div style={{ overflowX: 'auto', marginTop: '16px' }}>
           <table className="tabla-lineas-venta">
             <colgroup>
-              <col style={{ width: '24%' }} />
+              <col style={{ width: '22%' }} />
               <col style={{ width: '11%' }} />
               <col style={{ width: '11%' }} />
-              <col style={{ width: '15%' }} />
+              <col style={{ width: '12%' }} />
               <col style={{ width: '12%' }} />
               <col style={{ width: '10%' }} />
               <col style={{ width: '11%' }} />
-              <col style={{ width: '6%' }} />
+              <col style={{ width: '11%' }} />
             </colgroup>
             <thead>
               <tr>
@@ -602,6 +602,11 @@ export default function LineasVenta({
         .lineas-venta-contenedor table.tabla-lineas-venta {
           display: table !important;
           width: 100% !important;
+          /* Con el resumen al costado la tarjeta queda angosta: sin un mínimo,
+             las 8 columnas se aplastan, los encabezados se pisan y los inputs
+             de cantidad/descuento no muestran el valor. Debajo de este ancho
+             la tabla se desplaza dentro de su contenedor (overflowX: auto). */
+          min-width: 820px;
           table-layout: fixed !important;
           border-collapse: separate;
           border-spacing: 0;
@@ -623,6 +628,15 @@ export default function LineasVenta({
         .lineas-venta-contenedor table.tabla-lineas-venta td {
           padding: 10px 12px;
           vertical-align: middle;
+        }
+        /* Encabezados e importes en una sola línea; el artículo y el
+           "Aceptar espera" de backorder (columna 4) pueden partirse. */
+        .lineas-venta-contenedor table.tabla-lineas-venta th,
+        .lineas-venta-contenedor table.tabla-lineas-venta td:not(:first-child):not(:nth-child(4)) {
+          white-space: nowrap;
+        }
+        .lineas-venta-contenedor table.tabla-lineas-venta input[type='number'] {
+          min-width: 56px;
         }
       `}</style>
     </div>

@@ -10,6 +10,7 @@ import KpiCard from '../../../components/ui/KpiCard'
 import { useToast } from '../../../components/ui/ToastContext'
 import Papa from 'papaparse'
 import { History, ArrowLeftRight, Boxes, Warehouse, Download, ArrowLeft } from 'lucide-react'
+import { formatearFechaHora } from '../../../lib/fechas'
 
 const filtrosIniciales = {
   articuloId: '',
@@ -152,7 +153,7 @@ function HistorialMovimientosPage({ onVolver }) {
     const datosCsv = movimientos.map((m) => {
       const renglon = m.detalle?.[0] || {}
       return {
-        'Fecha y hora': m.fecha ? new Date(m.fecha).toLocaleString('es-AR') : '',
+        'Fecha y hora': m.fecha ? formatearFechaHora(m.fecha) : '',
         Tipo: m.tipo?.nombre || '-',
         Artículo: renglon.producto?.nombre || renglon.producto?.sku || '-',
         Cantidad: renglon.cantidad ?? '-',
@@ -426,9 +427,7 @@ function HistorialMovimientosPage({ onVolver }) {
                   return (
                     <tr key={movimiento.id}>
                       <td>
-                        {new Date(
-                          movimiento.fecha,
-                        ).toLocaleString('es-AR')}
+                        {formatearFechaHora(movimiento.fecha)}
                       </td>
 
                       <td>

@@ -18,6 +18,7 @@ import {
   PERMISOS_CAJAS,
   registrarMovimientoCaja,
 } from '../api/cajasApi'
+import { formatearFechaHora } from '../../../lib/fechas'
 
 const FORM_CAJA_VACIO = {
   id: '',
@@ -58,7 +59,7 @@ function claseDiferenciaArqueo(valor) {
 }
 
 function fechaHora(valor) {
-  return valor ? new Date(valor).toLocaleString('es-AR') : '—'
+  return valor ? formatearFechaHora(valor) : '—'
 }
 
 function puntoVentaLabel(punto) {

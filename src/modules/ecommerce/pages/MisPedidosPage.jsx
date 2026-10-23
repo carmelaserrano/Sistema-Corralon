@@ -49,6 +49,12 @@ function formatearMoneda(valor) {
   return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(valor || 0)
 }
 
+// El cliente web no lee productos (RLS): el join producto:productos vuelve
+// null, así que se usa el producto_id propio del detalle.
+function idProducto(item) {
+  return item.producto?.id ?? item.producto_id
+}
+
 /** Línea de tiempo vertical del pedido (CA-02). */
 export function LineaDeTiempoPedido({ pedido, historial }) {
   const pasos = armarLineaDeTiempo(pedido, historial)
@@ -165,8 +171,8 @@ function DetallePedido({ pedidoId, cliente, onVolver, onVerProducto, onNotificar
     setReordenando(true)
     try {
       const itemsParaCarrito = items
-        .filter((it) => it.producto?.id)
-        .map((it) => ({ productoId: it.producto.id, cantidad: it.cantidad }))
+        .filter((it) => idProducto(it))
+        .map((it) => ({ productoId: idProducto(it), cantidad: it.cantidad }))
       await agregarVarios(itemsParaCarrito)
       onNotificar?.({
         mensaje: '¡Materiales cargados al carrito con éxito!',
@@ -368,15 +374,17 @@ function DetallePedido({ pedidoId, cliente, onVolver, onVerProducto, onNotificar
 
             <div className="tienda-articulos-lista">
               {items.map((item) => {
-                const nombre = item.producto?.nombre || 'Artículo'
-                const sku = item.producto?.sku
+                // El cliente web no lee productos (RLS): usa el nombre y SKU
+                // guardados en el detalle al comprar (0075).
+                const nombre = item.producto?.nombre || item.producto_nombre || 'Artículo'
+                const sku = item.producto?.sku || item.producto_sku
                 return (
                   <div key={item.id} className="tienda-articulo-fila">
                     <div className="tienda-articulo-info">
                       <span
                         className="tienda-articulo-nombre"
-                        style={{ cursor: item.producto?.id && onVerProducto ? 'pointer' : 'default' }}
-                        onClick={() => item.producto?.id && onVerProducto?.(item.producto.id)}
+                        style={{ cursor: idProducto(item) && onVerProducto ? 'pointer' : 'default' }}
+                        onClick={() => idProducto(item) && onVerProducto?.(idProducto(item))}
                       >
                         {nombre}
                       </span>
@@ -464,8 +472,8 @@ export default function MisPedidosPage({ onNavigate, onVerProducto, onNotificar,
       const data = await obtenerSeguimientoPedido(pedido.id)
       if (data?.items?.length) {
         const itemsParaCarrito = data.items
-          .filter((it) => it.producto?.id)
-          .map((it) => ({ productoId: it.producto.id, cantidad: it.cantidad }))
+          .filter((it) => idProducto(it))
+          .map((it) => ({ productoId: idProducto(it), cantidad: it.cantidad }))
         await agregarVarios(itemsParaCarrito)
         onNotificar?.({
           mensaje: '¡Productos agregados al carrito!',

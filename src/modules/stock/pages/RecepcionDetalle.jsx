@@ -3,6 +3,7 @@ import { getRecepcionById, getDetalleOrdenRecepcion } from '../api/recepcionesAp
 import Button from '../../../components/ui/Button'
 import Feedback from '../../../components/ui/Feedback'
 import EmptyState from '../../../components/ui/EmptyState'
+import { formatearFechaHora } from '../../../lib/fechas'
 
 const moneda = (valor) => Number(valor).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })
 const estadoOrden = (estado) => ({ pendiente: 'Pendiente', parcialmente_recibida: 'Parcial', recibida: 'Recibida', cancelada: 'Cancelada' }[estado] || 'No disponible')
@@ -48,7 +49,7 @@ export default function RecepcionDetalle({ id, onVolver }) {
           <div><dt>Estado actual de la OC</dt><dd>{estadoOrden(recepcion.orden?.estado)}</dd></div>
           <div><dt>Proveedor</dt><dd>{recepcion.orden?.proveedor?.razon_social || '—'}</dd></div>
           <div><dt>Depósito de destino</dt><dd>{recepcion.destino?.nombre || '—'}</dd></div>
-          <div><dt>Fecha y hora de confirmación</dt><dd>{new Date(recepcion.confirmado_at || recepcion.created_at).toLocaleString('es-AR')}</dd></div>
+          <div><dt>Fecha y hora de confirmación</dt><dd>{formatearFechaHora(recepcion.confirmado_at || recepcion.created_at)}</dd></div>
           <div><dt>Usuario que confirmó</dt><dd>{recepcion.confirmado_by || recepcion.created_by}</dd></div>
           <div><dt>Observaciones</dt><dd>{recepcion.observaciones || 'Sin observaciones'}</dd></div>
         </dl>

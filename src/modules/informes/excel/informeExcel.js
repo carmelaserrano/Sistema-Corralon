@@ -1,5 +1,6 @@
 import { armarZip } from '../../../lib/zip'
 import logoCorralon from '../../ecommerce/pdf/logo-corralon-norte.jpg?inline'
+import { formatearFechaHora } from '../../../lib/fechas'
 
 // Exporta un informe como .xlsx (Excel) con la estética del sistema: logo,
 // encabezado naranja, montos como números con formato de moneda y una fila de
@@ -299,7 +300,7 @@ async function bytesDelLogo() {
  * @returns {Promise<Blob>} Archivo .xlsx listo para descargar.
  */
 export async function armarInformeExcel({ titulo, subtitulo, tablas }) {
-  const generado = new Date().toLocaleString('es-AR')
+  const generado = formatearFechaHora(new Date())
   const usados = new Set()
   const nombres = tablas.map((t) => nombreHoja(t.hoja ?? t.titulo, usados))
   const logo = await bytesDelLogo()

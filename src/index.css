@@ -597,6 +597,31 @@ button:disabled {
   box-shadow: none;
 }
 
+/* Formularios cortos de una fila (alta rápida, iniciar un proceso): los
+   controles van uno al lado del otro con ancho acotado y el botón queda junto
+   al último campo. Con el grid de arriba cada control ocupaba una celda de
+   230px y el botón quedaba lejos del campo. */
+.page-canvas form.form-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.page-canvas form.form-inline>h2,
+.page-canvas form.form-inline>h3 {
+  flex-basis: 100%;
+}
+
+.page-canvas form.form-inline>label:not(.checkbox-field) {
+  flex: 1 1 220px;
+  max-width: 360px;
+}
+
+.page-canvas form.form-inline>label.checkbox-field,
+.page-canvas form.form-inline>button {
+  min-height: var(--control-md);
+}
+
 .nueva-venta-page .nueva-venta-form {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(270px, 320px);

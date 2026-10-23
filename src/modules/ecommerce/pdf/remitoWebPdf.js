@@ -2,6 +2,7 @@ import { jsPDF } from 'jspdf'
 import logoCorralon from './logo-corralon-norte.jpg?inline'
 import { DATOS_COMERCIALES } from '../datosComerciales'
 import { medioPagoPedido } from '../mediosPagoMock'
+import { formatearFechaHora } from '../../../lib/fechas'
 
 /**
  * Datos del corralón emisor para el remito web.
@@ -218,8 +219,10 @@ export function generarRemitoWebPdf({
         doc.addPage()
         y = 20
       }
-      const nombre = item.producto?.nombre || item.nombre || 'Material de construcción'
-      const sku = item.producto?.sku ? `[${item.producto.sku}] ` : ''
+      // El cliente web no lee productos (RLS): nombre y SKU guardados al comprar (0075).
+      const nombre = item.producto?.nombre || item.producto_nombre || item.nombre || 'Material de construcción'
+      const codigo = item.producto?.sku || item.producto_sku
+      const sku = codigo ? `[${codigo}] ` : ''
       const cant = Number(item.cantidad || 1)
       const precioUnit = Number(item.precio_unitario || item.precio || 0)
       const subtotal = Number(item.subtotal || cant * precioUnit)
@@ -287,7 +290,7 @@ export function generarRemitoWebPdf({
     { align: 'center' },
   )
   doc.text(
-    `Comprobante generado el ${new Date().toLocaleString('es-AR')} · Sistema Corralón Web`,
+    `Comprobante generado el ${formatearFechaHora(new Date())} · Sistema Corralón Web`,
     105,
     284,
     { align: 'center' },

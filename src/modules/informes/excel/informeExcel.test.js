@@ -2,8 +2,12 @@ import { describe, expect, it } from 'vitest'
 import { armarInformeExcel } from './informeExcel'
 
 // El zip va sin compresión: el XML de cada parte se puede leer como texto.
+// Se decodifica como UTF-8 (la codificación del XML): con 'latin1' el
+// resultado dependía de la versión de Node (en Node 24 'latin1' es
+// windows-1252 y el "—" no coincidía). Los bytes binarios del zip quedan
+// como caracteres de reemplazo, sin afectar las partes XML.
 async function contenido(blob) {
-  return new TextDecoder('latin1').decode(new Uint8Array(await blob.arrayBuffer()))
+  return new TextDecoder('utf-8').decode(new Uint8Array(await blob.arrayBuffer()))
 }
 
 const columnas = [
@@ -46,6 +50,6 @@ describe('armarInformeExcel', () => {
 
     expect(xml).toContain('<c r="A7" s="11" t="inlineStr"><is><t xml:space="preserve">Por fuente</t></is></c>')
     expect(xml).toContain('<c r="B8" s="8"><v>0.25</v></c>')
-    expect(xml).toContain('<c r="B9" s="12" t="inlineStr"><is><t xml:space="preserve">—</t></is></c>'.replace('—', 'â\u0080\u0094'))
+    expect(xml).toContain('<c r="B9" s="12" t="inlineStr"><is><t xml:space="preserve">—</t></is></c>')
   })
 })

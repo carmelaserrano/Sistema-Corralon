@@ -20,6 +20,7 @@ import KpiCard from '../../../components/ui/KpiCard'
 import { useToast } from '../../../components/ui/ToastContext'
 import Papa from 'papaparse'
 import { PackageCheck, Clock, FileCheck, Warehouse, Download, RefreshCw } from 'lucide-react'
+import { formatearFechaHora } from '../../../lib/fechas'
 
 const inicial = {
   orden_compra_id: '',
@@ -211,7 +212,7 @@ export default function RecepcionesPage() {
     }
     const datosCsv = listado.recepciones.map((r) => ({
       Número: r.numero,
-      'Fecha y hora': new Date(r.confirmado_at || r.created_at).toLocaleString('es-AR'),
+      'Fecha y hora': formatearFechaHora(r.confirmado_at || r.created_at),
       Usuario: r.confirmado_by || r.created_by || '-',
       'Orden de compra': r.orden?.numero || '-',
       Depósito: r.destino?.nombre || '-',
@@ -567,9 +568,7 @@ export default function RecepcionesPage() {
                       <td>{rec.numero}</td>
 
                       <td>
-                        {new Date(
-                          rec.confirmado_at || rec.created_at
-                        ).toLocaleString('es-AR')}
+                        {formatearFechaHora(rec.confirmado_at || rec.created_at)}
                       </td>
 
                       <td>{rec.confirmado_by || rec.created_by}</td>

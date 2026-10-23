@@ -193,7 +193,7 @@ function CategoriasPage() {
       {error && <p role="alert">{error}</p>}
       {aviso && <p role="status">{aviso}</p>}
 
-      <form onSubmit={guardarCategoria}>
+      <form className="form-inline" onSubmit={guardarCategoria}>
         <h2>{editandoId ? 'Editar categoría' : 'Nueva categoría'}</h2>
 
         <label>
@@ -206,7 +206,7 @@ function CategoriasPage() {
           />
         </label>
 
-        <label>
+        <label className="checkbox-field">
           <input
             type="checkbox"
             name="activo"
