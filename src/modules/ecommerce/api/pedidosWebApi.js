@@ -57,6 +57,8 @@ const COLUMNAS_ITEMS_PEDIDO = `
   cantidad,
   precio_unitario,
   subtotal,
+  producto_nombre,
+  producto_sku,
   producto:productos(id, nombre, sku)
 `
 

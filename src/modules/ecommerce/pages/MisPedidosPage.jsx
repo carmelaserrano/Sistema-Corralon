@@ -368,8 +368,10 @@ function DetallePedido({ pedidoId, cliente, onVolver, onVerProducto, onNotificar
 
             <div className="tienda-articulos-lista">
               {items.map((item) => {
-                const nombre = item.producto?.nombre || 'Artículo'
-                const sku = item.producto?.sku
+                // El cliente web no lee productos (RLS): usa el nombre y SKU
+                // guardados en el detalle al comprar (0075).
+                const nombre = item.producto?.nombre || item.producto_nombre || 'Artículo'
+                const sku = item.producto?.sku || item.producto_sku
                 return (
                   <div key={item.id} className="tienda-articulo-fila">
                     <div className="tienda-articulo-info">

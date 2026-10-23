@@ -70,6 +70,15 @@ describe('remitoWebPdf', () => {
     expect(salida).not.toContain('CONFORMIDAD DE RECEPCI')
   })
 
+  it('usa el nombre y SKU guardados en el detalle cuando el cliente web no puede leer productos', () => {
+    // Para el cliente web, RLS deja el join producto:productos en null (0075).
+    const items = [{ id: 'it-1', cantidad: 1, precio_unitario: 560, subtotal: 560, producto: null,
+      producto_nombre: 'Ladrillo cerámico hueco 8x18x33 (4 tubos)', producto_sku: 'COR-LAD-001' }]
+    const salida = generarRemitoWebPdf({ pedido: pedidoEjemplo, items }).output()
+    expect(salida).toContain('[COR-LAD-001] Ladrillo cer')
+    expect(salida).not.toContain('Material de construcci')
+  })
+
   it.each(['Pendiente de pago', 'Cancelado'])('rechaza generar PDF para %s sin pago', (estado) => {
     const pedido = { ...pedidoEjemplo, estado, pago_estado: 'rejected' }
     expect(tieneComprobanteCompra(pedido)).toBe(false)

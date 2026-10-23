@@ -223,8 +223,10 @@ function ModalDetallePedido({ pedido, puedeGestionar, onCambio, onCerrar }) {
                       {items.map((item) => (
                         <tr key={item.id}>
                           <td>
-                            <strong>{item.producto?.nombre ?? 'Producto no disponible'}</strong>
-                            {item.producto?.sku && <small style={{ display: 'block' }}>SKU: {item.producto.sku}</small>}
+                            <strong>{item.producto?.nombre ?? item.producto_nombre ?? 'Producto no disponible'}</strong>
+                            {(item.producto?.sku || item.producto_sku) && (
+                              <small style={{ display: 'block' }}>SKU: {item.producto?.sku || item.producto_sku}</small>
+                            )}
                           </td>
                           <td>{item.cantidad}</td>
                           <td>{formatearMoneda(item.precio_unitario)}</td>
