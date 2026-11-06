@@ -546,7 +546,11 @@ button:disabled {
   font-size: 15px;
 }
 
-.page-canvas>div,
+/* `flow-root` evita el colapso de márgenes entre las tarjetas de la página.
+   Los modales quedan afuera a propósito: se montan como hijos directos de
+   un .page-canvas y, si les gana esta regla, pierden el `display: grid` de
+   .modal-backdrop y el diálogo deja de centrarse (queda pegado arriba). */
+.page-canvas>div:not(.modal-backdrop),
 .page-canvas>section {
   display: flow-root;
 }
@@ -1278,6 +1282,13 @@ td button,
   box-shadow: var(--shadow-2);
 }
 
+/* El panel suele llevar también .page-canvas (para heredar la tipografía de
+   las tarjetas), y de ahí se cuela el margen inferior de `.page-canvas
+   section`, que lo descentraba ~10px hacia arriba dentro del backdrop. */
+.modal-backdrop>.modal-panel {
+  margin: 0;
+}
+
 .modal-header {
   display: flex;
   align-items: flex-start;
@@ -1313,6 +1324,11 @@ td button,
 .page-canvas .cobro-form {
   display: flex;
   flex-direction: column;
+  /* `align-items: end` viene de `.page-canvas form` (pensado para los
+     formularios en grilla, que alinean los campos abajo). En una columna
+     flex el eje cruzado es el horizontal, así que encogía cada bloque a su
+     contenido y lo pegaba a la derecha en vez de ocupar todo el ancho. */
+  align-items: stretch;
   gap: var(--space-4);
   margin: 0;
   padding: 0;
@@ -1332,6 +1348,13 @@ td button,
   color: var(--text-primary);
   font-size: 13px;
   font-weight: 650;
+}
+
+/* `.page-canvas button[type="button"]` arrastra un margen pensado para los
+   botones sueltos de las tablas; acá dejaba el borde derecho 4px corrido
+   respecto del resto de los bloques del formulario. */
+.page-canvas .cobro-form > button {
+  margin: 0;
 }
 
 .page-canvas .cobro-form > .cobro-nota {
@@ -1520,6 +1543,11 @@ td button,
 .page-canvas .recibo-form {
   display: flex;
   flex-direction: column;
+  /* `align-items: end` viene de `.page-canvas form` (pensado para los
+     formularios en grilla, que alinean los campos abajo). En una columna
+     flex el eje cruzado es el horizontal, así que encogía cada bloque a su
+     contenido y lo pegaba a la derecha en vez de ocupar todo el ancho. */
+  align-items: stretch;
   gap: var(--space-4);
   margin: 0;
   padding: 0;
