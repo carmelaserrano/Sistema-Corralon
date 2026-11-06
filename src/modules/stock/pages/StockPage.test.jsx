@@ -25,6 +25,9 @@ vi.mock('../api/movimientosApi', () => ({
   getHistorialArticuloDeposito: vi.fn(),
 }))
 
+const { armarInformeExcel } = vi.hoisted(() => ({ armarInformeExcel: vi.fn() }))
+vi.mock('../../informes/excel/informeExcel', () => ({ armarInformeExcel }))
+
 const DEPOSITO_ID = '11111111-1111-4111-8111-111111111111'
 const ARTICULO_ID = '22222222-2222-4222-8222-222222222222'
 
@@ -66,6 +69,26 @@ describe('StockPage', () => {
     ])
     getHistorialArticuloDeposito.mockResolvedValue([])
     subscribeToStockChanges.mockReturnValue({ unsubscribe: vi.fn() })
+  })
+
+  it('exporta el stock en Excel con cantidades numéricas y el depósito en el título', async () => {
+    armarInformeExcel.mockResolvedValue(new Blob(['xlsx']))
+    URL.createObjectURL = vi.fn(() => 'blob:stock')
+    URL.revokeObjectURL = vi.fn()
+    const clicks = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    getStockDisponibles.mockResolvedValue({ items: [crearItem()], total: 1 })
+
+    render(<StockPage />)
+    await screen.findByText('Cemento Portland')
+    fireEvent.click(screen.getByRole('button', { name: 'Exportar Excel' }))
+
+    await waitFor(() => expect(clicks).toHaveBeenCalledOnce())
+    const [{ titulo, tablas }] = armarInformeExcel.mock.calls[0]
+    expect(titulo).toBe('Stock por depósito')
+    expect(tablas[0].columnas.filter((c) => c.tipo === 'numero').map((c) => c.titulo))
+      .toEqual(['Físico', 'Comprometido', 'Disponible'])
+    expect(tablas[0].filas[0]).toEqual(['SKU-2222', 'Cemento Portland', 'Materiales', 'Loma Negra', 10, 2, 8, 'un'])
+    clicks.mockRestore()
   })
 
   it('permite recorrer todas las páginas del stock', async () => {

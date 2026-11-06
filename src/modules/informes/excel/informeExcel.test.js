@@ -17,6 +17,21 @@ const columnas = [
 ]
 
 describe('armarInformeExcel', () => {
+  it('guarda las cantidades como números, sin signo de pesos', async () => {
+    const xml = await contenido(await armarInformeExcel({
+      titulo: 'Stock por depósito',
+      subtitulo: 'Sucursal Norte',
+      tablas: [{
+        titulo: 'Sucursal Norte',
+        columnas: [{ titulo: 'Producto', tipo: 'texto' }, { titulo: 'Disponible', tipo: 'numero' }],
+        filas: [['Cemento', 1490], ['Clavos', 2.5]],
+      }],
+    }))
+
+    expect(xml).toContain('<c r="B7" s="13"><v>1490</v></c>')
+    expect(xml).toContain('<c r="B8" s="14"><v>2.5</v></c>')
+  })
+
   it('arma un .xlsx con una hoja por tabla, logo y montos como números', async () => {
     const blob = await armarInformeExcel({
       titulo: 'Informe de ingresos',

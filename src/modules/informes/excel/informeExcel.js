@@ -34,6 +34,9 @@ const ESTILO = {
   totalMoneda: 10,
   grupo: 11,
   vacio: 12,
+  numeroEntero: 13,
+  numeroDecimal: 14,
+  totalNumero: 15,
 }
 
 /** Letra de columna de Excel: 0 → A, 25 → Z, 26 → AA. */
@@ -75,6 +78,10 @@ function celdaDato(col, fila, valor, tipo, total) {
     return celdaTexto(col, fila, '—', total ? ESTILO.totalTexto : ESTILO.vacio)
   }
   if (tipo === 'porcentaje') return celdaNumero(col, fila, Number(valor) / 100, ESTILO.porcentaje)
+  if (tipo === 'numero') {
+    const estilo = total ? ESTILO.totalNumero : Number.isInteger(Number(valor)) ? ESTILO.numeroEntero : ESTILO.numeroDecimal
+    return celdaNumero(col, fila, Number(valor), estilo)
+  }
   return celdaNumero(col, fila, Number(valor), total ? ESTILO.totalMoneda : ESTILO.moneda)
 }
 
@@ -258,7 +265,7 @@ const STYLES =
   '<border><left/><right/><top style="medium"><color rgb="FF1E3A5F"/></top><bottom/><diagonal/></border>' +
   '</borders>' +
   '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
-  '<cellXfs count="13">' +
+  '<cellXfs count="16">' +
   xf({}) +
   xf({ font: 1, alineacion: 'vertical="center"' }) +
   xf({ font: 2 }) +
@@ -272,6 +279,9 @@ const STYLES =
   xf({ numFmt: 164, font: 5, fill: 3, border: 2, alineacion: 'vertical="center"' }) +
   xf({ font: 6, fill: 4 }) +
   xf({ border: 1, alineacion: 'horizontal="right"' }) +
+  xf({ numFmt: 3, border: 1 }) + // #,##0
+  xf({ numFmt: 4, border: 1 }) + // #,##0.00
+  xf({ numFmt: 4, font: 5, fill: 3, border: 2, alineacion: 'vertical="center"' }) +
   '</cellXfs>' +
   '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>' +
   '</styleSheet>'
@@ -292,7 +302,7 @@ async function bytesDelLogo() {
  * @param {Array<{
  *   titulo: string,
  *   hoja?: string,
- *   columnas: Array<{titulo: string, tipo: 'texto'|'moneda'|'porcentaje'}>,
+ *   columnas: Array<{titulo: string, tipo: 'texto'|'moneda'|'porcentaje'|'numero'}>,
  *   filas: Array<Array<string|number|null>|{grupo: string}>,
  *   total?: Array<string|number|null>,
  * }>} opciones.tablas Una hoja por tabla. Los montos van como números; la
