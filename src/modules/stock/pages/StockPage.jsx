@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { AlertTriangle, Boxes, CheckCircle2, Download, History, PackageMinus } from 'lucide-react'
-import Papa from 'papaparse'
+import { AlertTriangle, Boxes, CheckCircle2, FileSpreadsheet, History, PackageMinus } from 'lucide-react'
 import {
   getDepositos,
   getStockDisponibles,
@@ -107,37 +106,56 @@ export default function StockPage() {
     })
   }
 
-  function exportarCsv() {
+  async function exportarExcel() {
     if (!stock || stock.length === 0) {
       toast.info('No hay registros de stock para exportar.')
       return
     }
 
     try {
-      const data = stock.map((row) => ({
-        SKU: row.articulo_sku ?? row.producto?.sku ?? '',
-        Producto: row.articulo_nombre ?? row.producto?.nombre ?? '',
-        Categoria: row.producto?.categoria?.nombre ?? '',
-        Marca: row.producto?.marca?.nombre ?? '',
-        Fisico: row.fisico,
-        Comprometido: row.comprometido,
-        Disponible: row.disponible,
-        Unidad: row.producto?.unidad_medida?.abreviatura ?? '',
-      }))
-
-      const csv = Papa.unparse(data)
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+      const deposito = depositoSeleccionado?.nombre || 'Depósito'
+      const busqueda = search.trim() ? ` · Búsqueda: ${search.trim()}` : ''
+      const { armarInformeExcel } = await import('../../informes/excel/informeExcel')
+      const blob = await armarInformeExcel({
+        titulo: 'Stock por depósito',
+        subtitulo: `Página ${pagina} de ${totalPaginas} · ${total} artículos${busqueda}`,
+        tablas: [{
+          titulo: deposito,
+          hoja: 'Stock',
+          columnas: [
+            { titulo: 'SKU', tipo: 'texto' },
+            { titulo: 'Producto', tipo: 'texto' },
+            { titulo: 'Categoría', tipo: 'texto' },
+            { titulo: 'Marca', tipo: 'texto' },
+            { titulo: 'Físico', tipo: 'numero' },
+            { titulo: 'Comprometido', tipo: 'numero' },
+            { titulo: 'Disponible', tipo: 'numero' },
+            { titulo: 'Unidad', tipo: 'texto' },
+          ],
+          filas: stock.map((row) => [
+            row.articulo_sku ?? row.producto?.sku ?? '',
+            row.articulo_nombre ?? row.producto?.nombre ?? '',
+            row.producto?.categoria?.nombre ?? '',
+            row.producto?.marca?.nombre ?? '',
+            row.fisico,
+            row.comprometido,
+            row.disponible,
+            row.producto?.unidad_medida?.abreviatura ?? '',
+          ]),
+        }],
+      })
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
-      const nombreDeposito = (depositoSeleccionado?.nombre || 'deposito').toLowerCase().replace(/\s+/g, '_')
+      const nombreDeposito = deposito.toLowerCase().replace(/\s+/g, '_')
       link.setAttribute('href', url)
-      link.setAttribute('download', `stock_${nombreDeposito}_pag_${pagina}.csv`)
+      link.setAttribute('download', `stock_${nombreDeposito}_pag_${pagina}.xlsx`)
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
-      toast.success('Archivo CSV descargado con éxito.')
+      URL.revokeObjectURL(url)
+      toast.success('Archivo Excel descargado con éxito.')
     } catch {
-      toast.error('Ocurrió un error al generar el archivo CSV.')
+      toast.error('Ocurrió un error al generar el archivo Excel.')
     }
   }
 
@@ -155,12 +173,12 @@ export default function StockPage() {
           <Button
             type="button"
             variant="ghost"
-            icon={Download}
-            onClick={exportarCsv}
+            icon={FileSpreadsheet}
+            onClick={exportarExcel}
             disabled={loading || stock.length === 0}
-            title="Descargar listado actual en formato CSV"
+            title="Descargar la página actual del listado en Excel"
           >
-            Exportar CSV
+            Exportar Excel
           </Button>
         }
       />
