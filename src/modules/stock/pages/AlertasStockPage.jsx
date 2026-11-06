@@ -85,7 +85,7 @@ export default function AlertasStockPage() {
       <PageHeader
         title="Alertas de stock mínimo"
         kicker="Módulo Stock"
-        description="Supervisión en tiempo real de artículos con inventario igual o inferior al umbral mínimo definido."
+        description="Artículos cuyo stock disponible está por debajo del mínimo configurado. La alerta se cierra sola cuando el stock se repone."
         actions={[
           {
             label: 'Actualizar',
